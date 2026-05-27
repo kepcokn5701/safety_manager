@@ -119,8 +119,14 @@ async def install_guide():
 
 @app.get("/manual")
 async def manual():
-    """사용 매뉴얼 페이지"""
+    """개발/관리자용 매뉴얼"""
     return FileResponse("frontend/manual.html")
+
+
+@app.get("/guide")
+async def user_guide():
+    """사용자(안전담당자)용 매뉴얼"""
+    return FileResponse("frontend/user-guide.html")
 
 
 @app.get("/health")
