@@ -17,35 +17,21 @@ _is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 
 
 def _resolve_database_url() -> str:
-    """데이터베이스 URL 결정 (Vercel Postgres > 환경변수 > SQLite)"""
-    # Vercel Postgres가 설정되어 있으면 우선 사용
-    postgres_url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL", "")
-    if postgres_url.startswith("postgres://") or postgres_url.startswith("postgresql://"):
-        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    """데이터베이스 URL 결정"""
+    # DATABASE_URL 우선 (사용자 직접 설정), 없으면 POSTGRES_URL
+    db_url = os.environ.get("DATABASE_URL", "") or os.environ.get("POSTGRES_URL", "")
 
-        # psycopg (async) 드라이버로 변환
-        if postgres_url.startswith("postgresql://"):
-            url = "postgresql+psycopg://" + postgres_url[len("postgresql://"):]
-        elif postgres_url.startswith("postgres://"):
-            url = "postgresql+psycopg://" + postgres_url[len("postgres://"):]
-        else:
-            url = postgres_url
+    # 이미 +psycopg 드라이버가 지정된 경우 그대로 사용
+    if "+psycopg" in db_url or "+asyncpg" in db_url:
+        return db_url
 
-        # Supabase 전용 파라미터 제거, sslmode 유지
-        parsed = urlparse(url)
-        params = parse_qs(parsed.query)
-        clean_params = {}
-        for key, vals in params.items():
-            if key in ("ssl", "sslmode"):
-                clean_params["sslmode"] = ["require"]
-            elif key.startswith("supa"):
-                continue  # Supabase 전용 파라미터 무시
-            else:
-                clean_params[key] = vals
-        if "sslmode" not in clean_params:
-            clean_params["sslmode"] = ["require"]
-        query = urlencode({k: v[0] for k, v in clean_params.items()})
-        url = urlunparse(parsed._replace(query=query))
+    # postgres:// 또는 postgresql:// → psycopg async 드라이버로 변환
+    if db_url.startswith(("postgres://", "postgresql://")):
+        from urllib.parse import urlparse, urlunparse
+
+        # 스킴 교체
+        parsed = urlparse(db_url)
+        url = urlunparse(parsed._replace(scheme="postgresql+psycopg"))
         return url
     if _is_vercel:
         return "sqlite+aiosqlite:////tmp/safety_manager.db"
