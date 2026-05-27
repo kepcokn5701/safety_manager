@@ -606,6 +606,7 @@ function renderAllSitesOverview(sites) {
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="flex:1;min-width:0">
                     <div style="display:flex;align-items:center;gap:6px">
+                        <input type="checkbox" class="site-check" data-site-id="${s.site_id}" onclick="event.stopPropagation();updateSelectedCount()" style="width:auto;display:none">
                         <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.site_name}</span>
                         <button onclick="event.stopPropagation();showQrModal(${s.site_id},'${s.site_name.replace(/'/g, "\\'")}')" style="flex-shrink:0;padding:2px 6px;background:var(--bg-hover,#f7f9fb);border:1px solid var(--border,#e2e8f0);border-radius:4px;font-size:10px;color:var(--text-dim,#8896a6);cursor:pointer" title="작업자용 QR 코드">QR</button>
                     </div>
@@ -1516,6 +1517,112 @@ function getCurrentLocation() {
         },
         () => alert('위치를 가져올 수 없습니다.'),
     );
+}
+
+// ── 현장 선택 발송 ──
+function showSelectBar() {
+    document.getElementById('site-select-bar').style.display = 'flex';
+    document.querySelectorAll('.site-check').forEach(cb => cb.style.display = 'inline');
+    updateSelectedCount();
+}
+function hideSelectBar() {
+    document.getElementById('site-select-bar').style.display = 'none';
+    document.querySelectorAll('.site-check').forEach(cb => { cb.checked = false; cb.style.display = 'none'; });
+    document.getElementById('select-all-sites').checked = false;
+}
+function toggleSelectAllSites(master) {
+    document.querySelectorAll('.site-check').forEach(cb => cb.checked = master.checked);
+    updateSelectedCount();
+}
+function updateSelectedCount() {
+    const checked = document.querySelectorAll('.site-check:checked').length;
+    const total = document.querySelectorAll('.site-check').length;
+    document.getElementById('selected-count').textContent = checked > 0 ? `(${checked}/${total}개)` : '';
+}
+async function triggerSelectedSites() {
+    const siteIds = [...document.querySelectorAll('.site-check:checked')].map(cb => parseInt(cb.dataset.siteId));
+    if (siteIds.length === 0) {
+        showToast('발송할 현장을 선택하세요.', 'warning');
+        return;
+    }
+
+    const progressEl = document.getElementById('send-progress');
+    progressEl.style.display = 'block';
+    progressEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-spinner"></div>
+            <span style="font-size:13px;color:var(--text-mid)">${siteIds.length}개 현장 알림 발송 중...</span>
+        </div>
+        <div style="height:4px;background:var(--border);border-radius:4px;margin-top:8px;overflow:hidden">
+            <div style="height:100%;width:30%;background:var(--kepco);border-radius:4px;transition:width 0.5s"></div>
+        </div>`;
+
+    try {
+        const result = await api('/api/monitor/trigger', {
+            method: 'POST',
+            body: JSON.stringify(siteIds),
+        });
+
+        progressEl.innerHTML = `
+            <div style="padding:4px 0;font-size:13px;color:var(--safe)">
+                발송 완료 - ${result.sites_checked}개 현장, ${result.alerts_sent}건 처리
+                ${result.alerts_skipped ? ` (${result.alerts_skipped}건 중복 스킵)` : ''}
+            </div>`;
+        setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
+
+        hideSelectBar();
+        loadAlertHistory();
+        loadStats();
+        loadAllSitesWeather();
+    } catch (e) {
+        progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">발송 실패: ${e.message}</div>`;
+    }
+}
+
+// ── 공지사항 ──
+function openNoticeModal() {
+    // 현장 목록을 select에 추가
+    const sel = document.getElementById('notice-target');
+    sel.innerHTML = '<option value="all">전체 현장</option>';
+    (state.sites || []).forEach(s => {
+        sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+    });
+    openModal('notice-modal');
+}
+
+async function sendNotice() {
+    const title = document.getElementById('notice-title').value.trim();
+    const message = document.getElementById('notice-message').value.trim();
+    const target = document.getElementById('notice-target').value;
+    const resultEl = document.getElementById('notice-result');
+
+    if (!title || !message) {
+        showToast('제목과 내용을 입력하세요.', 'warning');
+        return;
+    }
+
+    resultEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px"><div class="progress-spinner" style="width:14px;height:14px"></div> 발송 중...</div>';
+
+    try {
+        const body = {
+            title,
+            message,
+            site_ids: target === 'all' ? null : [parseInt(target)],
+        };
+        const result = await api('/api/notice/send', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+
+        if (result.sent > 0) {
+            resultEl.innerHTML = `<div style="color:var(--safe)">발송 완료 - ${result.sent}건 성공${result.failed ? `, ${result.failed}건 실패` : ''}</div>`;
+            showToast(`공지 발송 완료 (${result.sent}건)`, 'success');
+        } else {
+            resultEl.innerHTML = `<div style="color:var(--caution)">발송 대상 없음 - 작업자가 QR로 앱을 등록해야 합니다.</div>`;
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<div style="color:var(--danger)">발송 실패: ${e.message}</div>`;
+    }
 }
 
 // ── PWA 앱 설치 ──

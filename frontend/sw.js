@@ -59,10 +59,11 @@ self.addEventListener('push', (event) => {
             // 열려 있는 앱 화면에 인앱 팝업 표시를 위해 메시지 전달
             self.clients.matchAll({ type: 'window', includeUncontrolled: true })
                 .then(clients => {
-                    const msgType = data.data?.type || 'PUSH_RECEIVED';
+                    const rawType = data.data?.type || 'worker_alert';
+                    const msgType = rawType === 'admin_summary' ? 'ADMIN_SUMMARY' : rawType === 'notice' ? 'NOTICE' : 'PUSH_RECEIVED';
                     clients.forEach(client => {
                         client.postMessage({
-                            type: msgType === 'admin_summary' ? 'ADMIN_SUMMARY' : 'PUSH_RECEIVED',
+                            type: msgType,
                             title: data.title,
                             body: data.body,
                             stage: data.data?.stage || stage,

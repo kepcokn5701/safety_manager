@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -172,15 +173,15 @@ async def reset_all_data():
 
 
 @app.post("/api/monitor/trigger")
-async def trigger_monitoring():
-    """수동 모니터링 트리거"""
+async def trigger_monitoring(site_ids: list[int] | None = None):
+    """수동 모니터링 트리거 (선택 현장 또는 전체)"""
     monitor = HeatWaveMonitor(
         weather_provider=get_weather_provider(),
         notification_sender=get_notification_sender(),
         threshold_manager=get_threshold_manager(),
     )
     async with async_session() as session:
-        result = await monitor.check_all_sites(session)
+        result = await monitor.check_all_sites(session, site_ids=site_ids)
     return result
 
 
@@ -226,4 +227,79 @@ async def simulate_heat_wave(
         "simulated_temperature": temperature,
         "simulated_humidity": humidity,
         **result,
+    }
+
+
+class NoticeRequest(BaseModel):
+    title: str
+    message: str
+    site_ids: list[int] | None = None  # None이면 전체 현장
+
+
+@app.post("/api/notice/send")
+async def send_notice(data: NoticeRequest):
+    """관리자 → 작업자 공지사항 푸시 발송"""
+    from backend.services.push_service import WebPushSender
+    sender = get_notification_sender()
+    if not isinstance(sender, WebPushSender):
+        return {"success": False, "error": "웹 푸시 채널만 지원"}
+
+    total_sent = 0
+    total_failed = 0
+    sites_targeted = 0
+
+    if data.site_ids:
+        # 선택 현장만
+        for sid in data.site_ids:
+            subs = await sender._get_worker_subscriptions(sid)
+            if subs:
+                sites_targeted += 1
+                payload = {
+                    "title": data.title,
+                    "body": data.message,
+                    "icon": "/static/icons/icon-192.svg",
+                    "badge": "/static/icons/badge-72.svg",
+                    "tag": "notice",
+                    "data": {
+                        "type": "notice",
+                        "url": f"/worker/{sid}",
+                    },
+                }
+                s, f = await sender._send_to_subscriptions(subs, payload)
+                total_sent += s
+                total_failed += f
+    else:
+        # 전체 worker 구독자
+        from backend.models.database import async_session as get_session
+        from backend.models.models import PushSubscription
+        from sqlalchemy import select
+
+        async with get_session() as session:
+            result = await session.execute(
+                select(PushSubscription).where(PushSubscription.subscriber_type == "worker")
+            )
+            all_subs = sender._parse_subscriptions(result.scalars().all())
+
+        if all_subs:
+            sites_targeted = -1  # 전체
+            payload = {
+                "title": data.title,
+                "body": data.message,
+                "icon": "/static/icons/icon-192.svg",
+                "badge": "/static/icons/badge-72.svg",
+                "tag": "notice",
+                "data": {
+                    "type": "notice",
+                    "url": "/",
+                },
+            }
+            s, f = await sender._send_to_subscriptions(all_subs, payload)
+            total_sent = s
+            total_failed = f
+
+    return {
+        "success": total_sent > 0,
+        "sent": total_sent,
+        "failed": total_failed,
+        "sites_targeted": sites_targeted,
     }

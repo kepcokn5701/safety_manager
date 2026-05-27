@@ -40,15 +40,17 @@ class HeatWaveMonitor:
         self._notifier = notification_sender
         self._thresholds = threshold_manager
 
-    async def check_all_sites(self, session: AsyncSession) -> dict:
+    async def check_all_sites(self, session: AsyncSession, site_ids: list[int] | None = None) -> dict:
         """
-        모든 활성 옥외 작업현장을 순회하며 날씨 확인 & 알림 발송
-
-        Returns:
-            모니터링 결과 요약
+        작업현장 날씨 확인 & 알림 발송
+        site_ids가 주어지면 해당 현장만, 없으면 전체 활성 현장
         """
         site_repo = WorkSiteRepository(session)
-        sites = await site_repo.get_all_outdoor_active()
+        if site_ids:
+            all_sites = await site_repo.get_all_outdoor_active()
+            sites = [s for s in all_sites if s.id in site_ids]
+        else:
+            sites = await site_repo.get_all_outdoor_active()
 
         result = {
             "checked_at": datetime.now().isoformat(),

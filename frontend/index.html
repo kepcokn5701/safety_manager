@@ -75,14 +75,59 @@
                 <h3 style="margin:0">전체 공사현장 현황</h3>
                 <span id="weather-checked-time" style="font-size:11px;color:var(--text-faint)"></span>
             </div>
-            <div style="display:flex;gap:6px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm" onclick="loadAllSitesWeather()">새로고침</button>
+                <button class="btn btn-ghost btn-sm" style="color:var(--caution)" onclick="openNoticeModal()">공지 발송</button>
                 <button class="btn btn-ghost btn-sm" style="color:var(--text-faint)" onclick="resetAllData()">초기화</button>
                 <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
             </div>
         </div>
+        <!-- 현장 선택 발송 바 -->
+        <div id="site-select-bar" style="display:none;padding:10px 16px;background:var(--kepco-lighter,#f4f8ff);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+                <input type="checkbox" id="select-all-sites" onchange="toggleSelectAllSites(this)" style="width:auto">
+                <span>전체 선택</span>
+                <span id="selected-count" style="color:var(--kepco);font-weight:600"></span>
+            </label>
+            <div style="display:flex;gap:6px">
+                <button class="btn btn-sm" style="background:var(--warning);color:white;font-size:11px" onclick="triggerSelectedSites()">선택 현장 알림 발송</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="hideSelectBar()">취소</button>
+            </div>
+        </div>
         <div id="all-sites-overview" style="max-height:400px;overflow-y:auto">
             <p style="padding:24px;text-align:center;color:var(--text-dim)">현장을 등록하면 날씨가 표시됩니다</p>
+        </div>
+        <!-- 발송 진행 상황 -->
+        <div id="send-progress" style="display:none;padding:12px 16px;background:var(--kepco-lighter,#f4f8ff);border-top:1px solid var(--border)">
+        </div>
+    </div>
+
+    <!-- 공지사항 모달 -->
+    <div class="modal-overlay" id="notice-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>공지사항 발송</h3>
+                <button class="modal-close" onclick="closeModal('notice-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">작업자 앱에 푸시 알림으로 공지를 발송합니다.</p>
+                <div class="form-group">
+                    <label>제목 *</label>
+                    <input type="text" id="notice-title" placeholder="예: 오늘 작업 안내" maxlength="50">
+                </div>
+                <div class="form-group">
+                    <label>내용 *</label>
+                    <textarea id="notice-message" rows="4" placeholder="공지 내용을 입력하세요" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;resize:vertical"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>발송 대상</label>
+                    <select id="notice-target" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px">
+                        <option value="all">전체 현장</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" style="width:100%;padding:12px;font-size:15px" onclick="sendNotice()">공지 발송</button>
+                <div id="notice-result" style="margin-top:8px;font-size:12px"></div>
+            </div>
         </div>
     </div>
 
@@ -90,7 +135,10 @@
     <div class="card" style="margin-bottom:12px">
         <div class="card-header">
             <h3>알림 통계</h3>
-            <button class="btn btn-ghost btn-sm" onclick="triggerMonitoring()">수동 점검</button>
+            <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="showSelectBar()">선택 발송</button>
+                <button class="btn btn-ghost btn-sm" onclick="triggerMonitoring()">전체 점검</button>
+            </div>
         </div>
         <div class="card-body" id="stats-content">
             <p style="color:var(--text-dim);text-align:center">로딩 중...</p>

@@ -170,6 +170,8 @@ async function initServiceWorker() {
         navigator.serviceWorker.addEventListener('message', (event) => {
             if (event.data?.type === 'PUSH_RECEIVED') {
                 showWorkerAlert(event.data);
+            } else if (event.data?.type === 'NOTICE') {
+                showNoticePopup(event.data);
             }
         });
     } catch (e) {
@@ -292,6 +294,25 @@ function showWorkerAlert(data) {
 
     // 데이터 갱신
     loadWeather();
+}
+
+function showNoticePopup(data) {
+    playAlertSound('관심');
+
+    const old = document.getElementById('worker-alert-popup');
+    if (old) old.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'worker-alert-popup';
+    popup.style.cssText = 'position:fixed;top:60px;left:12px;right:12px;z-index:10000;';
+    popup.innerHTML = `
+        <div style="padding:16px;background:#eff6ff;border:2px solid #3b82f6;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.15)">
+            <div style="font-size:11px;color:#3b82f6;font-weight:600;margin-bottom:4px">공지사항</div>
+            <div style="font-size:17px;font-weight:800;color:#1e40af;margin-bottom:6px">${data.title}</div>
+            <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-line">${data.body}</div>
+            <button onclick="this.closest('#worker-alert-popup').remove()" style="margin-top:12px;width:100%;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">확인</button>
+        </div>`;
+    document.body.appendChild(popup);
 }
 
 function playAlertSound(stage) {
