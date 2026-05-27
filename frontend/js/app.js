@@ -382,6 +382,7 @@ function renderAllSitesOverview(sites) {
                 <div style="flex:1;min-width:0">
                     <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
+                    <div style="font-size:10px;color:var(--text-faint, #b0bec5);margin-top:1px">기상청 ${s.checked_at ? new Date(s.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''} 기준</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
                     <div style="text-align:right">
@@ -434,13 +435,16 @@ async function loadWeather(siteId) {
 }
 
 function renderWeatherDashboard(data) {
-    const { weather, stage, wbgt_work_recommendation, work_site_name } = data;
+    const { weather, stage, wbgt_work_recommendation, work_site_name, checked_at } = data;
 
     renderAlertBanner(stage, weather, work_site_name);
 
-    // 타이틀에 현장명
+    // 타이틀에 현장명 + 조회 시간
     const titleEl = document.getElementById('weather-title');
-    if (titleEl) titleEl.textContent = work_site_name || '현재 날씨';
+    if (titleEl) {
+        const timeStr = checked_at ? new Date(checked_at).toLocaleString('ko-KR', {hour:'2-digit',minute:'2-digit'}) : '';
+        titleEl.textContent = (work_site_name || '현재 날씨') + (timeStr ? ` (${timeStr} 기준)` : '');
+    }
 
     // 날씨 수치
     const weatherEl = document.getElementById('weather-content');

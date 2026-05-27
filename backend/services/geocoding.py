@@ -27,7 +27,7 @@ class GeoResult:
 async def geocode_address(address: str) -> GeoResult | None:
     """
     한국 주소를 위경도 좌표로 변환.
-    1차: 주소 검색 → 2차: 키워드 검색 (건물명 등 대응)
+    1차: 주소 검색 → 2차: 키워드 검색 → 3차: 시/군/구 단위로 재시도
     """
     if not settings.kakao_rest_api_key:
         logger.warning("카카오 REST API 키 미설정 - 지오코딩 불가")
@@ -45,6 +45,22 @@ async def geocode_address(address: str) -> GeoResult | None:
         result = await _search_keyword(client, headers, address)
         if result:
             return result
+
+        # 3차: 시/군까지만으로 재시도 (도로명 제거)
+        import re
+        # "경상남도 창원시 성산구" 또는 "경상남도 통영시" 등
+        for pattern in [
+            r"(경상[남북]도\s+\S+[시군]\s+\S+[구읍면])",
+            r"(경상[남북]도\s+\S+[시군])",
+            r"(\S+[시군]\s+\S+[구읍면])",
+            r"(\S+[시군])",
+        ]:
+            short = re.match(pattern, address)
+            if short:
+                result = await _search_keyword(client, headers, short.group(1))
+                if result:
+                    result.address = address
+                    return result
 
     return None
 

@@ -107,11 +107,17 @@ async def import_sites(
                 lat, lng = geo.latitude, geo.longitude
                 geocoded_count += 1
             else:
-                errors.append({"name": item.name, "error": f"주소 좌표 변환 실패: {item.address}"})
+                errors.append({
+                    "name": item.name,
+                    "error": f"주소를 찾을 수 없음 (카카오맵에서 검색 불가): {item.address}",
+                })
                 continue
 
-        if lat == 0 or lng == 0:
-            errors.append({"name": item.name, "error": "좌표 정보가 없습니다."})
+        if (lat == 0 or lng == 0) and not item.address:
+            errors.append({"name": item.name, "error": "주소가 비어있어 좌표를 구할 수 없음"})
+            continue
+        elif lat == 0 or lng == 0:
+            errors.append({"name": item.name, "error": "좌표 정보 없음"})
             continue
 
         try:
