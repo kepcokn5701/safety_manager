@@ -24,8 +24,12 @@ def _resolve_database_url() -> str:
         from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
         # psycopg (async) 드라이버로 변환
-        url = postgres_url.replace("postgres://", "postgresql+psycopg://", 1)
-        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+        if postgres_url.startswith("postgresql://"):
+            url = "postgresql+psycopg://" + postgres_url[len("postgresql://"):]
+        elif postgres_url.startswith("postgres://"):
+            url = "postgresql+psycopg://" + postgres_url[len("postgres://"):]
+        else:
+            url = postgres_url
 
         # Supabase 전용 파라미터 제거, sslmode 유지
         parsed = urlparse(url)
