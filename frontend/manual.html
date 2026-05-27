@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KEPCO 안전관리 시스템 - 사용 매뉴얼</title>
+    <style>
+        :root {
+            --kepco-blue: #1a5276;
+            --kepco-light: #2980b9;
+            --bg: #f8f9fa;
+            --text: #2c3e50;
+            --border: #dee2e6;
+            --code-bg: #1e1e1e;
+            --code-text: #d4d4d4;
+            --success: #27ae60;
+            --warning: #f39c12;
+            --danger: #e74c3c;
+            --info: #3498db;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Pretendard', 'Noto Sans KR', -apple-system, 'Malgun Gothic', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.8;
+            font-size: 15px;
+        }
+
+        /* ── 사이드바 네비게이션 ── */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--kepco-blue);
+            color: white;
+            overflow-y: auto;
+            z-index: 100;
+            padding-bottom: 40px;
+        }
+
+        .sidebar-header {
+            padding: 24px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.15);
+        }
+
+        .sidebar-header h2 {
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .nav-section {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .nav-section-title {
+            padding: 6px 20px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.5;
+            font-weight: 600;
+        }
+
+        .nav-link {
+            display: block;
+            padding: 8px 20px 8px 28px;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding-left: 32px;
+        }
+
+        /* ── 메인 콘텐츠 ── */
+        .content {
+            margin-left: 280px;
+            padding: 0;
+        }
+
+        .content-header {
+            background: linear-gradient(135deg, var(--kepco-blue), var(--kepco-light));
+            color: white;
+            padding: 48px 48px 36px;
+        }
+
+        .content-header h1 {
+            font-size: 32px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+
+        .content-header p {
+            font-size: 16px;
+            opacity: 0.85;
+        }
+
+        .content-body {
+            padding: 36px 48px;
+            max-width: 900px;
+        }
+
+        /* ── 섹션 ── */
+        .section {
+            margin-bottom: 48px;
+            scroll-margin-top: 20px;
+        }
+
+        .section h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--kepco-blue);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 3px solid var(--kepco-light);
+        }
+
+        .section h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 24px 0 12px;
+            color: var(--kepco-blue);
+        }
+
+        .section h4 {
+            font-size: 15px;
+            font-weight: 600;
+            margin: 16px 0 8px;
+            color: #34495e;
+        }
+
+        .section p {
+            margin-bottom: 12px;
+        }
+
+        /* ── 코드 블록 ── */
+        .code-block {
+            background: var(--code-bg);
+            color: var(--code-text);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 12px 0 20px;
+            overflow-x: auto;
+            font-family: 'Consolas', 'D2Coding', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            position: relative;
+        }
+
+        .code-block .label {
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            font-size: 11px;
+            background: rgba(255,255,255,0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #999;
+        }
+
+        .code-block .comment { color: #6a9955; }
+        .code-block .cmd { color: #dcdcaa; }
+        .code-block .path { color: #ce9178; }
+        .code-block .flag { color: #569cd6; }
+
+        code {
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'D2Coding', monospace;
+            font-size: 13px;
+        }
+
+        /* ── 단계 스텝 ── */
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding: 0;
+        }
+
+        .steps > li {
+            counter-increment: step;
+            padding: 20px 20px 20px 72px;
+            margin-bottom: 16px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .steps > li::before {
+            content: "STEP " counter(step);
+            position: absolute;
+            left: 16px;
+            top: 20px;
+            background: var(--kepco-light);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .steps > li h4 {
+            margin-top: 0;
+            font-size: 16px;
+        }
+
+        /* ── 정보 박스 ── */
+        .info-box {
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin: 16px 0;
+            border-left: 4px solid;
+            font-size: 14px;
+        }
+
+        .info-box.tip {
+            background: #eafaf1;
+            border-color: var(--success);
+        }
+
+        .info-box.warning {
+            background: #fef9e7;
+            border-color: var(--warning);
+        }
+
+        .info-box.danger {
+            background: #fdedec;
+            border-color: var(--danger);
+        }
+
+        .info-box.info {
+            background: #ebf5fb;
+            border-color: var(--info);
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* ── 테이블 ── */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0 24px;
+            font-size: 14px;
+        }
+
+        th, td {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            text-align: left;
+        }
+
+        th {
+            background: var(--kepco-blue);
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        tr:nth-child(even) { background: #f1f3f5; }
+
+        /* ── 이미지/스크린샷 영역 ── */
+        .screenshot {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+            text-align: center;
+        }
+
+        .screenshot .placeholder {
+            background: linear-gradient(135deg, #e8eaf0, #dde1e8);
+            border-radius: 8px;
+            padding: 40px;
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .screenshot .caption {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        /* ── 파일 트리 ── */
+        .file-tree {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Consolas', 'D2Coding', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            margin: 12px 0;
+        }
+
+        .file-tree .folder { color: var(--kepco-light); font-weight: 600; }
+        .file-tree .file { color: #555; }
+        .file-tree .desc { color: #999; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; }
+
+        /* ── 흐름도 ── */
+        .flow-diagram {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 16px 0;
+            text-align: center;
+        }
+
+        .flow-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin: 8px 0;
+            flex-wrap: wrap;
+        }
+
+        .flow-box {
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .flow-box.blue { background: #ebf5fb; color: var(--kepco-blue); border: 1px solid var(--kepco-light); }
+        .flow-box.green { background: #eafaf1; color: #1e8449; border: 1px solid var(--success); }
+        .flow-box.orange { background: #fef9e7; color: #b7950b; border: 1px solid var(--warning); }
+        .flow-box.red { background: #fdedec; color: #922b21; border: 1px solid var(--danger); }
+        .flow-box.gray { background: #f4f6f7; color: #555; border: 1px solid #ccc; }
+
+        .flow-arrow {
+            font-size: 20px;
+            color: #bbb;
+        }
+
+        .flow-arrow-down {
+            font-size: 20px;
+            color: #bbb;
+            display: block;
+            text-align: center;
+        }
+
+        /* ── 인쇄 ── */
+        @media print {
+            .sidebar { display: none; }
+            .content { margin-left: 0; }
+            .content-header { padding: 24px; }
+            .content-body { padding: 24px; }
+            .code-block { border: 1px solid #ccc; }
+        }
+
+        /* ── 모바일 ── */
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .content { margin-left: 0; }
+            .content-header { padding: 24px; }
+            .content-body { padding: 20px; }
+            .steps > li { padding-left: 20px; padding-top: 48px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══════════════ 사이드바 ══════════════ -->
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <h2>KEPCO 안전관리 시스템</h2>
+        <p>사용 매뉴얼 v1.0</p>
+    </div>
+
+    <div class="nav-section">
+        <div class="nav-section-title">시작하기</div>
+        <a class="nav-link" href="#overview">시스템 개요</a>
+        <a class="nav-link" href="#requirements">요구사항 확인</a>
+        <a class="nav-link" href="#install">설치 방법</a>
+        <a class="nav-link" href="#env-setup">환경 설정 (.env)</a>
+        <a class="nav-link" href="#run">실행 및 접속</a>
+    </div>
+
+    <div class="nav-section">
+        <div class="nav-section-title">사용 방법</div>
+        <a class="nav-link" href="#dashboard">대시보드 화면 구성</a>
+        <a class="nav-link" href="#site-register">작업현장 등록</a>
+        <a class="nav-link" href="#worker-register">작업자 등록</a>
+        <a class="nav-link" href="#assign-worker">작업자 현장 배정</a>
+        <a class="nav-link" href="#weather-check">날씨 및 폭염 단계 확인</a>
+        <a class="nav-link" href="#alert-system">알림 발송 체계</a>
+        <a class="nav-link" href="#manual-trigger">수동 모니터링</a>
+        <a class="nav-link" href="#alert-history">알림 이력 조회</a>
+    </div>
+
+    <div class="nav-section">
+        <div class="nav-section-title">기준 및 규정</div>
+        <a class="nav-link" href="#heat-stages">폭염 단계별 기준</a>
+        <a class="nav-link" href="#wbgt">WBGT 작업강도별 기준</a>
+        <a class="nav-link" href="#vulnerable">취약 작업자 기준</a>
+        <a class="nav-link" href="#threshold-change">기준값 변경 방법</a>
+    </div>
+
+    <div class="nav-section">
+        <div class="nav-section-title">API 레퍼런스</div>
+        <a class="nav-link" href="#api-overview">API 문서 접속</a>
+        <a class="nav-link" href="#api-weather">날씨 API</a>
+        <a class="nav-link" href="#api-workers">작업자/현장 API</a>
+        <a class="nav-link" href="#api-alerts">알림 API</a>
+    </div>
+
+    <div class="nav-section">
+        <div class="nav-section-title">관리자 가이드</div>
+        <a class="nav-link" href="#kakao-setup">카카오 알림톡 설정</a>
+        <a class="nav-link" href="#intranet">사내망 이관 방법</a>
+        <a class="nav-link" href="#db-change">데이터베이스 변경</a>
+        <a class="nav-link" href="#proxy">프록시 설정</a>
+        <a class="nav-link" href="#provider-change">날씨 API 교체</a>
+        <a class="nav-link" href="#troubleshoot">문제 해결</a>
+    </div>
+
+    <div class="nav-section">
+        <div class="nav-section-title">부록</div>
+        <a class="nav-link" href="#file-structure">프로젝트 파일 구조</a>
+        <a class="nav-link" href="#architecture">아키텍처 설명</a>
+        <a class="nav-link" href="#versions">버전 이력</a>
+    </div>
+</nav>
+
+<!-- ══════════════ 메인 콘텐츠 ══════════════ -->
+<main class="content">
+
+<div class="content-header">
+    <h1>KEPCO 안전관리 시스템</h1>
+    <p>폭염 모니터링 & 작업중지 알람 시스템 - 사용 매뉴얼</p>
+    <p style="opacity:0.6;font-size:13px;margin-top:12px">문서 버전: v1.0 | 최종 수정: 2026-05-27 | 작성 기준: 고용노동부 폭염 대비 가이드, 산업안전보건기준에 관한 규칙 제559조</p>
+</div>
+
+<div class="content-body">
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 1. 시스템 개요                            -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="overview">
+    <h2>1. 시스템 개요</h2>
+
+    <h3>1.1 이 시스템은 무엇인가요?</h3>
+    <p>
+        <strong>KEPCO 안전관리 시스템</strong>은 혹서기(여름철) 폭염으로부터 옥외 작업자의 안전을 보호하기 위한 시스템입니다.
+        실시간으로 작업현장의 기온을 모니터링하고, <strong>고용노동부 폭염 단계별 기준</strong>에 따라 자동으로 작업자에게 알림을 발송합니다.
+    </p>
+
+    <h3>1.2 주요 기능</h3>
+    <table>
+        <tr>
+            <th>기능</th>
+            <th>설명</th>
+        </tr>
+        <tr>
+            <td>실시간 날씨 모니터링</td>
+            <td>15분 간격으로 각 작업현장의 기온, 습도, 풍속을 자동 수집</td>
+        </tr>
+        <tr>
+            <td>체감온도 자동 계산</td>
+            <td>기온과 습도를 바탕으로 체감온도 자동 산출</td>
+        </tr>
+        <tr>
+            <td>WBGT 추정</td>
+            <td>습구흑구온도지수(WBGT) 간이 추정 및 작업강도별 권고</td>
+        </tr>
+        <tr>
+            <td>폭염 단계 판정</td>
+            <td>고용노동부 기준에 따라 관심/주의/경고/위험 4단계 자동 판정</td>
+        </tr>
+        <tr>
+            <td>자동 알림 발송</td>
+            <td>카카오 알림톡으로 해당 현장 작업자에게 즉시 알림</td>
+        </tr>
+        <tr>
+            <td>이력 관리</td>
+            <td>모든 날씨 기록과 알림 발송 이력을 데이터베이스에 저장</td>
+        </tr>
+    </table>
+
+    <h3>1.3 동작 흐름</h3>
+    <div class="flow-diagram">
+        <div class="flow-row">
+            <div class="flow-box blue">Open-Meteo API<br><small>날씨 데이터 수집</small></div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box green">체감온도 / WBGT<br><small>자동 계산</small></div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box orange">폭염 단계 판정<br><small>고용노동부 기준</small></div>
+            <div class="flow-arrow">&rarr;</div>
+            <div class="flow-box red">알림 발송<br><small>카카오 알림톡</small></div>
+        </div>
+        <div class="flow-arrow-down">&darr; 15분 간격 자동 반복</div>
+        <div class="flow-row">
+            <div class="flow-box gray">날씨 기록 저장</div>
+            <div class="flow-box gray">알림 이력 저장</div>
+            <div class="flow-box gray">대시보드 표시</div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 2. 요구사항 확인                           -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="requirements">
+    <h2>2. 요구사항 확인</h2>
+
+    <h3>2.1 필수 소프트웨어</h3>
+    <table>
+        <tr>
+            <th>소프트웨어</th>
+            <th>최소 버전</th>
+            <th>확인 방법</th>
+        </tr>
+        <tr>
+            <td>Python</td>
+            <td>3.10 이상</td>
+            <td><code>python --version</code></td>
+        </tr>
+        <tr>
+            <td>pip</td>
+            <td>최신 권장</td>
+            <td><code>pip --version</code></td>
+        </tr>
+        <tr>
+            <td>Git (선택)</td>
+            <td>아무 버전</td>
+            <td><code>git --version</code></td>
+        </tr>
+    </table>
+
+    <h3>2.2 네트워크 요건</h3>
+    <ul style="margin-left:20px">
+        <li>인터넷 연결 필요 (Open-Meteo API, 카카오 API 호출용)</li>
+        <li>사내망 프록시 환경인 경우 <a href="#proxy">프록시 설정</a> 참조</li>
+        <li>방화벽에서 <code>api.open-meteo.com</code>, <code>kapi.kakao.com</code> 허용 필요</li>
+    </ul>
+
+    <div class="info-box tip">
+        <strong>참고</strong>
+        Python이 설치되어 있지 않다면 <code>python.org</code>에서 다운로드하여 설치하세요.
+        설치 시 <strong>"Add Python to PATH"</strong> 옵션을 반드시 체크하세요.
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 3. 설치 방법                              -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="install">
+    <h2>3. 설치 방법</h2>
+
+    <ol class="steps">
+        <li>
+            <h4>프로젝트 폴더로 이동</h4>
+            <p>명령 프롬프트(CMD) 또는 터미널을 열고 프로젝트 폴더로 이동합니다.</p>
+            <div class="code-block">
+                <span class="label">명령 프롬프트</span>
+<span class="cmd">cd</span> <span class="path">C:\Users\KEPCO\Desktop\project\safety_manager</span>
+            </div>
+        </li>
+
+        <li>
+            <h4>Python 가상환경 생성</h4>
+            <p>프로젝트 전용 가상환경을 만들어 다른 프로젝트와 패키지 충돌을 방지합니다.</p>
+            <div class="code-block">
+                <span class="label">명령 프롬프트</span>
+<span class="comment"># 가상환경 생성</span>
+<span class="cmd">python</span> <span class="flag">-m venv</span> <span class="path">venv</span>
+
+<span class="comment"># 가상환경 활성화 (Windows)</span>
+<span class="cmd">venv\Scripts\activate</span>
+
+<span class="comment"># 가상환경 활성화 (Git Bash)</span>
+<span class="cmd">source</span> <span class="path">venv/Scripts/activate</span>
+            </div>
+            <div class="info-box tip">
+                <strong>활성화 확인</strong>
+                프롬프트 앞에 <code>(venv)</code>가 표시되면 가상환경이 정상 활성화된 것입니다.<br>
+                예: <code>(venv) C:\Users\KEPCO\Desktop\project\safety_manager&gt;</code>
+            </div>
+        </li>
+
+        <li>
+            <h4>필요한 패키지 설치</h4>
+            <p>시스템에 필요한 모든 Python 패키지를 한 번에 설치합니다.</p>
+            <div class="code-block">
+                <span class="label">명령 프롬프트</span>
+<span class="cmd">pip install</span> <span class="flag">-r</span> <span class="path">requirements.txt</span>
+            </div>
+            <p>약 1~3분 소요됩니다. 오류 없이 완료되면 설치 성공입니다.</p>
+
+            <div class="info-box warning">
+                <strong>사내망에서 설치 실패 시</strong>
+                프록시 환경이라면 아래처럼 프록시를 지정하세요:<br>
+                <code>pip install -r requirements.txt --proxy http://프록시주소:포트</code>
+            </div>
+        </li>
+
+        <li>
+            <h4>환경 설정 파일 생성</h4>
+            <p><code>.env.example</code> 파일을 복사하여 <code>.env</code> 파일을 만듭니다.</p>
+            <div class="code-block">
+                <span class="label">명령 프롬프트</span>
+<span class="comment"># Windows 명령 프롬프트</span>
+<span class="cmd">copy</span> <span class="path">.env.example</span> <span class="path">.env</span>
+
+<span class="comment"># Git Bash</span>
+<span class="cmd">cp</span> <span class="path">.env.example</span> <span class="path">.env</span>
+            </div>
+            <p>생성된 <code>.env</code> 파일을 텍스트 편집기로 열어 설정값을 입력합니다. 자세한 내용은 <a href="#env-setup">4. 환경 설정</a>을 참조하세요.</p>
+        </li>
+    </ol>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 4. 환경 설정                              -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="env-setup">
+    <h2>4. 환경 설정 (.env 파일)</h2>
+
+    <p><code>.env</code> 파일은 시스템의 모든 설정을 담고 있는 파일입니다. 메모장이나 VS Code로 열어 수정합니다.</p>
+
+    <h3>4.1 전체 설정 항목 설명</h3>
+    <table>
+        <tr>
+            <th>항목</th>
+            <th>기본값</th>
+            <th>설명</th>
+        </tr>
+        <tr>
+            <td><code>APP_HOST</code></td>
+            <td>0.0.0.0</td>
+            <td>서버가 접속을 받을 IP (기본값 유지 권장)</td>
+        </tr>
+        <tr>
+            <td><code>APP_PORT</code></td>
+            <td>8000</td>
+            <td>서버 포트 번호. 다른 프로그램과 충돌 시 변경</td>
+        </tr>
+        <tr>
+            <td><code>APP_ENV</code></td>
+            <td>development</td>
+            <td><code>development</code>=개발모드(콘솔알림), <code>production</code>=운영모드(카카오알림톡)</td>
+        </tr>
+        <tr>
+            <td><code>DATABASE_URL</code></td>
+            <td>sqlite+aiosqlite:///./safety_manager.db</td>
+            <td>데이터베이스 접속 주소. SQLite 기본, PostgreSQL 변경 가능</td>
+        </tr>
+        <tr>
+            <td><code>KAKAO_REST_API_KEY</code></td>
+            <td>(비어있음)</td>
+            <td>카카오 REST API 키 (운영 시 필수)</td>
+        </tr>
+        <tr>
+            <td><code>KAKAO_SENDER_KEY</code></td>
+            <td>(비어있음)</td>
+            <td>카카오 알림톡 발신프로필 키 (운영 시 필수)</td>
+        </tr>
+        <tr>
+            <td><code>WEATHER_CHECK_INTERVAL_MINUTES</code></td>
+            <td>15</td>
+            <td>날씨 자동 확인 주기 (분). 5~60분 권장</td>
+        </tr>
+        <tr>
+            <td><code>HTTP_PROXY</code></td>
+            <td>(비어있음)</td>
+            <td>HTTP 프록시 주소 (사내망 시 설정)</td>
+        </tr>
+        <tr>
+            <td><code>HTTPS_PROXY</code></td>
+            <td>(비어있음)</td>
+            <td>HTTPS 프록시 주소 (사내망 시 설정)</td>
+        </tr>
+    </table>
+
+    <h3>4.2 개발 환경 설정 예시 (지금 바로 테스트용)</h3>
+    <div class="code-block">
+        <span class="label">.env (개발용)</span>
+<span class="comment"># 개발환경 - 카카오 API 없이 콘솔에 알림 출력</span>
+APP_HOST=0.0.0.0
+APP_PORT=8000
+APP_ENV=development
+DATABASE_URL=sqlite+aiosqlite:///./safety_manager.db
+WEATHER_CHECK_INTERVAL_MINUTES=15
+LOG_LEVEL=INFO
+    </div>
+
+    <div class="info-box tip">
+        <strong>개발 모드에서는 카카오 API 키가 없어도 됩니다!</strong>
+        <code>APP_ENV=development</code>이면 알림이 콘솔(터미널)에 텍스트로 출력됩니다.
+        실제 카카오 알림톡 발송 없이 시스템을 테스트할 수 있습니다.
+    </div>
+
+    <h3>4.3 운영 환경 설정 예시</h3>
+    <div class="code-block">
+        <span class="label">.env (운영용)</span>
+<span class="comment"># 운영환경 - 실제 카카오 알림톡 발송</span>
+APP_HOST=0.0.0.0
+APP_PORT=8000
+APP_ENV=production
+DATABASE_URL=sqlite+aiosqlite:///./safety_manager.db
+KAKAO_REST_API_KEY=REDACTED_EXAMPLE_KEY
+KAKAO_SENDER_KEY=your_sender_key_here
+WEATHER_CHECK_INTERVAL_MINUTES=15
+LOG_LEVEL=INFO
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 5. 실행 및 접속                           -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="run">
+    <h2>5. 실행 및 접속</h2>
+
+    <h3>5.1 서버 실행</h3>
+    <div class="code-block">
+        <span class="label">명령 프롬프트</span>
+<span class="comment"># 가상환경 활성화 (안 되어 있다면)</span>
+<span class="cmd">venv\Scripts\activate</span>
+
+<span class="comment"># 서버 실행</span>
+<span class="cmd">python</span> <span class="path">run.py</span>
+    </div>
+
+    <p>정상 실행되면 아래와 같은 메시지가 나타납니다:</p>
+    <div class="code-block">
+2026-05-27 09:00:00 [INFO] Safety Manager 시작
+2026-05-27 09:00:00 [INFO] 데이터베이스 초기화 완료
+2026-05-27 09:00:00 [INFO] 폭염 모니터링 스케줄러 시작 (간격: 15분)
+INFO:     Uvicorn running on http://0.0.0.0:8000
+    </div>
+
+    <h3>5.2 웹 브라우저로 접속</h3>
+    <table>
+        <tr>
+            <th>페이지</th>
+            <th>주소</th>
+            <th>용도</th>
+        </tr>
+        <tr>
+            <td>메인 대시보드</td>
+            <td><code>http://localhost:8000</code></td>
+            <td>실시간 모니터링 화면</td>
+        </tr>
+        <tr>
+            <td>API 문서</td>
+            <td><code>http://localhost:8000/docs</code></td>
+            <td>모든 API 목록 및 테스트 (Swagger UI)</td>
+        </tr>
+        <tr>
+            <td>헬스 체크</td>
+            <td><code>http://localhost:8000/health</code></td>
+            <td>서버 상태 확인</td>
+        </tr>
+    </table>
+
+    <div class="info-box info">
+        <strong>다른 PC에서 접속하려면</strong>
+        같은 네트워크의 다른 PC에서는 <code>http://서버PC의IP주소:8000</code>으로 접속합니다.<br>
+        예: <code>http://192.168.1.100:8000</code>
+    </div>
+
+    <h3>5.3 서버 종료</h3>
+    <p>터미널에서 <code>Ctrl + C</code>를 누르면 서버가 안전하게 종료됩니다.</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 6. 대시보드 화면 구성                      -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="dashboard">
+    <h2>6. 대시보드 화면 구성</h2>
+
+    <h3>6.1 화면 구성 요소</h3>
+
+    <h4>(1) 상단 헤더</h4>
+    <p>시스템명, 모니터링 동작 상태 표시등(녹색 점), 현재 시각이 표시됩니다.</p>
+
+    <h4>(2) 폭염 경보 배너</h4>
+    <p>현재 선택된 작업현장의 폭염 단계를 한눈에 보여주는 큰 배너입니다.</p>
+    <table>
+        <tr>
+            <th>상태</th>
+            <th>배너 색상</th>
+            <th>설명</th>
+        </tr>
+        <tr>
+            <td>정상</td>
+            <td style="background:#27ae60;color:white;text-align:center">녹색</td>
+            <td>체감온도 33°C 미만 - 정상 작업 가능</td>
+        </tr>
+        <tr>
+            <td>관심</td>
+            <td style="background:#FFC107;text-align:center">노란색</td>
+            <td>체감온도 33°C 이상 - 주의 환기</td>
+        </tr>
+        <tr>
+            <td>주의</td>
+            <td style="background:#FF9800;text-align:center">주황색</td>
+            <td>체감온도 35°C 이상 - 정기 휴식 필요</td>
+        </tr>
+        <tr>
+            <td>경고</td>
+            <td style="background:#FF5722;color:white;text-align:center">빨간색</td>
+            <td>체감온도 38°C 이상 - 작업시간 단축</td>
+        </tr>
+        <tr>
+            <td>위험</td>
+            <td style="background:#D32F2F;color:white;text-align:center">진빨간색 (깜빡임)</td>
+            <td>체감온도 41°C 이상 - 작업 중지</td>
+        </tr>
+    </table>
+
+    <h4>(3) 단계 인디케이터 바</h4>
+    <p>4개의 막대로 현재 단계를 시각적으로 표시합니다. 해당 단계까지 색이 채워집니다.</p>
+
+    <h4>(4) 현재 날씨 카드</h4>
+    <p>현재 기온, 체감온도, 습도, 풍속, WBGT 추정값이 표시됩니다.</p>
+
+    <h4>(5) 조치사항 카드</h4>
+    <p>현재 폭염 단계에 해당하는 고용노동부 기준 조치사항이 자동으로 표시됩니다.</p>
+
+    <h4>(6) 작업현장 카드</h4>
+    <p>등록된 작업현장 목록이 표시됩니다. 클릭하면 해당 현장의 날씨를 조회합니다.</p>
+
+    <h4>(7) 알림 통계 카드</h4>
+    <p>최근 7일간의 알림 발송 건수, 성공/실패 건수가 표시됩니다.</p>
+
+    <h4>(8) 알림 이력 카드</h4>
+    <p>최근 발송된 알림 목록이 시간순으로 표시됩니다.</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 7. 작업현장 등록                           -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="site-register">
+    <h2>7. 작업현장 등록</h2>
+
+    <ol class="steps">
+        <li>
+            <h4>현장 등록 버튼 클릭</h4>
+            <p>대시보드의 <strong>"작업현장"</strong> 카드 우측 상단에 있는 <strong>"+ 현장 등록"</strong> 버튼을 클릭합니다.</p>
+        </li>
+
+        <li>
+            <h4>현장 정보 입력</h4>
+            <p>팝업 창에서 아래 정보를 입력합니다:</p>
+            <table>
+                <tr>
+                    <th>항목</th>
+                    <th>필수</th>
+                    <th>설명</th>
+                    <th>입력 예시</th>
+                </tr>
+                <tr>
+                    <td>현장명</td>
+                    <td>필수</td>
+                    <td>작업현장의 이름</td>
+                    <td>강남변전소 증설공사</td>
+                </tr>
+                <tr>
+                    <td>주소</td>
+                    <td>선택</td>
+                    <td>현장 주소</td>
+                    <td>서울시 강남구 역삼동 123</td>
+                </tr>
+                <tr>
+                    <td>위도</td>
+                    <td>필수</td>
+                    <td>현장의 GPS 위도 좌표</td>
+                    <td>37.5665</td>
+                </tr>
+                <tr>
+                    <td>경도</td>
+                    <td>필수</td>
+                    <td>현장의 GPS 경도 좌표</td>
+                    <td>126.9780</td>
+                </tr>
+                <tr>
+                    <td>작업강도</td>
+                    <td>필수</td>
+                    <td>해당 현장의 주된 작업 강도 선택</td>
+                    <td>중작업</td>
+                </tr>
+            </table>
+        </li>
+
+        <li>
+            <h4>위도/경도 쉽게 입력하기</h4>
+            <p>위도/경도를 모른다면 두 가지 방법을 사용할 수 있습니다:</p>
+            <p><strong>방법 1 - 현재 위치 사용:</strong> "현재 위치" 버튼을 클릭하면 지금 있는 곳의 좌표가 자동으로 입력됩니다. (현장에서 등록할 때 유용)</p>
+            <p><strong>방법 2 - 네이버/카카오 지도에서 확인:</strong></p>
+            <ul style="margin-left:20px">
+                <li>네이버 지도 또는 카카오맵에서 해당 현장을 검색합니다</li>
+                <li>해당 위치를 마우스 우클릭 합니다</li>
+                <li>표시되는 좌표를 복사하여 입력합니다</li>
+            </ul>
+        </li>
+
+        <li>
+            <h4>작업강도 선택 기준</h4>
+            <table>
+                <tr>
+                    <th>작업강도</th>
+                    <th>해당 작업 예시 (KEPCO)</th>
+                </tr>
+                <tr>
+                    <td>경작업</td>
+                    <td>계기 점검, 설비 감시, 사무작업, 경미한 수공구 작업</td>
+                </tr>
+                <tr>
+                    <td>중등작업</td>
+                    <td>배전선로 점검, 지중케이블 접속, 변압기 점검, 애자 교체</td>
+                </tr>
+                <tr>
+                    <td>중작업</td>
+                    <td>전주 작업, 케이블 포설, 중량물 운반, 지선 작업</td>
+                </tr>
+                <tr>
+                    <td>초중작업</td>
+                    <td>굴착 작업, 전주 건주/철거, 대형 기자재 운반</td>
+                </tr>
+            </table>
+        </li>
+
+        <li>
+            <h4>등록 완료</h4>
+            <p><strong>"등록"</strong> 버튼을 클릭하면 현장이 등록되고 목록에 표시됩니다. 해당 현장을 클릭하면 바로 날씨가 조회됩니다.</p>
+        </li>
+    </ol>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 8. 작업자 등록                            -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="worker-register">
+    <h2>8. 작업자 등록</h2>
+
+    <ol class="steps">
+        <li>
+            <h4>작업자 등록 버튼 클릭</h4>
+            <p>대시보드 하단 <strong>"최근 알림 이력"</strong> 카드 우측의 <strong>"+ 작업자 등록"</strong> 버튼을 클릭합니다.</p>
+        </li>
+
+        <li>
+            <h4>작업자 정보 입력</h4>
+            <table>
+                <tr>
+                    <th>항목</th>
+                    <th>필수</th>
+                    <th>설명</th>
+                    <th>입력 예시</th>
+                </tr>
+                <tr>
+                    <td>이름</td>
+                    <td>필수</td>
+                    <td>작업자 성명</td>
+                    <td>홍길동</td>
+                </tr>
+                <tr>
+                    <td>전화번호</td>
+                    <td>필수</td>
+                    <td>카카오 알림톡 수신 번호</td>
+                    <td>010-1234-5678</td>
+                </tr>
+                <tr>
+                    <td>소속 부서</td>
+                    <td>선택</td>
+                    <td>소속 부서/처</td>
+                    <td>배전건설부</td>
+                </tr>
+                <tr>
+                    <td>작업반</td>
+                    <td>선택</td>
+                    <td>소속 작업반</td>
+                    <td>1공구 3반</td>
+                </tr>
+                <tr>
+                    <td>취약 작업자</td>
+                    <td>선택</td>
+                    <td>체크 시 더 낮은 온도에서 알림 수신</td>
+                    <td>체크박스</td>
+                </tr>
+            </table>
+        </li>
+
+        <li>
+            <h4>취약 작업자 체크 기준</h4>
+            <p>아래에 해당하는 작업자는 <strong>"취약 작업자"</strong>를 체크합니다:</p>
+            <ul style="margin-left:20px">
+                <li>만 65세 이상 고령 근로자</li>
+                <li>심뇌혈관질환 등 기저질환자</li>
+                <li>폭염 작업 경험이 부족한 신규 입사자</li>
+            </ul>
+        </li>
+    </ol>
+
+    <div class="info-box warning">
+        <strong>전화번호 중복 불가</strong>
+        이미 등록된 전화번호로는 재등록할 수 없습니다. 기존 등록 정보를 수정하려면 API 문서(<code>/docs</code>)에서 PUT 요청을 사용하세요.
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 9. 작업자 현장 배정                        -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="assign-worker">
+    <h2>9. 작업자 현장 배정</h2>
+
+    <p>등록된 작업자를 특정 작업현장에 배정해야 해당 현장의 폭염 알림을 받을 수 있습니다.</p>
+
+    <h3>9.1 API를 통한 배정 (Swagger UI 사용)</h3>
+    <ol class="steps">
+        <li>
+            <h4>API 문서 접속</h4>
+            <p>브라우저에서 <code>http://localhost:8000/docs</code>에 접속합니다.</p>
+        </li>
+        <li>
+            <h4>배정 API 찾기</h4>
+            <p><strong>"작업자/현장 관리"</strong> 섹션에서 <code>POST /api/sites/{site_id}/workers/{worker_id}</code>를 찾아 클릭합니다.</p>
+        </li>
+        <li>
+            <h4>"Try it out" 클릭 후 값 입력</h4>
+            <p><code>site_id</code>에 작업현장 ID, <code>worker_id</code>에 작업자 ID를 입력합니다.</p>
+            <div class="info-box info">
+                <strong>ID를 모른다면?</strong>
+                같은 페이지에서 <code>GET /api/sites</code>와 <code>GET /api/workers</code>를 먼저 실행하여 ID를 확인하세요.
+            </div>
+        </li>
+        <li>
+            <h4>"Execute" 클릭</h4>
+            <p><code>200</code> 응답이 오면 배정 완료입니다.</p>
+        </li>
+    </ol>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 10. 날씨 및 폭염 단계 확인                  -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="weather-check">
+    <h2>10. 날씨 및 폭염 단계 확인</h2>
+
+    <h3>10.1 대시보드에서 확인</h3>
+    <p>작업현장 목록에서 현장을 클릭하면 해당 현장의 날씨가 자동 조회됩니다.</p>
+    <p>표시되는 정보:</p>
+    <ul style="margin-left:20px">
+        <li><strong>현재 기온</strong> - 실제 대기 온도 (°C)</li>
+        <li><strong>체감온도</strong> - 기온+습도를 반영한 체감 온도. 이 값으로 폭염 단계를 판정합니다</li>
+        <li><strong>습도</strong> - 상대습도 (%)</li>
+        <li><strong>풍속</strong> - 바람 속도 (m/s)</li>
+        <li><strong>WBGT 추정값</strong> - 습구흑구온도지수 추정치. 산업안전보건기준에 관한 규칙 제559조 기준 적용</li>
+    </ul>
+
+    <h3>10.2 자동 갱신</h3>
+    <p>대시보드는 <strong>1분마다</strong> 선택된 현장의 날씨를 자동으로 갱신합니다. 수동으로 갱신하려면 "현재 날씨" 카드의 <strong>"새로고침"</strong> 버튼을 클릭합니다.</p>
+
+    <h3>10.3 백그라운드 모니터링</h3>
+    <p>대시보드를 보고 있지 않아도 서버가 <strong>15분마다</strong>(설정 가능) 모든 옥외 작업현장의 날씨를 자동으로 확인합니다. 폭염 주의 단계 이상이면 해당 현장에 배정된 모든 작업자에게 자동으로 알림을 발송합니다.</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 11. 알림 발송 체계                         -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="alert-system">
+    <h2>11. 알림 발송 체계</h2>
+
+    <h3>11.1 자동 발송 조건</h3>
+    <table>
+        <tr>
+            <th>단계</th>
+            <th>체감온도</th>
+            <th>알림 발송 여부</th>
+        </tr>
+        <tr>
+            <td>관심 (1단계)</td>
+            <td>33°C 이상</td>
+            <td>알림 발송 안 함 (대시보드 표시만)</td>
+        </tr>
+        <tr>
+            <td>주의 (2단계)</td>
+            <td>35°C 이상</td>
+            <td><strong>알림 발송</strong></td>
+        </tr>
+        <tr>
+            <td>경고 (3단계)</td>
+            <td>38°C 이상</td>
+            <td><strong>알림 발송</strong></td>
+        </tr>
+        <tr>
+            <td>위험 (4단계)</td>
+            <td>41°C 이상</td>
+            <td><strong>긴급 알림 발송</strong></td>
+        </tr>
+    </table>
+
+    <h3>11.2 중복 발송 방지</h3>
+    <p>같은 작업자에게 같은 단계의 알림은 <strong>1시간 이내에 재발송하지 않습니다.</strong></p>
+    <p>예: 주의 단계 알림을 09:00에 발송했다면 10:00 이전에는 같은 주의 단계 알림을 보내지 않습니다. 단, 주의 → 경고로 단계가 상승하면 즉시 발송합니다.</p>
+
+    <h3>11.3 알림 메시지 예시</h3>
+    <div class="code-block" style="background:#f5f5f5;color:#333;border:1px solid #ddd">
+[KEPCO 안전관리] 폭염 경고 단계
+━━━━━━━━━━━━━━━━
+■ 대상자: 홍길동님
+■ 현장: 강남변전소 증설공사
+■ 체감온도: 39.2°C
+■ 발령시각: 2026-07-15 14:30
+━━━━━━━━━━━━━━━━
+[조치사항]
+  - 매시간 15~20분 이상 규칙적 휴식 부여
+  - 14시~17시 옥외작업 최대한 자제
+  - 취약자 옥외작업 금지
+  - 작업시간 단축 검토
+━━━━━━━━━━━━━━━━
+안전이 최우선입니다. 건강에 유의하세요.
+    </div>
+
+    <h3>11.4 개발 모드의 알림</h3>
+    <p><code>APP_ENV=development</code>일 때는 카카오 알림톡 대신 서버 터미널 콘솔에 알림 내용이 출력됩니다. 카카오 API 설정 없이 기능을 테스트할 수 있습니다.</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 12. 수동 모니터링                          -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="manual-trigger">
+    <h2>12. 수동 모니터링 (긴급 점검)</h2>
+
+    <p>15분 주기를 기다리지 않고 지금 즉시 모든 현장을 점검하고 싶을 때 사용합니다.</p>
+
+    <h3>12.1 대시보드에서 실행</h3>
+    <p><strong>"알림 통계"</strong> 카드의 <strong>"수동 점검"</strong> 버튼을 클릭합니다. 모든 옥외 작업현장의 날씨를 즉시 확인하고 필요 시 알림을 발송합니다.</p>
+
+    <h3>12.2 위험 단계 긴급 알림</h3>
+    <p>상단 배너가 <strong>위험(빨간색)</strong>으로 표시될 때 나타나는 <strong>"긴급 알림 발송"</strong> 버튼을 클릭하면 해당 현장 작업자 전원에게 즉시 알림이 발송됩니다.</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 13. 알림 이력 조회                         -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="alert-history">
+    <h2>13. 알림 이력 조회</h2>
+
+    <h3>13.1 대시보드에서 조회</h3>
+    <p>대시보드 하단의 <strong>"최근 알림 이력"</strong> 카드에서 최근 20건의 알림을 확인할 수 있습니다. 각 항목에는 발송 시각, 단계, 체감온도, 발송 채널, 성공/실패 여부가 표시됩니다.</p>
+
+    <h3>13.2 API를 통한 상세 조회</h3>
+    <p><code>http://localhost:8000/docs</code>에서 아래 API를 사용할 수 있습니다:</p>
+    <table>
+        <tr>
+            <th>API</th>
+            <th>용도</th>
+        </tr>
+        <tr>
+            <td><code>GET /api/alerts/history</code></td>
+            <td>전체 알림 이력 조회 (현장 ID, 건수 필터 가능)</td>
+        </tr>
+        <tr>
+            <td><code>GET /api/alerts/stats</code></td>
+            <td>기간별 알림 통계 (총 건수, 성공/실패, 단계별 분포)</td>
+        </tr>
+        <tr>
+            <td><code>GET /api/weather/history/{site_id}</code></td>
+            <td>특정 현장의 날씨 변화 이력 조회</td>
+        </tr>
+    </table>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 14. 폭염 단계별 기준                       -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="heat-stages">
+    <h2>14. 폭염 단계별 기준 (고용노동부)</h2>
+
+    <div class="info-box info">
+        <strong>법적 근거</strong>
+        고용노동부 "폭염 대비 옥외 작업자 건강장해 예방 가이드" 및 산업안전보건법 제51조(사업주의 안전조치 의무)
+    </div>
+
+    <h3>14.1 관심 단계 (체감온도 33°C 이상)</h3>
+    <table>
+        <tr><th style="background:#FFC107;color:#333">관심 단계 조치사항</th></tr>
+        <tr><td>작업 시 주의 환기</td></tr>
+        <tr><td>충분한 음료수 및 그늘 휴식공간 제공</td></tr>
+        <tr><td>폭염 안전수칙 교육 실시</td></tr>
+        <tr><td>작업자 건강상태 수시 확인</td></tr>
+    </table>
+    <p><strong>휴식 기준:</strong> 자율 휴식 | <strong>작업 제한:</strong> 없음</p>
+
+    <h3>14.2 주의 단계 (체감온도 35°C 이상)</h3>
+    <table>
+        <tr><th style="background:#FF9800;color:#333">주의 단계 조치사항</th></tr>
+        <tr><td>매시간 10~15분 이상 규칙적 휴식 부여</td></tr>
+        <tr><td>폭염 안전보건교육 실시</td></tr>
+        <tr><td>건강 이상자(기저질환, 고령자 등) 옥외작업 전환 배치</td></tr>
+        <tr><td>냉방시설 및 그늘 휴식처 확보</td></tr>
+        <tr><td>응급조치 체계 점검</td></tr>
+    </table>
+    <p><strong>휴식 기준:</strong> 매시간 10~15분 | <strong>작업 제한:</strong> 취약자 작업전환</p>
+
+    <h3>14.3 경고 단계 (체감온도 38°C 이상)</h3>
+    <table>
+        <tr><th style="background:#FF5722;color:white">경고 단계 조치사항</th></tr>
+        <tr><td>매시간 15~20분 이상 규칙적 휴식 부여</td></tr>
+        <tr><td>14시~17시 옥외작업 최대한 자제</td></tr>
+        <tr><td>취약자(고령자, 기저질환자 등) 옥외작업 금지</td></tr>
+        <tr><td>작업시간 단축 검토</td></tr>
+        <tr><td>작업자 이상징후 감시체계 강화</td></tr>
+        <tr><td>비상연락망 및 응급체계 재확인</td></tr>
+    </table>
+    <p><strong>휴식 기준:</strong> 매시간 15~20분 | <strong>작업 제한:</strong> 14~17시 옥외작업 자제, 취약자 옥외작업 금지</p>
+
+    <h3>14.4 위험 단계 (체감온도 41°C 이상)</h3>
+    <table>
+        <tr><th style="background:#D32F2F;color:white">위험 단계 조치사항</th></tr>
+        <tr><td><strong>옥외 중(重)작업 즉시 중지</strong></td></tr>
+        <tr><td><strong>14시~17시 옥외작업 원칙적 중지</strong></td></tr>
+        <tr><td>불가피한 필수작업만 최소 인원으로 실시</td></tr>
+        <tr><td>필수작업 시 매시간 30분 이상 휴식</td></tr>
+        <tr><td>작업자 건강상태 수시 모니터링</td></tr>
+        <tr><td>온열질환 응급처치 키트 비치 확인</td></tr>
+    </table>
+    <p><strong>휴식 기준:</strong> 옥외작업 중지 / 필수작업 시 매시간 30분 | <strong>작업 제한:</strong> 옥외 중작업 중지, 14~17시 옥외작업 원칙적 중지</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 15. WBGT 작업강도별 기준                    -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="wbgt">
+    <h2>15. WBGT 작업강도별 기준</h2>
+
+    <div class="info-box info">
+        <strong>법적 근거</strong>
+        산업안전보건기준에 관한 규칙 제559조 별표14 - 고열작업 WBGT 기준
+    </div>
+
+    <p>WBGT(습구흑구온도지수)는 기온, 습도, 복사열, 풍속을 종합한 지표로, 작업강도에 따라 다른 기준을 적용합니다.</p>
+
+    <table>
+        <tr>
+            <th>작업강도</th>
+            <th>연속작업</th>
+            <th>75% 작업<br>25% 휴식</th>
+            <th>50% 작업<br>50% 휴식</th>
+            <th>25% 작업<br>75% 휴식</th>
+        </tr>
+        <tr>
+            <td><strong>경작업</strong><br><small>계기점검, 감시</small></td>
+            <td>30.0°C</td>
+            <td>30.6°C</td>
+            <td>31.4°C</td>
+            <td>32.2°C</td>
+        </tr>
+        <tr>
+            <td><strong>중등작업</strong><br><small>배전선로 점검</small></td>
+            <td>26.7°C</td>
+            <td>28.0°C</td>
+            <td>29.4°C</td>
+            <td>31.1°C</td>
+        </tr>
+        <tr>
+            <td><strong>중작업</strong><br><small>전주작업, 케이블 포설</small></td>
+            <td>25.0°C</td>
+            <td>25.9°C</td>
+            <td>27.9°C</td>
+            <td>30.0°C</td>
+        </tr>
+        <tr>
+            <td><strong>초중작업</strong><br><small>굴착, 전주 건주</small></td>
+            <td>22.8°C</td>
+            <td>25.0°C</td>
+            <td>27.1°C</td>
+            <td>28.6°C</td>
+        </tr>
+    </table>
+
+    <p>예를 들어, WBGT가 28°C이고 작업강도가 "중작업"이라면, 연속작업(25.0°C)과 75% 작업(25.9°C) 기준을 모두 초과했으므로 <strong>"50% 작업 / 50% 휴식"</strong> 이상의 휴식이 필요합니다.</p>
+
+    <div class="info-box warning">
+        <strong>WBGT는 추정값입니다</strong>
+        이 시스템의 WBGT는 기온, 습도, 풍속으로 간이 추정한 값입니다. 정확한 측정이 필요한 경우 전용 WBGT 측정기를 사용하세요.
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 16. 취약 작업자 기준                       -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="vulnerable">
+    <h2>16. 취약 작업자 기준</h2>
+
+    <p>고용노동부 가이드에 따라 아래 조건에 해당하는 작업자는 <strong>취약 작업자</strong>로 분류합니다.</p>
+
+    <table>
+        <tr>
+            <th>구분</th>
+            <th>기준</th>
+        </tr>
+        <tr><td>고령자</td><td>만 65세 이상 근로자</td></tr>
+        <tr><td>기저질환자</td><td>심뇌혈관질환, 고혈압, 당뇨 등</td></tr>
+        <tr><td>컨디션 불량</td><td>당일 건강상태가 좋지 않은 자</td></tr>
+        <tr><td>경험 부족</td><td>폭염 환경 작업 경험이 적은 신규 입사자</td></tr>
+        <tr><td>전날 음주</td><td>전날 과도한 음주를 한 자</td></tr>
+    </table>
+
+    <p>취약 작업자는 <strong>주의 단계(35°C)</strong>부터 옥외작업 전환 배치 대상이 되며, <strong>경고 단계(38°C)</strong>에서는 옥외작업이 금지됩니다.</p>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 17. 기준값 변경 방법                       -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="threshold-change">
+    <h2>17. 기준값 변경 방법</h2>
+
+    <p>폭염 단계 기준 온도, WBGT 기준, 조치사항 등은 모두 <code>config/thresholds.json</code> 파일에서 관리됩니다. <strong>소스코드를 수정하지 않고</strong> 이 파일만 편집하면 기준을 변경할 수 있습니다.</p>
+
+    <h3>17.1 기준 온도 변경 예시</h3>
+    <p>경고 단계 기준을 38°C에서 37°C로 변경하고 싶다면:</p>
+    <div class="code-block">
+        <span class="label">config/thresholds.json</span>
+<span class="comment">// 변경 전</span>
+"stage_3_warning": {
+    "name": "경고",
+    "apparent_temp_min": <span style="color:#e74c3c">38.0</span>,  <span class="comment">// ← 이 값을 변경</span>
+    ...
+}
+
+<span class="comment">// 변경 후</span>
+"stage_3_warning": {
+    "name": "경고",
+    "apparent_temp_min": <span style="color:#27ae60">37.0</span>,
+    ...
+}
+    </div>
+
+    <h3>17.2 서버 재시작 없이 적용</h3>
+    <p>설정 파일을 수정한 후 서버를 재시작하지 않고도 적용할 수 있습니다:</p>
+    <ol style="margin-left:20px">
+        <li>브라우저에서 <code>http://localhost:8000/docs</code> 접속</li>
+        <li><code>POST /api/weather/thresholds/reload</code> API를 실행</li>
+        <li>응답에 변경된 설정이 표시되면 적용 완료</li>
+    </ol>
+
+    <div class="info-box danger">
+        <strong>주의: JSON 형식을 정확히 지켜주세요</strong>
+        쉼표, 중괄호, 따옴표가 하나라도 빠지면 시스템이 오류를 발생시킵니다. 편집 시 VS Code 등 JSON 검증이 가능한 편집기를 사용하는 것을 권장합니다.
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 18. API 레퍼런스                          -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="api-overview">
+    <h2>18. API 레퍼런스</h2>
+
+    <h3 id="api-overview">18.1 API 문서 접속</h3>
+    <p>서버가 실행 중일 때 <code>http://localhost:8000/docs</code>에 접속하면 <strong>Swagger UI</strong>를 통해 모든 API를 확인하고 바로 테스트할 수 있습니다.</p>
+
+    <h3 id="api-weather">18.2 날씨 API</h3>
+    <table>
+        <tr><th>Method</th><th>경로</th><th>설명</th></tr>
+        <tr><td>GET</td><td><code>/api/weather/status/{site_id}</code></td><td>특정 현장의 현재 날씨 및 폭염 단계 조회</td></tr>
+        <tr><td>GET</td><td><code>/api/weather/history/{site_id}</code></td><td>현장의 날씨 이력 조회 (기본 24시간)</td></tr>
+        <tr><td>POST</td><td><code>/api/weather/thresholds/reload</code></td><td>기준값 설정 재로딩</td></tr>
+    </table>
+
+    <h3 id="api-workers">18.3 작업자/현장 API</h3>
+    <table>
+        <tr><th>Method</th><th>경로</th><th>설명</th></tr>
+        <tr><td>POST</td><td><code>/api/workers</code></td><td>작업자 등록</td></tr>
+        <tr><td>GET</td><td><code>/api/workers</code></td><td>작업자 목록 조회</td></tr>
+        <tr><td>GET</td><td><code>/api/workers/{id}</code></td><td>작업자 상세 조회</td></tr>
+        <tr><td>PUT</td><td><code>/api/workers/{id}</code></td><td>작업자 정보 수정</td></tr>
+        <tr><td>DELETE</td><td><code>/api/workers/{id}</code></td><td>작업자 비활성화</td></tr>
+        <tr><td>POST</td><td><code>/api/sites</code></td><td>작업현장 등록</td></tr>
+        <tr><td>GET</td><td><code>/api/sites</code></td><td>작업현장 목록 조회</td></tr>
+        <tr><td>GET</td><td><code>/api/sites/{id}</code></td><td>작업현장 상세 조회</td></tr>
+        <tr><td>POST</td><td><code>/api/sites/{id}/workers/{wid}</code></td><td>작업자를 현장에 배정</td></tr>
+        <tr><td>GET</td><td><code>/api/sites/{id}/workers</code></td><td>현장 배정 작업자 조회</td></tr>
+        <tr><td>DELETE</td><td><code>/api/sites/{id}/workers/{wid}</code></td><td>현장에서 작업자 제거</td></tr>
+    </table>
+
+    <h3 id="api-alerts">18.4 알림 API</h3>
+    <table>
+        <tr><th>Method</th><th>경로</th><th>설명</th></tr>
+        <tr><td>GET</td><td><code>/api/alerts/history</code></td><td>알림 이력 조회 (site_id, limit 파라미터)</td></tr>
+        <tr><td>GET</td><td><code>/api/alerts/stats</code></td><td>알림 통계 (days 파라미터)</td></tr>
+        <tr><td>POST</td><td><code>/api/monitor/trigger</code></td><td>수동 모니터링 트리거</td></tr>
+        <tr><td>GET</td><td><code>/health</code></td><td>서버 상태 확인</td></tr>
+    </table>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 19. 카카오 알림톡 설정                      -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="kakao-setup">
+    <h2>19. 카카오 알림톡 설정 (운영 환경)</h2>
+
+    <p>실제 카카오 알림톡으로 알림을 보내려면 아래 절차가 필요합니다.</p>
+
+    <ol class="steps">
+        <li>
+            <h4>카카오 비즈니스 채널 개설</h4>
+            <p>카카오비즈니스 사이트에서 비즈니스 채널을 개설합니다. KEPCO 공식 채널이 있다면 해당 채널을 사용합니다.</p>
+        </li>
+
+        <li>
+            <h4>카카오 개발자 앱 등록</h4>
+            <p>카카오 개발자 사이트에서 앱을 등록하고 <strong>REST API 키</strong>를 발급받습니다.</p>
+        </li>
+
+        <li>
+            <h4>알림톡 발신프로필 등록</h4>
+            <p>카카오 비즈메시지에서 발신프로필을 등록하고 <strong>발신프로필 키(Sender Key)</strong>를 발급받습니다.</p>
+        </li>
+
+        <li>
+            <h4>메시지 템플릿 등록</h4>
+            <p>알림톡은 사전에 승인된 템플릿만 발송할 수 있습니다. 폭염 단계별로 3개 템플릿을 등록합니다:</p>
+            <ul style="margin-left:20px">
+                <li><code>heat_caution</code> - 주의 단계 템플릿</li>
+                <li><code>heat_warning</code> - 경고 단계 템플릿</li>
+                <li><code>heat_danger</code> - 위험 단계 템플릿</li>
+            </ul>
+        </li>
+
+        <li>
+            <h4>.env 파일에 키 입력</h4>
+            <div class="code-block">
+                <span class="label">.env</span>
+APP_ENV=production
+KAKAO_REST_API_KEY=발급받은_REST_API_키
+KAKAO_SENDER_KEY=발급받은_발신프로필_키
+KAKAO_TEMPLATE_CODE_CAUTION=heat_caution
+KAKAO_TEMPLATE_CODE_WARNING=heat_warning
+KAKAO_TEMPLATE_CODE_DANGER=heat_danger
+            </div>
+        </li>
+
+        <li>
+            <h4>서버 재시작</h4>
+            <p>설정 변경 후 서버를 재시작하면 실제 카카오 알림톡으로 발송됩니다.</p>
+        </li>
+    </ol>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 20. 사내망 이관 방법                       -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="intranet">
+    <h2>20. 사내망 이관 방법</h2>
+
+    <p>이 시스템은 사내망 이관을 고려하여 설계되었습니다. 아래 3가지만 변경하면 됩니다.</p>
+
+    <ol class="steps">
+        <li id="db-change">
+            <h4>데이터베이스 변경 (선택)</h4>
+            <p>사내망에 PostgreSQL 또는 MySQL이 있다면 <code>.env</code>의 DATABASE_URL만 변경합니다:</p>
+            <div class="code-block">
+                <span class="label">.env</span>
+<span class="comment"># SQLite (기본)</span>
+DATABASE_URL=sqlite+aiosqlite:///./safety_manager.db
+
+<span class="comment"># PostgreSQL (사내망 이관 시)</span>
+DATABASE_URL=postgresql+asyncpg://유저:비밀번호@DB서버주소:5432/safety_manager
+
+<span class="comment"># MySQL (사내망 이관 시)</span>
+DATABASE_URL=mysql+aiomysql://유저:비밀번호@DB서버주소:3306/safety_manager
+            </div>
+            <div class="info-box tip">
+                <strong>코드 수정 불필요!</strong>
+                Repository 패턴과 SQLAlchemy ORM을 사용하므로 DATABASE_URL만 바꾸면 모든 코드가 그대로 동작합니다. 처음 실행 시 테이블이 자동 생성됩니다.
+            </div>
+        </li>
+
+        <li id="proxy">
+            <h4>프록시 설정</h4>
+            <p>사내망에서 외부 API(Open-Meteo, 카카오)에 접속하려면 프록시 설정이 필요합니다:</p>
+            <div class="code-block">
+                <span class="label">.env</span>
+HTTP_PROXY=http://proxy.kepco.co.kr:8080
+HTTPS_PROXY=http://proxy.kepco.co.kr:8080
+            </div>
+            <p>프록시 주소와 포트는 사내 IT 담당부서에 문의하세요.</p>
+        </li>
+
+        <li id="provider-change">
+            <h4>날씨 API 교체 (선택)</h4>
+            <p>사내망에서 Open-Meteo 접속이 불가능하거나 기상청 API를 사용하고 싶다면:</p>
+            <ol style="margin-left:20px;margin-top:8px">
+                <li><code>backend/services/</code> 폴더에 새 파일 생성 (예: <code>kma_provider.py</code>)</li>
+                <li><code>WeatherProvider</code> 인터페이스를 구현하는 클래스 작성</li>
+                <li><code>backend/dependencies.py</code> 파일에서 구현체를 교체:
+                    <div class="code-block">
+<span class="comment"># 변경 전</span>
+_weather_provider = OpenMeteoProvider()
+
+<span class="comment"># 변경 후</span>
+_weather_provider = KmaProvider()
+                    </div>
+                </li>
+            </ol>
+            <p>마찬가지로 알림 서비스도 <code>NotificationSender</code> 인터페이스를 구현하면 SMS 게이트웨이 등으로 교체할 수 있습니다.</p>
+        </li>
+    </ol>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 21. 문제 해결                             -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="troubleshoot">
+    <h2>21. 문제 해결 (FAQ)</h2>
+
+    <h3>Q1. 서버가 실행되지 않아요</h3>
+    <div class="info-box tip">
+        <strong>확인 사항:</strong>
+        <ul style="margin:8px 0 0 16px">
+            <li>가상환경이 활성화되어 있나요? 프롬프트에 <code>(venv)</code>가 보여야 합니다</li>
+            <li><code>pip install -r requirements.txt</code>를 실행했나요?</li>
+            <li><code>.env</code> 파일이 생성되어 있나요?</li>
+            <li>포트 8000이 이미 사용 중이라면 <code>.env</code>에서 <code>APP_PORT=8001</code>로 변경하세요</li>
+        </ul>
+    </div>
+
+    <h3>Q2. 날씨 데이터를 가져올 수 없어요</h3>
+    <div class="info-box tip">
+        <strong>확인 사항:</strong>
+        <ul style="margin:8px 0 0 16px">
+            <li>인터넷 연결을 확인하세요</li>
+            <li>사내망이라면 프록시 설정을 확인하세요 (<a href="#proxy">프록시 설정</a> 참조)</li>
+            <li>방화벽에서 <code>api.open-meteo.com</code>이 차단되어 있지 않은지 확인하세요</li>
+        </ul>
+    </div>
+
+    <h3>Q3. 카카오 알림톡이 발송되지 않아요</h3>
+    <div class="info-box tip">
+        <strong>확인 사항:</strong>
+        <ul style="margin:8px 0 0 16px">
+            <li><code>APP_ENV=production</code>으로 설정했나요? (<code>development</code>이면 콘솔 출력만 됩니다)</li>
+            <li><code>KAKAO_REST_API_KEY</code>와 <code>KAKAO_SENDER_KEY</code>가 올바른가요?</li>
+            <li>카카오 알림톡 메시지 템플릿이 승인 완료 상태인가요?</li>
+            <li>수신자 전화번호가 카카오톡에 등록된 번호인가요?</li>
+        </ul>
+    </div>
+
+    <h3>Q4. 알림이 중복 발송돼요</h3>
+    <div class="info-box tip">
+        <strong>정상 동작입니다.</strong> 같은 단계의 알림은 1시간 이내 재발송되지 않습니다. 단, 단계가 상승(예: 주의→경고)하면 즉시 발송합니다. 간격을 조정하고 싶다면 <code>backend/scheduler/monitor.py</code>에서 <code>hours=1</code> 값을 변경하세요.
+    </div>
+
+    <h3>Q5. 데이터베이스를 초기화하고 싶어요</h3>
+    <div class="info-box warning">
+        <strong>주의: 모든 데이터가 삭제됩니다!</strong>
+        서버를 종료한 후 <code>safety_manager.db</code> 파일을 삭제하고 서버를 재시작하면 빈 데이터베이스가 새로 생성됩니다.
+    </div>
+
+    <h3>Q6. Python 버전이 맞지 않아요</h3>
+    <div class="info-box tip">
+        <strong>Python 3.10 이상이 필요합니다.</strong><br>
+        <code>python --version</code>으로 확인하세요. 3.10 미만이라면 Python을 업그레이드하거나, <code>py -3.10</code> 등 특정 버전을 지정하여 실행하세요.
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 22. 프로젝트 파일 구조                      -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="file-structure">
+    <h2>22. 프로젝트 파일 구조</h2>
+
+    <div class="file-tree">
+<span class="folder">safety_manager/</span>
+├── <span class="file">run.py</span>                          <span class="desc">← 서버 실행 진입점</span>
+├── <span class="file">requirements.txt</span>                <span class="desc">← Python 패키지 목록</span>
+├── <span class="file">.env.example</span>                    <span class="desc">← 환경변수 템플릿</span>
+├── <span class="file">.env</span>                            <span class="desc">← 실제 환경변수 (직접 생성)</span>
+├── <span class="file">.gitignore</span>
+│
+├── <span class="folder">config/</span>
+│   └── <span class="file">thresholds.json</span>             <span class="desc">← 폭염 기준값 설정 파일</span>
+│
+├── <span class="folder">backend/</span>
+│   ├── <span class="file">app.py</span>                      <span class="desc">← FastAPI 메인 앱 + 스케줄러</span>
+│   ├── <span class="file">config.py</span>                   <span class="desc">← 환경설정 로딩</span>
+│   ├── <span class="file">dependencies.py</span>             <span class="desc">← DI 컨테이너 (구현체 교체 지점)</span>
+│   │
+│   ├── <span class="folder">models/</span>
+│   │   ├── <span class="file">database.py</span>             <span class="desc">← DB 엔진 설정</span>
+│   │   ├── <span class="file">models.py</span>               <span class="desc">← DB 테이블 정의</span>
+│   │   └── <span class="file">schemas.py</span>              <span class="desc">← API 요청/응답 형식</span>
+│   │
+│   ├── <span class="folder">services/</span>
+│   │   ├── <span class="file">interfaces.py</span>           <span class="desc">← 인터페이스 (ABC)</span>
+│   │   ├── <span class="file">weather_service.py</span>      <span class="desc">← 날씨 조회 + 체감온도/WBGT</span>
+│   │   ├── <span class="file">alert_service.py</span>        <span class="desc">← 카카오 알림톡 + 콘솔 알림</span>
+│   │   └── <span class="file">repository.py</span>           <span class="desc">← DB 접근 계층</span>
+│   │
+│   ├── <span class="folder">routers/</span>
+│   │   ├── <span class="file">weather.py</span>              <span class="desc">← 날씨 API 엔드포인트</span>
+│   │   ├── <span class="file">alerts.py</span>               <span class="desc">← 알림 API 엔드포인트</span>
+│   │   └── <span class="file">workers.py</span>              <span class="desc">← 작업자/현장 API 엔드포인트</span>
+│   │
+│   └── <span class="folder">scheduler/</span>
+│       └── <span class="file">monitor.py</span>              <span class="desc">← 폭염 모니터링 엔진</span>
+│
+└── <span class="folder">frontend/</span>
+    ├── <span class="file">index.html</span>                  <span class="desc">← 대시보드 메인 화면</span>
+    ├── <span class="file">manual.html</span>                 <span class="desc">← 이 매뉴얼</span>
+    ├── <span class="folder">css/</span>
+    │   └── <span class="file">style.css</span>               <span class="desc">← 대시보드 스타일</span>
+    └── <span class="folder">js/</span>
+        └── <span class="file">app.js</span>                  <span class="desc">← 대시보드 JavaScript</span>
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 23. 아키텍처 설명                          -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="architecture">
+    <h2>23. 아키텍처 설명</h2>
+
+    <h3>23.1 설계 원칙</h3>
+    <table>
+        <tr><th>원칙</th><th>적용 방법</th><th>이점</th></tr>
+        <tr>
+            <td>인터페이스 분리</td>
+            <td>WeatherProvider, NotificationSender ABC</td>
+            <td>날씨 API나 알림 채널을 코드 수정 없이 교체 가능</td>
+        </tr>
+        <tr>
+            <td>Repository 패턴</td>
+            <td>DB 접근을 Repository 클래스로 추상화</td>
+            <td>SQLite → PostgreSQL 등 DB 교체 시 비즈니스 로직 변경 없음</td>
+        </tr>
+        <tr>
+            <td>설정 외부화</td>
+            <td>기준값을 JSON 파일로, 환경설정을 .env로 관리</td>
+            <td>소스코드 수정 없이 기준값/환경 변경 가능</td>
+        </tr>
+        <tr>
+            <td>의존성 주입(DI)</td>
+            <td>dependencies.py에서 구현체를 한 곳에서 관리</td>
+            <td>사내망 이관 시 교체 지점이 명확함</td>
+        </tr>
+    </table>
+
+    <h3>23.2 사내망 이관 시 변경 맵</h3>
+    <div class="flow-diagram">
+        <div class="flow-row">
+            <div class="flow-box blue">
+                <strong>.env</strong><br>
+                DATABASE_URL 변경<br>
+                PROXY 설정 추가
+            </div>
+            <div class="flow-box green">
+                <strong>dependencies.py</strong><br>
+                WeatherProvider 교체<br>
+                NotificationSender 교체
+            </div>
+            <div class="flow-box gray">
+                <strong>나머지 코드</strong><br>
+                변경 없음
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ════════════════════════════════════════ -->
+<!-- 24. 버전 이력                             -->
+<!-- ════════════════════════════════════════ -->
+<div class="section" id="versions">
+    <h2>24. 버전 이력</h2>
+    <table>
+        <tr>
+            <th>버전</th>
+            <th>날짜</th>
+            <th>변경 내용</th>
+        </tr>
+        <tr>
+            <td>v1.0</td>
+            <td>2026-05-27</td>
+            <td>초기 버전 - 폭염 모니터링, 카카오 알림톡, 대시보드, 작업자/현장 관리</td>
+        </tr>
+    </table>
+</div>
+
+
+<!-- ══════════════════════════════════════════════ -->
+<div style="text-align:center;padding:48px 20px;color:#999;font-size:13px;border-top:1px solid var(--border);margin-top:48px">
+    <p>KEPCO 안전관리 시스템 v1.0 | 폭염 모니터링 & 작업중지 알람</p>
+    <p>고용노동부 폭염 대비 가이드 | 산업안전보건기준에 관한 규칙 제559조</p>
+</div>
+
+</div><!-- /content-body -->
+</main>
+
+<script>
+    // 현재 보고 있는 섹션 하이라이트
+    const navLinks = document.querySelectorAll('.nav-link');
+    const sections = document.querySelectorAll('.section');
+
+    window.addEventListener('scroll', () => {
+        let current = '';
+        sections.forEach(section => {
+            const top = section.offsetTop - 100;
+            if (window.scrollY >= top) {
+                current = section.getAttribute('id');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.style.color = link.getAttribute('href') === '#' + current
+                ? 'white'
+                : 'rgba(255,255,255,0.7)';
+            link.style.borderLeft = link.getAttribute('href') === '#' + current
+                ? '3px solid white'
+                : '3px solid transparent';
+        });
+    });
+</script>
+
+</body>
+</html>

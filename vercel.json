@@ -1,0 +1,32 @@
+{
+    "version": 2,
+    "builds": [
+        {
+            "src": "api/index.py",
+            "use": "@vercel/python"
+        },
+        {
+            "src": "frontend/**",
+            "use": "@vercel/static"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/static/(.*)",
+            "dest": "frontend/$1"
+        },
+        {
+            "src": "/sw.js",
+            "dest": "frontend/sw.js"
+        },
+        {
+            "src": "/(.*)",
+            "dest": "api/index.py"
+        }
+    ],
+    "env": {
+        "APP_ENV": "development",
+        "NOTIFICATION_CHANNEL": "web_push",
+        "DATABASE_URL": "sqlite+aiosqlite:///./safety_manager.db"
+    }
+}

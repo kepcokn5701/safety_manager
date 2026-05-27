@@ -1,0 +1,28 @@
+# Environment
+.env
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+*.db
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Virtual Environment
+venv/
+
+# Logs
+*.log
+logs/
+
+# Misc
+*.xls
+*.xlsx

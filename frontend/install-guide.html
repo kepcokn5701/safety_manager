@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KEPCO 안전관리 앱 설치 안내</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a5276">
+    <style>
+        :root {
+            --kepco-blue: #1a5276;
+            --kepco-light: #2980b9;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Pretendard', 'Noto Sans KR', -apple-system, 'Malgun Gothic', sans-serif;
+            background: #f5f6fa;
+            color: #2c3e50;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--kepco-blue), var(--kepco-light));
+            color: white;
+            text-align: center;
+            padding: 32px 20px 24px;
+        }
+        .header h1 { font-size: 22px; font-weight: 800; }
+        .header p { font-size: 14px; opacity: 0.85; margin-top: 6px; }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* QR 섹션 */
+        .qr-section {
+            background: white;
+            border-radius: 20px;
+            padding: 32px 24px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+        .qr-section h2 {
+            font-size: 18px;
+            color: var(--kepco-blue);
+            margin-bottom: 16px;
+        }
+        #qr-code {
+            display: inline-block;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+            border: 3px solid var(--kepco-blue);
+        }
+        #qr-code canvas { display: block; }
+        .qr-url {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #7f8c8d;
+            word-break: break-all;
+        }
+        .qr-url a { color: var(--kepco-light); }
+
+        /* 설치 단계 */
+        .steps-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        .steps-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .device-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+        }
+        .device-icon.android { background: #4CAF50; }
+        .device-icon.ios { background: #333; }
+        .device-icon.pc { background: var(--kepco-light); }
+
+        .step {
+            display: flex;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .step:last-child { border-bottom: none; }
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--kepco-light);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .step-text {
+            font-size: 14px;
+            line-height: 1.6;
+            padding-top: 3px;
+        }
+        .step-text strong { color: var(--kepco-blue); }
+        .step-text .sub { color: #7f8c8d; font-size: 12px; }
+
+        /* 직접 설치 버튼 */
+        .install-btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--kepco-blue), var(--kepco-light));
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 15px rgba(26,82,118,0.3);
+            transition: transform 0.2s;
+        }
+        .install-btn:active { transform: scale(0.98); }
+
+        /* 알림 허용 안내 */
+        .notice-card {
+            background: #fff3cd;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            border-left: 4px solid #ffc107;
+        }
+        .notice-card strong { display: block; margin-bottom: 4px; }
+
+        /* 링크 복사 */
+        .copy-section {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .copy-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #555;
+        }
+        .copy-btn {
+            padding: 10px 16px;
+            background: var(--kepco-blue);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        /* 인쇄 최적화 */
+        @media print {
+            body { background: white; }
+            .install-btn, .copy-section, .footer { display: none; }
+            .qr-section { box-shadow: none; border: 2px solid #ccc; }
+            .steps-card { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>KEPCO 안전관리 앱</h1>
+    <p>폭염 모니터링 & 작업중지 알람</p>
+</div>
+
+<div class="container">
+
+    <!-- QR 코드 -->
+    <div class="qr-section">
+        <h2>QR코드를 스캔하여 접속하세요</h2>
+        <div id="qr-code"></div>
+        <div class="qr-url">접속 주소: <a id="app-url" href="#"></a></div>
+
+        <div class="copy-section">
+            <input type="text" id="url-input" class="copy-input" readonly>
+            <button class="copy-btn" onclick="copyUrl()">복사</button>
+        </div>
+    </div>
+
+    <!-- 직접 설치 버튼 (모바일에서 이 페이지 열었을 때) -->
+    <button class="install-btn" onclick="installPWA()">
+        홈 화면에 앱 설치하기
+    </button>
+
+    <!-- 알림 설정 안내 -->
+    <div class="notice-card">
+        <strong>중요: 알림 허용을 해주세요!</strong>
+        앱 설치 후 접속하면 상단에 <strong>"알림 허용"</strong> 버튼이 나타납니다.
+        반드시 터치하여 알림을 허용해야 폭염 경보를 받을 수 있습니다.
+    </div>
+
+    <!-- Android 설치 안내 -->
+    <div class="steps-card">
+        <h3>
+            <div class="device-icon android">A</div>
+            Android (삼성/LG 등)
+        </h3>
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">
+                <strong>Chrome</strong> 또는 <strong>삼성 인터넷</strong> 브라우저로 QR코드를 스캔합니다
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">
+                하단에 <strong>"홈 화면에 KEPCO 안전관리 추가"</strong> 배너가 나타나면 <strong>"설치"</strong>를 터치합니다
+                <div class="sub">배너가 안 나타나면: 우측 상단 메뉴(...)  > "앱 설치" 또는 "홈 화면에 추가"</div>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">
+                홈 화면에 생긴 <strong>"안전관리"</strong> 아이콘을 터치하여 실행합니다
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">
+                상단 <strong>"알림 허용"</strong> 버튼을 터치 > 전화번호 입력 > <strong>"허용"</strong>을 터치합니다
+            </div>
+        </div>
+    </div>
+
+    <!-- iPhone 설치 안내 -->
+    <div class="steps-card">
+        <h3>
+            <div class="device-icon ios">i</div>
+            iPhone (iOS)
+        </h3>
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">
+                <strong>Safari</strong> 브라우저로 QR코드를 스캔합니다
+                <div class="sub">반드시 Safari를 사용해야 합니다 (Chrome/카카오 브라우저 X)</div>
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">
+                하단 <strong>공유 버튼</strong>(네모+화살표)을 터치합니다
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">
+                목록에서 <strong>"홈 화면에 추가"</strong>를 터치합니다
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">4</div>
+            <div class="step-text">
+                <strong>"추가"</strong>를 터치하면 홈 화면에 앱 아이콘이 생깁니다
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">5</div>
+            <div class="step-text">
+                앱 실행 후 <strong>"알림 허용"</strong> 버튼을 터치하여 알림을 활성화합니다
+                <div class="sub">iOS 16.4 이상 필요. 그 이전 버전은 웹 푸시가 지원되지 않습니다.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PC 안내 -->
+    <div class="steps-card">
+        <h3>
+            <div class="device-icon pc">PC</div>
+            PC (Chrome/Edge)
+        </h3>
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">
+                Chrome 또는 Edge 브라우저에서 접속 주소를 입력합니다
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">
+                주소창 우측의 <strong>설치 아이콘</strong>(모니터+화살표)을 클릭하고 <strong>"설치"</strong>를 클릭합니다
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        KEPCO 안전관리 시스템 | 폭염 모니터링 & 작업중지 알람<br>
+        문의: 안전관리담당 | 이 페이지를 인쇄하여 현장에 게시하세요
+    </div>
+
+</div>
+
+<!-- QR코드 생성 라이브러리 (경량, MIT 라이센스) -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script>
+    // 현재 호스트 기반 앱 URL 설정
+    const appUrl = window.location.origin + '/';
+
+    // URL 표시
+    document.getElementById('app-url').textContent = appUrl;
+    document.getElementById('app-url').href = appUrl;
+    document.getElementById('url-input').value = appUrl;
+
+    // QR코드 생성
+    const qr = qrcode(0, 'M');
+    qr.addData(appUrl);
+    qr.make();
+
+    const qrContainer = document.getElementById('qr-code');
+    const moduleCount = qr.getModuleCount();
+    const cellSize = Math.floor(240 / moduleCount);
+    const size = moduleCount * cellSize;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+            ctx.fillStyle = qr.isDark(row, col) ? '#1a5276' : '#ffffff';
+            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+    }
+
+    qrContainer.appendChild(canvas);
+
+    // URL 복사
+    function copyUrl() {
+        navigator.clipboard.writeText(appUrl).then(() => {
+            const btn = document.querySelector('.copy-btn');
+            btn.textContent = '복사됨!';
+            setTimeout(() => btn.textContent = '복사', 2000);
+        }).catch(() => {
+            document.getElementById('url-input').select();
+            document.execCommand('copy');
+        });
+    }
+
+    // PWA 설치
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+    });
+
+    function installPWA() {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(result => {
+                if (result.outcome === 'accepted') {
+                    alert('앱이 설치되었습니다!\n홈 화면에서 "안전관리" 아이콘을 터치하세요.');
+                }
+                deferredPrompt = null;
+            });
+        } else {
+            const ua = navigator.userAgent.toLowerCase();
+            if (/iphone|ipad/.test(ua)) {
+                alert('iPhone 설치 방법:\n\n1. Safari 브라우저로 접속\n2. 하단 공유 버튼(□↑) 터치\n3. "홈 화면에 추가" 터치\n4. "추가" 터치');
+            } else if (/android/.test(ua)) {
+                alert('Android 설치 방법:\n\n1. Chrome 브라우저 메뉴(⋮) 터치\n2. "앱 설치" 또는 "홈 화면에 추가" 터치');
+            } else {
+                alert('PC 설치 방법:\n\n주소창 우측의 설치 아이콘(⊕)을 클릭하세요.');
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
