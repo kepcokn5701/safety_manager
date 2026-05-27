@@ -6,27 +6,26 @@
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from backend.config import settings
 
 
 _engine_kwargs = {}
 if "asyncpg" in settings.database_url:
-    # PostgreSQL (Supabase 등): pgbouncer 호환 설정
+    # Supabase/pgbouncer: prepared statement 완전 비활성화
     _engine_kwargs.update(
-        pool_size=5,
-        max_overflow=10,
-        pool_pre_ping=True,
-        # pgbouncer는 prepared statement 미지원 → 캐시 비활성화
+        poolclass=NullPool,  # 서버리스 환경: SQLAlchemy 풀 사용 안 함
         connect_args={
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,
+            "server_settings": {"plan_cache_mode": "force_custom_plan"},
         },
     )
 
 engine = create_async_engine(
     settings.database_url,
-    echo=(settings.app_env == "development"),
+    echo=False,
     **_engine_kwargs,
 )
 
