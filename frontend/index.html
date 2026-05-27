@@ -2,12 +2,12 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KEPCO 안전관리 시스템 - 폭염 모니터링</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>KEPCO 안전관리 시스템</title>
 
     <!-- PWA -->
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#1a5276">
+    <meta name="theme-color" content="#0a0e17">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="안전관리">
@@ -19,120 +19,129 @@
 
 <!-- ── 헤더 ── -->
 <header class="header">
-    <h1>KEPCO 안전관리 시스템</h1>
+    <div class="header-left">
+        <h1>KEPCO 안전관리</h1>
+    </div>
     <div class="header-right">
-        <button id="push-btn" class="btn btn-sm" onclick="togglePushSubscription()" style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3)">알림 허용</button>
-        <span class="status-dot"></span>
-        <span>모니터링 가동 중</span>
+        <button id="push-btn" class="btn-notify" onclick="togglePushSubscription()">알림 허용</button>
+        <div class="live-dot"></div>
         <span id="current-time"></span>
     </div>
 </header>
 
 <!-- ── 메인 ── -->
-<div class="main-container">
+<div class="main">
 
-    <!-- 상태 배너 -->
+    <!-- 경보 배너 -->
     <div id="alert-banner" class="alert-banner safe">
-        <div class="alert-icon">O</div>
+        <div class="alert-icon">V</div>
         <div class="alert-content">
             <h2>시스템 시작 중...</h2>
-            <p>작업현장을 등록하면 폭염 모니터링이 시작됩니다.</p>
+            <p>작업현장을 등록하면 모니터링이 시작됩니다.</p>
         </div>
     </div>
 
-    <!-- 단계 인디케이터 -->
+    <!-- 단계 바 -->
     <div id="stage-indicator"></div>
 
-    <!-- 카드 그리드 -->
-    <div class="card-grid">
-
-        <!-- 현재 날씨 -->
+    <!-- 선택된 현장 날씨 -->
+    <div class="grid grid-2" style="margin-bottom:12px">
         <div class="card">
             <div class="card-header">
-                <h3>현재 날씨</h3>
-                <button class="btn btn-primary btn-sm" onclick="state.selectedSiteId && loadWeather(state.selectedSiteId)">새로고침</button>
+                <h3 id="weather-title">현재 날씨</h3>
+                <button class="btn btn-ghost btn-sm" onclick="state.selectedSiteId && loadWeather(state.selectedSiteId)">새로고침</button>
             </div>
             <div class="card-body" id="weather-content">
-                <p style="color:var(--text-secondary)">작업현장을 선택하세요.</p>
+                <p style="color:var(--text-dim);text-align:center;padding:20px">현장을 등록하세요</p>
             </div>
         </div>
 
-        <!-- 조치사항 -->
         <div class="card">
             <div class="card-header">
-                <h3>조치사항 (고용노동부 기준)</h3>
+                <h3>조치사항</h3>
+                <span style="font-size:11px;color:var(--text-faint)">고용노동부 기준</span>
             </div>
             <div class="card-body" id="actions-content">
-                <p style="color:var(--text-secondary)">현재 특별 조치사항 없음</p>
+                <p style="color:var(--text-dim);text-align:center;padding:20px">특별 조치사항 없음</p>
             </div>
         </div>
+    </div>
 
-        <!-- 전체 현장 현황 (위험도순 정렬) -->
-        <div class="card" style="grid-column: 1 / -1">
-            <div class="card-header">
-                <h3>전체 현장 현황 (지역별 날씨)</h3>
-                <div style="display:flex;gap:8px">
-                    <button class="btn btn-primary btn-sm" onclick="loadAllSitesWeather()">전체 새로고침</button>
-                    <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
-                </div>
-            </div>
-            <div class="card-body" style="padding:0" id="all-sites-overview">
-                <p style="padding:20px;color:var(--text-secondary)">로딩 중...</p>
+    <!-- 전체 현장 현황 -->
+    <div class="card" style="margin-bottom:12px">
+        <div class="card-header">
+            <h3>전체 현장 현황</h3>
+            <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="loadAllSitesWeather()">새로고침</button>
+                <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
             </div>
         </div>
+        <div id="all-sites-overview" style="max-height:400px;overflow-y:auto">
+            <p style="padding:24px;text-align:center;color:var(--text-dim)">현장을 등록하면 날씨가 표시됩니다</p>
+        </div>
+    </div>
 
-        <!-- 알림 통계 -->
+    <!-- 하단 통계 + 이력 -->
+    <div class="grid grid-2">
         <div class="card">
             <div class="card-header">
-                <h3>알림 통계 (최근 7일)</h3>
-                <button class="btn btn-primary btn-sm" onclick="triggerMonitoring()">수동 점검</button>
+                <h3>알림 통계</h3>
+                <button class="btn btn-ghost btn-sm" onclick="triggerMonitoring()">수동 점검</button>
             </div>
             <div class="card-body" id="stats-content">
-                <p style="color:var(--text-secondary)">로딩 중...</p>
+                <p style="color:var(--text-dim);text-align:center">로딩 중...</p>
             </div>
         </div>
 
-        <!-- 작업자 관리 -->
         <div class="card">
             <div class="card-header">
-                <h3>작업자 관리</h3>
-                <button class="btn btn-primary btn-sm" onclick="openModal('worker-modal')">+ 작업자 등록</button>
+                <h3>작업자</h3>
+                <button class="btn btn-primary btn-sm" onclick="openModal('worker-modal')">+ 등록</button>
             </div>
-            <div class="card-body" id="site-list" style="display:none"></div>
-            <div class="card-body" id="stats-workers" style="padding:16px;text-align:center;color:var(--text-secondary);font-size:14px">
-                작업자 등록 후 현장에 배정하세요.<br>
-                <a href="/docs" target="_blank" style="color:var(--kepco-light)">API 문서</a>에서 배정할 수 있습니다.
+            <div class="card-body" style="text-align:center;color:var(--text-dim);font-size:13px;padding:16px">
+                작업자 등록 후<br><a href="/docs" target="_blank" style="color:var(--kepco-light)">API 문서</a>에서 현장 배정
             </div>
         </div>
+    </div>
 
-        <!-- 알림 이력 -->
-        <div class="card" style="grid-column: 1 / -1">
-            <div class="card-header">
-                <h3>최근 알림 이력</h3>
-            </div>
-            <div class="card-body" id="alert-history">
-                <p style="color:var(--text-secondary)">로딩 중...</p>
-            </div>
+    <!-- 알림 이력 -->
+    <div class="card" style="margin-top:12px">
+        <div class="card-header">
+            <h3>최근 알림</h3>
         </div>
+        <div class="card-body" id="alert-history">
+            <p style="color:var(--text-dim);text-align:center">알림 이력이 없습니다</p>
+        </div>
+    </div>
+</div>
 
+<!-- ── 앱 설치 배너 ── -->
+<div id="install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1px solid var(--border);padding:14px 16px;z-index:999">
+    <div style="max-width:540px;margin:0 auto;display:flex;align-items:center;gap:12px">
+        <img src="/static/icons/icon-72.svg" alt="" style="width:40px;height:40px;border-radius:10px">
+        <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">앱으로 설치하기</div>
+            <div style="font-size:12px;color:var(--text-dim)">알림을 받으려면 앱 설치가 필요합니다</div>
+        </div>
+        <button onclick="installApp()" class="btn btn-primary btn-sm">설치</button>
+        <button onclick="dismissInstall()" style="background:none;border:none;color:var(--text-faint);font-size:18px;cursor:pointer">&times;</button>
     </div>
 </div>
 
 <!-- ── 작업현장 등록 모달 ── -->
 <div class="modal-overlay" id="site-modal">
-    <div class="modal" style="max-width:600px">
+    <div class="modal">
         <div class="modal-header">
             <h3>작업현장 등록</h3>
             <button class="modal-close" onclick="closeModal('site-modal')">&times;</button>
         </div>
         <div class="modal-body">
             <!-- 탭 -->
-            <div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid var(--border-color)">
-                <button class="btn btn-sm" id="tab-manual" onclick="switchSiteTab('manual')" style="border-radius:8px 8px 0 0;border:1px solid var(--border-color);border-bottom:none;background:var(--kepco-light);color:white;padding:10px 20px">직접 입력</button>
-                <button class="btn btn-sm" id="tab-excel" onclick="switchSiteTab('excel')" style="border-radius:8px 8px 0 0;border:1px solid var(--border-color);border-bottom:none;background:var(--bg-card);color:var(--text-secondary);padding:10px 20px">엑셀 파일 업로드</button>
+            <div style="display:flex;gap:0;margin-bottom:16px">
+                <button class="btn btn-sm" id="tab-manual" onclick="switchSiteTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--kepco);color:white">직접 입력</button>
+                <button class="btn btn-sm" id="tab-excel" onclick="switchSiteTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">엑셀 업로드</button>
             </div>
 
-            <!-- 탭1: 직접 입력 -->
             <div id="site-tab-manual">
                 <form onsubmit="submitSite(event)">
                     <div class="form-group">
@@ -141,93 +150,69 @@
                     </div>
                     <div class="form-group">
                         <label>주소</label>
-                        <input type="text" name="site_address" placeholder="예: 서울시 강남구 역삼동 123">
+                        <input type="text" name="site_address" placeholder="예: 서울시 강남구 역삼동">
                     </div>
-                    <div class="form-group">
-                        <label>위도 * <button type="button" class="btn btn-sm" onclick="getCurrentLocation()" style="margin-left:8px;padding:2px 8px;font-size:11px">현재 위치</button></label>
-                        <input type="number" step="0.000001" name="site_lat" id="site_lat" required placeholder="37.5665">
-                    </div>
-                    <div class="form-group">
-                        <label>경도 *</label>
-                        <input type="number" step="0.000001" name="site_lng" id="site_lng" required placeholder="126.9780">
+                    <div style="display:flex;gap:8px">
+                        <div class="form-group" style="flex:1">
+                            <label>위도 *</label>
+                            <input type="number" step="0.000001" name="site_lat" id="site_lat" required placeholder="37.5665">
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>경도 *</label>
+                            <input type="number" step="0.000001" name="site_lng" id="site_lng" required placeholder="126.9780">
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="getCurrentLocation()" style="align-self:flex-end;margin-bottom:14px">내 위치</button>
                     </div>
                     <div class="form-group">
                         <label>작업강도</label>
                         <select name="site_intensity">
-                            <option value="light">경작업 (계기점검, 감시 등)</option>
-                            <option value="moderate" selected>중등작업 (배전선로 점검 등)</option>
-                            <option value="heavy">중작업 (전주작업, 케이블 포설 등)</option>
-                            <option value="very_heavy">초중작업 (굴착, 전주 건주 등)</option>
+                            <option value="light">경작업 (계기점검, 감시)</option>
+                            <option value="moderate" selected>중등작업 (배전선로 점검)</option>
+                            <option value="heavy">중작업 (전주작업, 케이블)</option>
+                            <option value="very_heavy">초중작업 (굴착, 건주)</option>
                         </select>
                     </div>
-                    <button type="submit" class="btn btn-primary" style="width:100%">등록</button>
+                    <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">등록</button>
                 </form>
             </div>
 
-            <!-- 탭2: 엑셀 업로드 -->
             <div id="site-tab-excel" style="display:none">
-                <!-- 업로드 영역 -->
-                <div id="excel-upload-area" style="border:2px dashed var(--border-color);border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color 0.2s"
-                     onclick="document.getElementById('excel-file').click()"
-                     ondragover="event.preventDefault();this.style.borderColor='var(--kepco-light)'"
-                     ondragleave="this.style.borderColor='var(--border-color)'"
-                     ondrop="handleExcelDrop(event)">
-                    <div style="font-size:36px;margin-bottom:8px;opacity:0.5">+</div>
-                    <div style="font-size:15px;font-weight:600">사전신고정보 파일을 드래그하거나 클릭하세요</div>
-                    <div style="font-size:12px;color:var(--text-secondary);margin-top:6px">지원 형식: .xls, .xlsx, .csv (최대 10MB)</div>
+                <div id="excel-upload-area" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer" onclick="document.getElementById('excel-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--kepco)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleExcelDrop(event)">
+                    <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
+                    <div style="font-size:14px;font-weight:600">사전신고정보 파일 선택</div>
+                    <div style="font-size:12px;color:var(--text-faint);margin-top:4px">.xls .xlsx .csv</div>
                     <input type="file" id="excel-file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleExcelUpload(this)">
                 </div>
-
-                <!-- 파싱 결과 미리보기 -->
-                <div id="excel-preview" style="display:none;margin-top:16px">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                        <span id="excel-info" style="font-size:13px;color:var(--text-secondary)"></span>
-                        <button class="btn btn-sm" onclick="resetExcelUpload()" style="background:rgba(255,255,255,0.1);color:var(--text-secondary)">다시 선택</button>
+                <div id="excel-preview" style="display:none;margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <span id="excel-info" style="font-size:12px;color:var(--text-dim)"></span>
+                        <button class="btn btn-ghost btn-sm" onclick="resetExcelUpload()">다시 선택</button>
                     </div>
-
-                    <!-- 컬럼 매핑 -->
-                    <div id="excel-mapping" style="margin-bottom:12px;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px">
-                        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">컬럼 매핑 (자동 감지됨 - 수정 가능)</div>
+                    <div id="excel-mapping" style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm)">
+                        <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">컬럼 매핑</div>
                         <div id="mapping-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
                     </div>
-
-                    <!-- 데이터 테이블 -->
-                    <div style="max-height:250px;overflow:auto;border:1px solid var(--border-color);border-radius:8px">
-                        <table id="excel-table" style="width:100%;border-collapse:collapse;font-size:12px">
-                        </table>
+                    <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+                        <table id="excel-table" style="width:100%;border-collapse:collapse;font-size:11px"></table>
                     </div>
-
-                    <!-- 위도/경도 일괄 설정 -->
-                    <div style="margin-top:12px;padding:12px;background:rgba(41,128,185,0.1);border-radius:8px">
-                        <div style="font-size:13px;font-weight:600;margin-bottom:8px">위치 설정 (위도/경도)</div>
-                        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">엑셀에 좌표가 없는 경우 기본 좌표를 설정하세요. 등록 후 개별 수정 가능합니다.</div>
-                        <div style="display:flex;gap:8px">
-                            <div style="flex:1">
-                                <label style="font-size:11px;color:var(--text-secondary)">기본 위도</label>
-                                <input type="number" step="0.000001" id="bulk-lat" value="37.5665" style="width:100%;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13px">
-                            </div>
-                            <div style="flex:1">
-                                <label style="font-size:11px;color:var(--text-secondary)">기본 경도</label>
-                                <input type="number" step="0.000001" id="bulk-lng" value="126.9780" style="width:100%;padding:6px 8px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-size:13px">
-                            </div>
-                            <button type="button" class="btn btn-sm" onclick="getCurrentLocationBulk()" style="align-self:flex-end;padding:6px 10px;font-size:11px;background:var(--kepco-light);color:white">현재 위치</button>
+                    <div style="margin-top:10px;padding:10px;background:rgba(21,101,192,0.08);border-radius:var(--radius-sm)">
+                        <div style="font-size:12px;font-weight:600;margin-bottom:6px">위치 (일괄 적용)</div>
+                        <div style="display:flex;gap:6px">
+                            <input type="number" step="0.000001" id="bulk-lat" value="37.5665" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+                            <input type="number" step="0.000001" id="bulk-lng" value="126.9780" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+                            <button type="button" class="btn btn-ghost btn-sm" onclick="getCurrentLocationBulk()">내 위치</button>
                         </div>
                     </div>
-
-                    <!-- 작업강도 일괄 선택 -->
-                    <div class="form-group" style="margin-top:12px">
-                        <label style="font-size:13px">작업강도 (일괄 적용)</label>
-                        <select id="bulk-intensity" style="width:100%;padding:8px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary)">
-                            <option value="light">경작업</option>
+                    <div class="form-group" style="margin-top:10px">
+                        <label>작업강도 (일괄)</label>
+                        <select id="bulk-intensity" style="width:100%;padding:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px">
                             <option value="moderate" selected>중등작업</option>
+                            <option value="light">경작업</option>
                             <option value="heavy">중작업</option>
                             <option value="very_heavy">초중작업</option>
                         </select>
                     </div>
-
-                    <button class="btn btn-primary" style="width:100%;margin-top:12px;padding:12px" onclick="importSelectedSites()">
-                        선택한 현장 일괄 등록
-                    </button>
+                    <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:12px;font-size:15px" onclick="importSelectedSites()">일괄 등록</button>
                 </div>
             </div>
         </div>
@@ -259,39 +244,27 @@
                     <label>작업반</label>
                     <input type="text" name="worker_team" placeholder="1공구 3반">
                 </div>
-                <div class="form-group" style="display:flex;align-items:center;gap:8px">
-                    <input type="checkbox" name="worker_vulnerable" id="worker_vulnerable">
-                    <label for="worker_vulnerable" style="margin:0">취약 작업자 (고령자, 기저질환자 등)</label>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+                    <input type="checkbox" name="worker_vulnerable" id="worker_vulnerable" style="width:auto">
+                    <label for="worker_vulnerable" style="margin:0;font-size:13px;color:var(--text)">취약 작업자 (65세 이상, 기저질환)</label>
                 </div>
-                <button type="submit" class="btn btn-primary" style="width:100%">등록</button>
+                <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">등록</button>
             </form>
         </div>
     </div>
 </div>
 
-<!-- ── 앱 설치 배너 ── -->
-<div id="install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#1a5276,#2980b9);color:white;padding:16px 20px;z-index:999;box-shadow:0 -4px 20px rgba(0,0,0,0.3)">
-    <div style="max-width:600px;margin:0 auto;display:flex;align-items:center;gap:16px">
-        <img src="/static/icons/icon-72.svg" alt="" style="width:48px;height:48px;border-radius:12px">
-        <div style="flex:1">
-            <div style="font-weight:700;font-size:15px">KEPCO 안전관리 앱 설치</div>
-            <div style="font-size:13px;opacity:0.85">홈 화면에 추가하면 앱처럼 사용할 수 있습니다</div>
-        </div>
-        <button onclick="installApp()" class="btn btn-sm" style="background:white;color:#1a5276;font-weight:700;white-space:nowrap">설치</button>
-        <button onclick="dismissInstall()" style="background:none;border:none;color:white;font-size:20px;cursor:pointer;padding:4px">&times;</button>
-    </div>
-</div>
-
 <script src="/static/js/app.js"></script>
 <script>
-    // 시계 업데이트
     function updateClock() {
         const el = document.getElementById('current-time');
-        if (el) el.textContent = new Date().toLocaleString('ko-KR');
+        if (el) {
+            const now = new Date();
+            el.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        }
     }
     updateClock();
     setInterval(updateClock, 1000);
 </script>
-
 </body>
 </html>

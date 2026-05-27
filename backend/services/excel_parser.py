@@ -44,18 +44,49 @@ COLUMN_MAP = {
     ],
 }
 
+# 작업자 엑셀 업로드용 컬럼명 매핑
+WORKER_COLUMN_MAP = {
+    "name": [
+        "이름", "성명", "작업자명", "근로자명", "작업자", "근로자",
+        "성함", "인원명", "이름(성명)",
+    ],
+    "phone": [
+        "연락처", "전화번호", "휴대폰", "핸드폰", "전화",
+        "휴대폰번호", "핸드폰번호", "연락처(휴대폰)", "HP",
+    ],
+    "department": [
+        "부서", "소속", "소속부서", "부서명", "조직",
+        "소속팀", "근무부서", "소속사",
+    ],
+    "team": [
+        "작업반", "반", "조", "작업조", "공구", "팀",
+        "작업팀", "반명", "조명", "팀명",
+    ],
+    "is_vulnerable": [
+        "취약", "취약여부", "취약작업자", "고령", "기저질환",
+        "고령여부", "65세이상",
+    ],
+}
 
-def _match_column(col_name: str) -> Optional[str]:
+
+def _match_column(col_name: str, column_map: dict | None = None) -> Optional[str]:
     """컬럼명을 표준 필드명으로 매핑"""
+    if column_map is None:
+        column_map = COLUMN_MAP
     col_clean = col_name.strip().replace(" ", "")
-    for field, keywords in COLUMN_MAP.items():
+    for field, keywords in column_map.items():
         for kw in keywords:
             if kw in col_clean or col_clean in kw:
                 return field
     return None
 
 
-async def parse_excel(file_content: bytes, filename: str) -> dict:
+async def parse_worker_excel(file_content: bytes, filename: str) -> dict:
+    """작업자 엑셀 파싱 (작업자용 컬럼 매핑 사용)"""
+    return await parse_excel(file_content, filename, column_map=WORKER_COLUMN_MAP)
+
+
+async def parse_excel(file_content: bytes, filename: str, *, column_map: dict | None = None) -> dict:
     """
     엑셀/CSV 파일을 파싱하여 구조화된 데이터 반환
 
@@ -120,7 +151,7 @@ async def parse_excel(file_content: bytes, filename: str) -> dict:
         columns = [str(c) for c in df.columns.tolist()]
         mapped = {}
         for col in columns:
-            field = _match_column(col)
+            field = _match_column(col, column_map)
             if field and field not in mapped.values():
                 mapped[col] = field
 

@@ -416,43 +416,45 @@ async function loadWeather(siteId) {
 function renderWeatherDashboard(data) {
     const { weather, stage, wbgt_work_recommendation, work_site_name } = data;
 
-    // 상단 배너
     renderAlertBanner(stage, weather, work_site_name);
 
-    // 날씨 카드
+    // 타이틀에 현장명
+    const titleEl = document.getElementById('weather-title');
+    if (titleEl) titleEl.textContent = work_site_name || '현재 날씨';
+
+    // 날씨 수치
     const weatherEl = document.getElementById('weather-content');
     if (weatherEl) {
+        const isHot = weather.apparent_temperature >= 33;
         weatherEl.innerHTML = `
-            <div class="weather-grid">
-                <div class="weather-item">
-                    <div class="label">현재 기온</div>
-                    <div class="value">${weather.temperature}<span class="unit">°C</span></div>
-                </div>
-                <div class="weather-item">
+            <div class="grid grid-3" style="gap:8px;margin-bottom:12px">
+                <div class="metric ${isHot ? 'highlight' : ''}">
                     <div class="label">체감온도</div>
-                    <div class="value ${weather.apparent_temperature >= 33 ? 'temp-highlight' : ''}">${weather.apparent_temperature}<span class="unit">°C</span></div>
+                    <div class="value">${weather.apparent_temperature}<span class="unit">°</span></div>
                 </div>
-                <div class="weather-item">
+                <div class="metric">
+                    <div class="label">기온</div>
+                    <div class="value">${weather.temperature}<span class="unit">°</span></div>
+                </div>
+                <div class="metric">
                     <div class="label">습도</div>
                     <div class="value">${weather.humidity}<span class="unit">%</span></div>
                 </div>
-                <div class="weather-item">
+            </div>
+            <div style="display:flex;gap:8px">
+                <div class="metric" style="flex:1">
                     <div class="label">풍속</div>
-                    <div class="value">${weather.wind_speed}<span class="unit">m/s</span></div>
+                    <div class="value" style="font-size:18px">${weather.wind_speed}<span class="unit"> m/s</span></div>
                 </div>
-            </div>
-            <div style="margin-top:16px;padding:12px;background:rgba(255,255,255,0.05);border-radius:8px">
-                <div style="font-size:12px;color:var(--text-secondary)">WBGT 추정값</div>
-                <div style="font-size:24px;font-weight:700">${weather.wbgt_estimated}<span style="font-size:14px;color:var(--text-secondary)">°C</span></div>
-                <div style="font-size:13px;margin-top:4px;color:var(--stage-caution)">${wbgt_work_recommendation || ''}</div>
-            </div>
-        `;
+                <div class="metric" style="flex:2">
+                    <div class="label">WBGT 추정</div>
+                    <div class="value" style="font-size:18px">${weather.wbgt_estimated}<span class="unit">°C</span></div>
+                    <div style="font-size:11px;color:var(--kepco-light);margin-top:2px">${wbgt_work_recommendation || ''}</div>
+                </div>
+            </div>`;
     }
 
-    // 단계 인디케이터
     renderStageIndicator(stage);
-
-    // 조치사항
     renderActions(stage);
 }
 
@@ -460,66 +462,43 @@ function renderAlertBanner(stage, weather, siteName) {
     const banner = document.getElementById('alert-banner');
     if (!banner) return;
 
+    const classMap = { 'stage_1_interest': 'interest', 'stage_2_caution': 'caution', 'stage_3_warning': 'warning', 'stage_4_danger': 'danger' };
+    const iconMap = { 'stage_1_interest': '!', 'stage_2_caution': '!!', 'stage_3_warning': '!!!', 'stage_4_danger': 'X' };
+
     if (!stage) {
         banner.className = 'alert-banner safe';
         banner.innerHTML = `
-            <div class="alert-icon">O</div>
+            <div class="alert-icon">V</div>
             <div class="alert-content">
                 <h2>정상 - 안전 작업 가능</h2>
-                <p>${siteName} | 체감온도 ${weather.apparent_temperature}°C</p>
-            </div>
-        `;
+                <p>${siteName} | 체감 ${weather.apparent_temperature}°C</p>
+            </div>`;
         return;
     }
 
-    const classMap = {
-        'stage_1_interest': 'interest',
-        'stage_2_caution': 'caution',
-        'stage_3_warning': 'warning',
-        'stage_4_danger': 'danger',
-    };
-
-    const iconMap = {
-        'stage_1_interest': '!',
-        'stage_2_caution': '!!',
-        'stage_3_warning': '!!!',
-        'stage_4_danger': 'X',
-    };
-
     banner.className = `alert-banner ${classMap[stage.stage_key] || 'safe'}`;
     banner.innerHTML = `
-        <div class="alert-icon">${iconMap[stage.stage_key] || 'O'}</div>
+        <div class="alert-icon">${iconMap[stage.stage_key] || 'V'}</div>
         <div class="alert-content">
             <h2>폭염 ${stage.stage_name} 단계</h2>
-            <p>${siteName} | 체감온도 ${weather.apparent_temperature}°C | ${stage.work_restriction}</p>
+            <p>${siteName} | 체감 ${weather.apparent_temperature}°C | ${stage.work_restriction}</p>
         </div>
-        ${stage.stage_key === 'stage_4_danger' ? '<button class="btn btn-danger" onclick="triggerMonitoring()">긴급 알림 발송</button>' : ''}
-    `;
+        ${stage.stage_key === 'stage_4_danger' ? '<button class="btn btn-danger btn-sm" onclick="triggerMonitoring()">긴급 알림</button>' : ''}`;
 }
 
 function renderStageIndicator(stage) {
     const el = document.getElementById('stage-indicator');
     if (!el) return;
 
-    const activeLevel = !stage ? 0 :
-        stage.stage_key === 'stage_1_interest' ? 1 :
-        stage.stage_key === 'stage_2_caution' ? 2 :
-        stage.stage_key === 'stage_3_warning' ? 3 : 4;
+    const lvl = !stage ? 0 : stage.stage_key === 'stage_1_interest' ? 1 : stage.stage_key === 'stage_2_caution' ? 2 : stage.stage_key === 'stage_3_warning' ? 3 : 4;
 
     el.innerHTML = `
-        <div class="stage-indicator">
-            <div class="stage-bar s1 ${activeLevel >= 1 ? 'active' : ''}"></div>
-            <div class="stage-bar s2 ${activeLevel >= 2 ? 'active' : ''}"></div>
-            <div class="stage-bar s3 ${activeLevel >= 3 ? 'active' : ''}"></div>
-            <div class="stage-bar s4 ${activeLevel >= 4 ? 'active' : ''}"></div>
-        </div>
-        <div class="stage-labels">
-            <span>관심 33°C</span>
-            <span>주의 35°C</span>
-            <span>경고 38°C</span>
-            <span>위험 41°C</span>
-        </div>
-    `;
+        <div class="stage-bar-wrap">
+            <div class="stage-segment s1 ${lvl >= 1 ? 'active' : ''}"></div>
+            <div class="stage-segment s2 ${lvl >= 2 ? 'active' : ''}"></div>
+            <div class="stage-segment s3 ${lvl >= 3 ? 'active' : ''}"></div>
+            <div class="stage-segment s4 ${lvl >= 4 ? 'active' : ''}"></div>
+        </div>`;
 }
 
 function renderActions(stage) {
@@ -527,7 +506,7 @@ function renderActions(stage) {
     if (!el) return;
 
     if (!stage) {
-        el.innerHTML = '<p style="padding:12px;color:var(--text-secondary)">현재 특별 조치사항 없음</p>';
+        el.innerHTML = '<p style="text-align:center;color:var(--text-dim);padding:20px">특별 조치사항 없음</p>';
         return;
     }
 
@@ -535,9 +514,7 @@ function renderActions(stage) {
         <ul class="action-list">
             ${stage.actions.map(a => `<li>${a}</li>`).join('')}
         </ul>
-        <div style="padding:12px;margin-top:8px;background:rgba(255,255,255,0.05);border-radius:8px;font-size:13px">
-            <strong>휴식 기준:</strong> ${stage.rest_guideline}
-        </div>
+        <div class="rest-badge"><strong>휴식:</strong> ${stage.rest_guideline}</div>
     `;
 }
 
@@ -556,29 +533,26 @@ function renderAlertHistory() {
     if (!el) return;
 
     if (state.alertHistory.length === 0) {
-        el.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">알림 이력이 없습니다.</p>';
+        el.innerHTML = '<p style="text-align:center;color:var(--text-dim)">알림 이력이 없습니다</p>';
         return;
     }
 
-    el.innerHTML = state.alertHistory.map(log => {
-        const stageNames = {
-            'stage_1_interest': '관심',
-            'stage_2_caution': '주의',
-            'stage_3_warning': '경고',
-            'stage_4_danger': '위험',
-        };
-        const stageName = stageNames[log.stage] || log.stage;
-        const statusIcon = log.status === 'sent' ? '[전송]' : '[실패]';
+    const stageNames = { 'stage_1_interest': '관심', 'stage_2_caution': '주의', 'stage_3_warning': '경고', 'stage_4_danger': '위험' };
+    const stageColors = { 'stage_1_interest': 'var(--interest)', 'stage_2_caution': 'var(--caution)', 'stage_3_warning': 'var(--warning)', 'stage_4_danger': 'var(--danger)' };
 
+    el.innerHTML = state.alertHistory.map(log => {
+        const name = stageNames[log.stage] || log.stage;
+        const color = stageColors[log.stage] || 'var(--text-dim)';
+        const ok = log.status === 'sent';
         return `
-            <div class="alert-history-item">
+            <div class="log-item">
                 <div class="time">${new Date(log.sent_at).toLocaleString('ko-KR')}</div>
                 <div class="detail">
-                    ${statusIcon} 폭염 <strong>${stageName}</strong> |
-                    체감온도 ${log.apparent_temperature}°C | ${log.channel}
+                    <span style="color:${ok ? 'var(--safe)' : 'var(--danger)'}">${ok ? 'V' : 'X'}</span>
+                    <strong style="color:${color}">${name}</strong>
+                    체감 ${log.apparent_temperature}°C
                 </div>
-            </div>
-        `;
+            </div>`;
     }).join('');
 }
 
@@ -589,25 +563,24 @@ async function loadStats() {
         const el = document.getElementById('stats-content');
         if (el) {
             el.innerHTML = `
-                <div class="weather-grid">
-                    <div class="weather-item">
-                        <div class="label">총 발송 (7일)</div>
+                <div class="stat-grid">
+                    <div class="stat-box">
+                        <div class="label">총 발송</div>
                         <div class="value">${stats.total}</div>
                     </div>
-                    <div class="weather-item">
+                    <div class="stat-box">
                         <div class="label">성공</div>
-                        <div class="value" style="color:var(--stage-safe)">${stats.sent}</div>
+                        <div class="value" style="color:var(--safe)">${stats.sent}</div>
                     </div>
-                    <div class="weather-item">
+                    <div class="stat-box">
                         <div class="label">실패</div>
-                        <div class="value" style="color:var(--stage-danger)">${stats.failed}</div>
+                        <div class="value" style="color:var(--danger)">${stats.failed}</div>
                     </div>
-                    <div class="weather-item">
-                        <div class="label">현장 수</div>
+                    <div class="stat-box">
+                        <div class="label">현장</div>
                         <div class="value">${state.sites.length}</div>
                     </div>
-                </div>
-            `;
+                </div>`;
         }
     } catch (e) {
         console.error('통계 로딩 실패:', e);
