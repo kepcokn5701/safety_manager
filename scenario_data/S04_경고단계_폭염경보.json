@@ -1,0 +1,157 @@
+{
+  "scenario_id": "S04",
+  "scenario_name": "경고 단계 (폭염경보 발령)",
+  "description": "체감온도 38~41°C. 폭염경보 발령. 14~17시 옥외작업 자제, 취약자 옥외작업 금지.",
+  "date": "2026-08-01",
+  "weather_condition": "쾌청, 무풍, 극고온",
+  "heat_stage": "stage_3_warning (경고)",
+  "expected_alerts": 20,
+  "work_sites": [
+    {
+      "name": "밀양-창녕 345kV 송전선로 점검",
+      "address": "경상남도 밀양시 가곡7길 30",
+      "latitude": 35.5036,
+      "longitude": 128.746,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 37.0,
+        "humidity": 65.0,
+        "wind_speed": 0.3,
+        "apparent_temperature": 39.8,
+        "wbgt_estimated": 33.2
+      },
+      "workers": [
+        {
+          "name": "임창호",
+          "phone": "010-5712-0001",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "김도현",
+          "phone": "010-5712-0002",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "박정훈",
+          "phone": "010-5712-0003",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "최민수",
+          "phone": "010-5712-0004",
+          "department": "송전팀",
+          "team": "송전2반",
+          "is_vulnerable": true
+        },
+        {
+          "name": "한상우",
+          "phone": "010-5712-0005",
+          "department": "송전팀",
+          "team": "송전2반",
+          "is_vulnerable": false
+        }
+      ],
+      "expected_stage": "stage_3_warning",
+      "expected_action": "14~17시 옥외작업 자제, 매시간 15~20분 휴식, 작업시간 단축",
+      "vulnerable_worker_action": "최민수(고혈압+당뇨/만62세): 옥외작업 금지 → 즉시 철수",
+      "wbgt_recommendation": "[중작업] WBGT 33.2°C → 작업 중지 권고 (기준: 연속작업 25.0°C 초과)"
+    },
+    {
+      "name": "하동 배전선로 긴급 보수",
+      "address": "경상남도 하동군 경서대로 83",
+      "latitude": 35.0673,
+      "longitude": 127.7516,
+      "work_intensity": "very_heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 36.5,
+        "humidity": 68.0,
+        "wind_speed": 0.5,
+        "apparent_temperature": 39.2,
+        "wbgt_estimated": 32.8
+      },
+      "workers": [
+        {
+          "name": "마성규",
+          "phone": "010-5718-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "피재호",
+          "phone": "010-5718-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "감동석",
+          "phone": "010-5718-0003",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": true
+        },
+        {
+          "name": "봉승진",
+          "phone": "010-5718-0004",
+          "department": "배전운영팀",
+          "team": "배전2반",
+          "is_vulnerable": false
+        }
+      ],
+      "expected_stage": "stage_3_warning",
+      "expected_action": "긴급작업이므로 최소 인원 투입, 14~17시 작업 자제, 매시간 15~20분 휴식",
+      "vulnerable_worker_action": "감동석(고혈압/만60세): 옥외작업 금지 → 즉시 철수",
+      "wbgt_recommendation": "[초중작업] WBGT 32.8°C → 작업 중지 권고 (기준: 연속작업 22.8°C 초과)"
+    },
+    {
+      "name": "남해 해안도로 배전설비 이설공사",
+      "address": "경상남도 남해군 남해대로 2962",
+      "latitude": 34.8378,
+      "longitude": 127.8923,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 35.8,
+        "humidity": 75.0,
+        "wind_speed": 2.0,
+        "apparent_temperature": 38.5,
+        "wbgt_estimated": 31.5
+      },
+      "workers": [
+        {
+          "name": "복영수",
+          "phone": "010-5719-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "단기현",
+          "phone": "010-5719-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "연준석",
+          "phone": "010-5719-0003",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": true
+        }
+      ],
+      "expected_stage": "stage_3_warning",
+      "expected_action": "해안가 해풍 있으나 경고단계 유지, 취약자 철수",
+      "vulnerable_worker_action": "연준석(심장질환/만57세): 옥외작업 금지 → 즉시 철수"
+    }
+  ]
+}

@@ -198,15 +198,9 @@ async function unsubscribePush() {
 function updatePushButton(subscribed) {
     const btn = document.getElementById('push-btn');
     if (!btn) return;
-    if (subscribed) {
-        btn.textContent = '알림 ON';
-        btn.style.background = 'rgba(39, 174, 96, 0.8)';
-        btn.style.borderColor = '#27ae60';
-    } else {
-        btn.textContent = '알림 허용';
-        btn.style.background = 'rgba(255,255,255,0.2)';
-        btn.style.borderColor = 'rgba(255,255,255,0.3)';
-    }
+    btn.className = subscribed ? 'btn-notify active' : 'btn-notify';
+    btn.textContent = subscribed ? 'ал림 ON' : '알림 허용';
+    btn.textContent = subscribed ? '알림 ON' : '알림 허용';
 }
 
 // ── 안내 모달 (alert 대체) ──
@@ -217,12 +211,12 @@ function showGuideModal(title, message) {
 
     const modal = document.createElement('div');
     modal.id = 'guide-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
     modal.innerHTML = `
-        <div style="background:var(--bg-card,#1a2632);border-radius:16px;max-width:380px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
-            <div style="font-size:18px;font-weight:700;margin-bottom:12px;color:#ecf0f1">${title}</div>
-            <div style="font-size:14px;line-height:1.8;color:#bdc3c7;white-space:pre-line;text-align:left;margin-bottom:20px">${message}</div>
-            <button onclick="this.closest('#guide-modal').remove()" style="width:100%;padding:12px;background:#2980b9;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">확인</button>
+        <div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.15)">
+            <div style="font-size:18px;font-weight:700;margin-bottom:12px;color:#1a1a2e">${title}</div>
+            <div style="font-size:14px;line-height:1.8;color:#4a5568;white-space:pre-line;text-align:left;margin-bottom:20px">${message}</div>
+            <button onclick="this.closest('#guide-modal').remove()" style="width:100%;padding:12px;background:#0066cc;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">확인</button>
         </div>
     `;
     document.body.appendChild(modal);
@@ -349,33 +343,29 @@ function renderAllSitesOverview(sites) {
         return `
         <div onclick="selectSiteFromOverview(${s.site_id})" style="
             padding:14px 16px;
-            border-bottom:1px solid rgba(255,255,255,0.05);
+            border-bottom:1px solid var(--border-light, #edf2f7);
             cursor:pointer;
-            transition:background 0.2s;
-            ${isSelected ? 'background:rgba(41,128,185,0.15);border-left:3px solid var(--kepco-light)' : 'border-left:3px solid transparent'}
-        " onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background='${isSelected ? 'rgba(41,128,185,0.15)' : ''}'">
+            transition:background 0.12s;
+            ${isSelected ? 'background:var(--kepco-light, #e8f2ff);border-left:3px solid var(--kepco, #0066cc)' : 'border-left:3px solid transparent'}
+        ">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="flex:1;min-width:0">
-                    <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
-                    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${s.address || ''}</div>
+                    <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
+                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
                     <div style="text-align:right">
-                        <div style="font-size:11px;color:var(--text-secondary)">체감</div>
-                        <div style="font-size:20px;font-weight:700;color:${w.apparent_temperature >= 33 ? color : 'var(--text-primary)'}">${w.apparent_temperature}°</div>
+                        <div style="font-size:11px;color:var(--text-dim, #8896a6)">체감</div>
+                        <div style="font-size:20px;font-weight:700;color:${w.apparent_temperature >= 33 ? color : 'var(--text, #1a1a2e)'}">${w.apparent_temperature}°</div>
                     </div>
-                    <div style="text-align:right">
-                        <div style="font-size:11px;color:var(--text-secondary)">기온</div>
-                        <div style="font-size:14px">${w.temperature}°</div>
+                    <div class="site-detail" style="display:flex;gap:10px">
+                        <div style="text-align:center"><div style="font-size:10px;color:var(--text-dim)">기온</div><div style="font-weight:600;font-size:13px">${w.temperature}°</div></div>
+                        <div style="text-align:center"><div style="font-size:10px;color:var(--text-dim)">습도</div><div style="font-weight:600;font-size:13px">${w.humidity}%</div></div>
                     </div>
-                    <div style="text-align:right">
-                        <div style="font-size:11px;color:var(--text-secondary)">습도</div>
-                        <div style="font-size:14px">${w.humidity}%</div>
-                    </div>
-                    <span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:${color};color:white;min-width:44px;text-align:center">${label}</span>
+                    <span class="badge" style="background:${color}">${label}</span>
                 </div>
             </div>
-            ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color};opacity:0.9">${stg.work_restriction}</div>` : ''}
+            ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color}">${stg.work_restriction}</div>` : ''}
         </div>`;
     }).join('');
 }
@@ -826,7 +816,196 @@ function getCurrentLocationBulk() {
     );
 }
 
-// ── 작업자 등록 ──
+// ── 작업자 등록 탭 전환 ──
+function switchWorkerTab(tab) {
+    const manualTab = document.getElementById('worker-tab-manual');
+    const excelTab = document.getElementById('worker-tab-excel');
+    const btnManual = document.getElementById('worker-tab-manual-btn');
+    const btnExcel = document.getElementById('worker-tab-excel-btn');
+
+    if (tab === 'manual') {
+        manualTab.style.display = 'block';
+        excelTab.style.display = 'none';
+        btnManual.style.background = 'var(--kepco-light)';
+        btnManual.style.color = 'white';
+        btnExcel.style.background = 'var(--bg-card)';
+        btnExcel.style.color = 'var(--text-secondary)';
+    } else {
+        manualTab.style.display = 'none';
+        excelTab.style.display = 'block';
+        btnExcel.style.background = 'var(--kepco-light)';
+        btnExcel.style.color = 'white';
+        btnManual.style.background = 'var(--bg-card)';
+        btnManual.style.color = 'var(--text-secondary)';
+    }
+}
+
+// ── 작업자 엑셀 업로드 ──
+let workerExcelData = null;
+
+function handleWorkerExcelDrop(e) {
+    e.preventDefault();
+    e.currentTarget.style.borderColor = 'var(--border-color)';
+    const file = e.dataTransfer.files[0];
+    if (file) uploadWorkerExcelFile(file);
+}
+
+function handleWorkerExcelUpload(input) {
+    const file = input.files[0];
+    if (file) uploadWorkerExcelFile(file);
+}
+
+async function uploadWorkerExcelFile(file) {
+    const area = document.getElementById('worker-excel-upload-area');
+    area.innerHTML = '<div style="padding:20px;color:var(--text-secondary)">파일 분석 중...</div>';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch('/api/upload/parse-worker-excel', { method: 'POST', body: formData });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(err.detail || '파일 처리 실패');
+        }
+        workerExcelData = await res.json();
+        renderWorkerExcelPreview(file.name);
+    } catch (e) {
+        area.innerHTML = `
+            <div style="color:var(--stage-danger);padding:20px">
+                <div style="font-size:15px;font-weight:600;margin-bottom:4px">파일 처리 실패</div>
+                <div style="font-size:13px">${e.message}</div>
+                <button class="btn btn-sm" style="margin-top:12px;background:var(--kepco-light);color:white" onclick="resetWorkerExcelUpload()">다시 시도</button>
+            </div>`;
+    }
+}
+
+function renderWorkerExcelPreview(filename) {
+    document.getElementById('worker-excel-upload-area').style.display = 'none';
+    document.getElementById('worker-excel-preview').style.display = 'block';
+    document.getElementById('worker-excel-info').textContent = `${filename} - ${workerExcelData.total_rows}명`;
+
+    // 컬럼 매핑 표시
+    const mappingEl = document.getElementById('worker-mapping-fields');
+    const fields = [
+        { key: 'name', label: '이름' },
+        { key: 'phone', label: '전화번호' },
+        { key: 'department', label: '소속' },
+        { key: 'team', label: '작업반' },
+    ];
+    mappingEl.innerHTML = fields.map(f => {
+        const matchedCol = Object.entries(workerExcelData.mapped_columns).find(([, v]) => v === f.key);
+        const options = workerExcelData.columns.map(c =>
+            `<option value="${c}" ${matchedCol && matchedCol[0] === c ? 'selected' : ''}>${c}</option>`
+        ).join('');
+        return `
+            <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:12px;min-width:55px;color:var(--text-secondary)">${f.label}:</span>
+                <select data-worker-field="${f.key}" style="flex:1;padding:4px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:12px">
+                    <option value="">(선택 안 함)</option>
+                    ${options}
+                </select>
+            </div>`;
+    }).join('');
+
+    // 테이블 렌더링
+    const table = document.getElementById('worker-excel-table');
+    const cols = workerExcelData.columns.slice(0, 8);
+    let html = '<thead><tr>';
+    html += '<th style="padding:6px 8px;background:rgba(41,128,185,0.2);border:1px solid var(--border-color);text-align:center;width:40px"><input type="checkbox" checked onchange="toggleAllWorkerRows(this)"></th>';
+    cols.forEach(c => {
+        const mapped = workerExcelData.mapped_columns[c];
+        const highlight = mapped ? 'background:rgba(41,128,185,0.3)' : 'background:rgba(41,128,185,0.2)';
+        html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${c}${mapped ? ' *' : ''}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    workerExcelData.rows.forEach((row, i) => {
+        html += `<tr>`;
+        html += `<td style="padding:4px 8px;border:1px solid var(--border-color);text-align:center"><input type="checkbox" class="worker-row-check" data-idx="${i}" checked></td>`;
+        cols.forEach(c => {
+            const val = row[c] || '';
+            html += `<td style="padding:4px 8px;border:1px solid var(--border-color);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${val}">${val}</td>`;
+        });
+        html += '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+}
+
+function toggleAllWorkerRows(master) {
+    document.querySelectorAll('.worker-row-check').forEach(cb => cb.checked = master.checked);
+}
+
+function resetWorkerExcelUpload() {
+    workerExcelData = null;
+    document.getElementById('worker-excel-upload-area').style.display = 'block';
+    document.getElementById('worker-excel-upload-area').innerHTML = `
+        <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
+        <div style="font-size:14px;font-weight:600">작업자 명단 파일 선택</div>
+        <div style="font-size:12px;color:var(--text-faint);margin-top:4px">.xls .xlsx .csv</div>
+        <input type="file" id="worker-excel-file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleWorkerExcelUpload(this)">`;
+    document.getElementById('worker-excel-preview').style.display = 'none';
+}
+
+async function importSelectedWorkers() {
+    if (!workerExcelData) return;
+
+    const checked = [...document.querySelectorAll('.worker-row-check:checked')].map(cb => parseInt(cb.dataset.idx));
+    if (checked.length === 0) {
+        alert('등록할 작업자를 선택하세요.');
+        return;
+    }
+
+    const nameCol = document.querySelector('[data-worker-field="name"]')?.value;
+    const phoneCol = document.querySelector('[data-worker-field="phone"]')?.value;
+    const deptCol = document.querySelector('[data-worker-field="department"]')?.value;
+    const teamCol = document.querySelector('[data-worker-field="team"]')?.value;
+    const bulkVulnerable = document.getElementById('worker-bulk-vulnerable')?.checked || false;
+
+    if (!nameCol) {
+        alert('이름 컬럼을 선택하세요.');
+        return;
+    }
+    if (!phoneCol) {
+        alert('전화번호 컬럼을 선택하세요.');
+        return;
+    }
+
+    const workers = checked.map(i => {
+        const row = workerExcelData.rows[i];
+        return {
+            name: (row[nameCol] || '').trim(),
+            phone: (row[phoneCol] || '').trim(),
+            department: deptCol ? (row[deptCol] || '').trim() : '',
+            team: teamCol ? (row[teamCol] || '').trim() : '',
+            is_vulnerable: bulkVulnerable,
+        };
+    }).filter(w => w.name && w.phone);
+
+    if (workers.length === 0) {
+        alert('등록할 유효한 작업자가 없습니다.\n이름과 전화번호가 있는 행이 필요합니다.');
+        return;
+    }
+
+    try {
+        const result = await api('/api/upload/import-workers', {
+            method: 'POST',
+            body: JSON.stringify({ workers }),
+        });
+        let msg = `등록 완료!\n성공: ${result.created}명`;
+        if (result.skipped > 0) msg += `\n중복 건너뜀: ${result.skipped}명`;
+        if (result.errors > 0) msg += `\n실패: ${result.errors}건`;
+        alert(msg);
+        closeModal('worker-modal');
+        resetWorkerExcelUpload();
+        switchWorkerTab('manual');
+    } catch (e) {
+        alert('일괄 등록 실패: ' + e.message);
+    }
+}
+
+// ── 작업자 등록 (직접 입력) ──
 async function submitWorker(e) {
     e.preventDefault();
     const form = e.target;

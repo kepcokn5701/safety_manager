@@ -1,0 +1,160 @@
+{
+  "scenario_id": "S07",
+  "scenario_name": "취약작업자 집중관리",
+  "description": "주의 단계(35°C)에서 취약작업자가 다수 배치된 현장. 취약자 enhanced_stage(주의→전원작업전환) 적용.",
+  "date": "2026-07-20",
+  "weather_condition": "맑음, 미풍",
+  "heat_stage": "stage_2_caution (주의) + 취약자 강화기준 적용",
+  "expected_alerts": 15,
+  "vulnerable_worker_policy": {
+    "enhanced_stage": "stage_2_caution",
+    "description": "주의 단계부터 취약작업자는 옥외작업 전환 배치 필수",
+    "criteria": [
+      "만 65세 이상",
+      "심뇌혈관질환",
+      "당뇨",
+      "고혈압",
+      "신장질환",
+      "호흡기질환"
+    ]
+  },
+  "work_sites": [
+    {
+      "name": "밀양 송전선로 점검 (취약자 3명 포함)",
+      "address": "경상남도 밀양시 가곡7길 30",
+      "latitude": 35.5036,
+      "longitude": 128.746,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 34.0,
+        "humidity": 68.0,
+        "wind_speed": 1.0,
+        "apparent_temperature": 36.2,
+        "wbgt_estimated": 30.0
+      },
+      "workers": [
+        {
+          "name": "임창호",
+          "phone": "010-5712-0001",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false,
+          "action": "작업 계속 (매시간 10~15분 휴식)"
+        },
+        {
+          "name": "김도현",
+          "phone": "010-5712-0002",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false,
+          "action": "작업 계속"
+        },
+        {
+          "name": "박정훈",
+          "phone": "010-5712-0003",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false,
+          "action": "작업 계속"
+        },
+        {
+          "name": "최민수",
+          "phone": "010-5712-0004",
+          "department": "송전팀",
+          "team": "송전2반",
+          "is_vulnerable": true,
+          "vulnerability": "고혈압+당뇨(만62세)",
+          "action": "즉시 옥외작업 전환 → 차량 대기 또는 옥내 업무"
+        },
+        {
+          "name": "한상우",
+          "phone": "010-5712-0005",
+          "department": "송전팀",
+          "team": "송전2반",
+          "is_vulnerable": false,
+          "action": "작업 계속"
+        }
+      ],
+      "expected_action": "취약자 1명 전환 → 실작업 인원 4명으로 축소, 작업일정 재조정 필요"
+    },
+    {
+      "name": "김해 인입선 공사 (취약자 1명 포함)",
+      "address": "경상남도 김해시 김해대로 2399",
+      "latitude": 35.2285,
+      "longitude": 128.8892,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 33.8,
+        "humidity": 70.0,
+        "wind_speed": 0.8,
+        "apparent_temperature": 35.9,
+        "wbgt_estimated": 29.6
+      },
+      "workers": [
+        {
+          "name": "채영환",
+          "phone": "010-5713-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false,
+          "action": "작업 계속"
+        },
+        {
+          "name": "신우진",
+          "phone": "010-5713-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false,
+          "action": "작업 계속"
+        },
+        {
+          "name": "정성민",
+          "phone": "010-5713-0003",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": true,
+          "vulnerability": "심혈관질환(만55세)",
+          "action": "즉시 옥외작업 전환 → 차량 대기"
+        }
+      ],
+      "expected_action": "취약자 1명 전환 → 실작업 인원 2명, 최소 인원 미달 시 추가 인력 요청"
+    },
+    {
+      "name": "창녕 배전선로 순시점검 (취약자 1명 포함)",
+      "address": "경상남도 창녕군 남창녕로 71",
+      "latitude": 35.5445,
+      "longitude": 128.4924,
+      "work_intensity": "moderate",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 33.5,
+        "humidity": 66.0,
+        "wind_speed": 1.2,
+        "apparent_temperature": 35.5,
+        "wbgt_estimated": 29.2
+      },
+      "workers": [
+        {
+          "name": "강도윤",
+          "phone": "010-5711-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false,
+          "action": "작업 계속"
+        },
+        {
+          "name": "홍석준",
+          "phone": "010-5711-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": true,
+          "vulnerability": "호흡기질환(만60세)",
+          "action": "즉시 옥외작업 전환"
+        }
+      ],
+      "expected_action": "2인 1조 중 취약자 전환 시 단독작업 불가 → 대체인력 배치 필수"
+    }
+  ]
+}

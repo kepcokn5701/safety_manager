@@ -1,0 +1,138 @@
+{
+  "scenario_id": "S01",
+  "scenario_name": "평상시 (폭염 없음)",
+  "description": "체감온도 30°C 이하의 일반적인 작업일. 전 현장 정상작업 가능.",
+  "date": "2026-06-10",
+  "weather_condition": "맑음, 약한 바람",
+  "heat_stage": "해당없음",
+  "expected_alerts": 0,
+  "work_sites": [
+    {
+      "name": "창원 성산구 가공배전선로 보수공사",
+      "address": "경상남도 창원시 성산구 중앙대로 210",
+      "latitude": 35.2284,
+      "longitude": 128.683,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 27.5,
+        "humidity": 55.0,
+        "wind_speed": 3.2,
+        "apparent_temperature": 28.8,
+        "wbgt_estimated": 23.5
+      },
+      "workers": [
+        {
+          "name": "김진호",
+          "phone": "010-5701-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "박성진",
+          "phone": "010-5701-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "이동규",
+          "phone": "010-5701-0003",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        }
+      ],
+      "expected_stage": null,
+      "expected_action": "정상작업"
+    },
+    {
+      "name": "진주 지중배전선로 신설공사",
+      "address": "경상남도 진주시 동진로 279",
+      "latitude": 35.1798,
+      "longitude": 128.1076,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 26.8,
+        "humidity": 58.0,
+        "wind_speed": 2.8,
+        "apparent_temperature": 28.2,
+        "wbgt_estimated": 23.1
+      },
+      "workers": [
+        {
+          "name": "장세환",
+          "phone": "010-5704-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "문태준",
+          "phone": "010-5704-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "최상원",
+          "phone": "010-5704-0003",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": true
+        }
+      ],
+      "expected_stage": null,
+      "expected_action": "정상작업"
+    },
+    {
+      "name": "밀양-창녕 송전선로 정기점검",
+      "address": "경상남도 밀양시 가곡7길 30",
+      "latitude": 35.5036,
+      "longitude": 128.746,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "weather": {
+        "temperature": 26.2,
+        "humidity": 60.0,
+        "wind_speed": 2.5,
+        "apparent_temperature": 27.5,
+        "wbgt_estimated": 22.8
+      },
+      "workers": [
+        {
+          "name": "임창호",
+          "phone": "010-5712-0001",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "김도현",
+          "phone": "010-5712-0002",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "박정훈",
+          "phone": "010-5712-0003",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "최민수",
+          "phone": "010-5712-0004",
+          "department": "송전팀",
+          "team": "송전2반",
+          "is_vulnerable": true
+        }
+      ],
+      "expected_stage": null,
+      "expected_action": "정상작업"
+    }
+  ]
+}

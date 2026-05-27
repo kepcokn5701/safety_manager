@@ -6,7 +6,8 @@ FastAPI 의존성 주입(DI) 컨테이너
 
 from backend.config import settings
 from backend.services.interfaces import WeatherProvider, NotificationSender
-from backend.services.weather_service import OpenMeteoProvider, ThresholdManager
+from backend.services.weather_service import ThresholdManager
+from backend.services.kma_provider import KmaProvider
 from backend.services.alert_service import KakaoAlimTalkSender, ConsoleSender
 from backend.services.push_service import WebPushSender
 
@@ -19,12 +20,11 @@ _threshold_manager: ThresholdManager | None = None
 
 def get_weather_provider() -> WeatherProvider:
     """
-    날씨 데이터 제공자 반환
-    사내망 이관 시 여기서 KmaProvider()로 교체
+    날씨 데이터 제공자 반환 (기상청 API)
     """
     global _weather_provider
     if _weather_provider is None:
-        _weather_provider = OpenMeteoProvider()
+        _weather_provider = KmaProvider()
     return _weather_provider
 
 

@@ -1,0 +1,148 @@
+{
+  "scenario_id": "S06",
+  "scenario_name": "단계 급상승 (관심 → 경고)",
+  "description": "오전에는 관심 단계였으나 오후 급격한 기온 상승으로 경고 단계까지 상승. 실시간 단계 전환 대응 필요.",
+  "date": "2026-07-28",
+  "weather_condition": "오전 구름 → 오후 쾌청, 습도 급상승",
+  "heat_stage": "stage_1 → stage_3 전환",
+  "expected_alerts": 18,
+  "timeline": [
+    {
+      "time": "09:00",
+      "stage": "해당없음",
+      "description": "작업 시작, 기온 29°C, 정상 작업",
+      "weather": {
+        "temperature": 29.0,
+        "humidity": 55.0,
+        "wind_speed": 2.5,
+        "apparent_temperature": 30.5,
+        "wbgt_estimated": 24.8
+      }
+    },
+    {
+      "time": "11:00",
+      "stage": "stage_1_interest (관심)",
+      "description": "기온 상승 시작, 체감온도 33°C 돌파",
+      "weather": {
+        "temperature": 32.0,
+        "humidity": 62.0,
+        "wind_speed": 1.5,
+        "apparent_temperature": 33.8,
+        "wbgt_estimated": 27.5
+      },
+      "action": "주의 환기 알림 발송"
+    },
+    {
+      "time": "13:00",
+      "stage": "stage_2_caution (주의)",
+      "description": "체감온도 35°C 돌파, 폭염주의보 발령",
+      "weather": {
+        "temperature": 35.0,
+        "humidity": 68.0,
+        "wind_speed": 0.8,
+        "apparent_temperature": 37.2,
+        "wbgt_estimated": 30.8
+      },
+      "action": "매시간 10~15분 휴식 시행, 취약자 작업전환 알림"
+    },
+    {
+      "time": "14:30",
+      "stage": "stage_3_warning (경고)",
+      "description": "체감온도 38°C 돌파, 폭염경보 상향",
+      "weather": {
+        "temperature": 37.0,
+        "humidity": 72.0,
+        "wind_speed": 0.3,
+        "apparent_temperature": 40.1,
+        "wbgt_estimated": 33.5
+      },
+      "action": "14~17시 옥외작업 자제 긴급 알림, 취약자 옥외작업 금지, 현장 철수 지시"
+    },
+    {
+      "time": "17:00",
+      "stage": "stage_2_caution (주의)",
+      "description": "기온 하강 시작, 경고→주의 하향",
+      "weather": {
+        "temperature": 34.5,
+        "humidity": 65.0,
+        "wind_speed": 1.2,
+        "apparent_temperature": 36.8,
+        "wbgt_estimated": 30.2
+      },
+      "action": "작업 재개 가능 알림 (단, 매시간 10~15분 휴식 유지)"
+    }
+  ],
+  "work_sites": [
+    {
+      "name": "통영 해저케이블 연결 배전공사",
+      "address": "경상남도 통영시 중림2로 25",
+      "latitude": 34.8544,
+      "longitude": 128.4336,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "workers": [
+        {
+          "name": "류건우",
+          "phone": "010-5705-0001",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "신태영",
+          "phone": "010-5705-0002",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "조현석",
+          "phone": "010-5705-0003",
+          "department": "배전운영팀",
+          "team": "배전1반",
+          "is_vulnerable": true
+        }
+      ],
+      "expected_action_at_peak": "14:30 경고단계 도달 → 조현석(뇌혈관질환/만63세) 즉시 철수, 나머지 14~17시 작업 자제"
+    },
+    {
+      "name": "거창-함양 154kV 송전선로 점검",
+      "address": "경상남도 거창군 강남로 246",
+      "latitude": 35.6868,
+      "longitude": 127.9099,
+      "work_intensity": "heavy",
+      "is_outdoor": true,
+      "workers": [
+        {
+          "name": "변성호",
+          "phone": "010-5715-0001",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "곽동현",
+          "phone": "010-5715-0002",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        },
+        {
+          "name": "성재민",
+          "phone": "010-5715-0003",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": true
+        },
+        {
+          "name": "우영석",
+          "phone": "010-5715-0004",
+          "department": "송전팀",
+          "team": "송전1반",
+          "is_vulnerable": false
+        }
+      ],
+      "expected_action_at_peak": "산악지역이나 경고단계 도달 → 성재민(뇌혈관질환/만64세) 즉시 하산, 전원 14~17시 작업 중지"
+    }
+  ]
+}

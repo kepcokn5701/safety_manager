@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     kakao_template_code_warning: str = "heat_warning"
     kakao_template_code_danger: str = "heat_danger"
 
+    # 기상청 API (공공데이터포털 서비스키)
+    kma_api_key: str = ""
+
     # 프록시 설정 (사내망 프록시 대비)
     http_proxy: Optional[str] = None
     https_proxy: Optional[str] = None

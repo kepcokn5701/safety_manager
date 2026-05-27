@@ -7,7 +7,7 @@
 
     <!-- PWA -->
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#0a0e17">
+    <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="안전관리">
@@ -20,6 +20,7 @@
 <!-- ── 헤더 ── -->
 <header class="header">
     <div class="header-left">
+        <div class="header-logo">K</div>
         <h1>KEPCO 안전관리</h1>
     </div>
     <div class="header-right">
@@ -227,29 +228,64 @@
             <button class="modal-close" onclick="closeModal('worker-modal')">&times;</button>
         </div>
         <div class="modal-body">
-            <form onsubmit="submitWorker(event)">
-                <div class="form-group">
-                    <label>이름 *</label>
-                    <input type="text" name="worker_name" required placeholder="홍길동">
+            <!-- 탭 -->
+            <div style="display:flex;gap:0;margin-bottom:16px">
+                <button class="btn btn-sm" id="worker-tab-manual-btn" onclick="switchWorkerTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--kepco);color:white">직접 입력</button>
+                <button class="btn btn-sm" id="worker-tab-excel-btn" onclick="switchWorkerTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">엑셀 업로드</button>
+            </div>
+
+            <div id="worker-tab-manual">
+                <form onsubmit="submitWorker(event)">
+                    <div class="form-group">
+                        <label>이름 *</label>
+                        <input type="text" name="worker_name" required placeholder="홍길동">
+                    </div>
+                    <div class="form-group">
+                        <label>전화번호 *</label>
+                        <input type="tel" name="worker_phone" required placeholder="010-1234-5678">
+                    </div>
+                    <div class="form-group">
+                        <label>소속 부서</label>
+                        <input type="text" name="worker_dept" placeholder="배전건설부">
+                    </div>
+                    <div class="form-group">
+                        <label>작업반</label>
+                        <input type="text" name="worker_team" placeholder="1공구 3반">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+                        <input type="checkbox" name="worker_vulnerable" id="worker_vulnerable" style="width:auto">
+                        <label for="worker_vulnerable" style="margin:0;font-size:13px;color:var(--text)">취약 작업자 (65세 이상, 기저질환)</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">등록</button>
+                </form>
+            </div>
+
+            <div id="worker-tab-excel" style="display:none">
+                <div id="worker-excel-upload-area" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer" onclick="document.getElementById('worker-excel-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--kepco)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleWorkerExcelDrop(event)">
+                    <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
+                    <div style="font-size:14px;font-weight:600">작업자 명단 파일 선택</div>
+                    <div style="font-size:12px;color:var(--text-faint);margin-top:4px">.xls .xlsx .csv</div>
+                    <input type="file" id="worker-excel-file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleWorkerExcelUpload(this)">
                 </div>
-                <div class="form-group">
-                    <label>전화번호 *</label>
-                    <input type="tel" name="worker_phone" required placeholder="010-1234-5678">
+                <div id="worker-excel-preview" style="display:none;margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <span id="worker-excel-info" style="font-size:12px;color:var(--text-dim)"></span>
+                        <button class="btn btn-ghost btn-sm" onclick="resetWorkerExcelUpload()">다시 선택</button>
+                    </div>
+                    <div id="worker-excel-mapping" style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm)">
+                        <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">컬럼 매핑</div>
+                        <div id="worker-mapping-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+                    </div>
+                    <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+                        <table id="worker-excel-table" style="width:100%;border-collapse:collapse;font-size:11px"></table>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm)">
+                        <input type="checkbox" id="worker-bulk-vulnerable" style="width:auto">
+                        <label for="worker-bulk-vulnerable" style="margin:0;font-size:13px;color:var(--text)">전체 취약 작업자로 지정</label>
+                    </div>
+                    <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:12px;font-size:15px" onclick="importSelectedWorkers()">선택한 작업자 일괄 등록</button>
                 </div>
-                <div class="form-group">
-                    <label>소속 부서</label>
-                    <input type="text" name="worker_dept" placeholder="배전건설부">
-                </div>
-                <div class="form-group">
-                    <label>작업반</label>
-                    <input type="text" name="worker_team" placeholder="1공구 3반">
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-                    <input type="checkbox" name="worker_vulnerable" id="worker_vulnerable" style="width:auto">
-                    <label for="worker_vulnerable" style="margin:0;font-size:13px;color:var(--text)">취약 작업자 (65세 이상, 기저질환)</label>
-                </div>
-                <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">등록</button>
-            </form>
+            </div>
         </div>
     </div>
 </div>
