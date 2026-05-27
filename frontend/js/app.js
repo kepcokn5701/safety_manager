@@ -310,6 +310,58 @@ function updatePushButton(subscribed) {
     btn.textContent = subscribed ? '알림 ON' : '알림 허용';
 }
 
+// ── 토스트 알림 (alert 대체) ──
+function showToast(message, type = 'info', duration = 4000) {
+    const colors = {
+        success: { bg: '#ecfdf5', border: '#10b981', text: '#065f46', icon: 'V' },
+        error:   { bg: '#fef2f2', border: '#ef4444', text: '#991b1b', icon: 'X' },
+        info:    { bg: '#eff6ff', border: '#3b82f6', text: '#1e40af', icon: 'i' },
+        warning: { bg: '#fffbeb', border: '#f59e0b', text: '#92400e', icon: '!' },
+    };
+    const c = colors[type] || colors.info;
+
+    const toast = document.createElement('div');
+    toast.style.cssText = `position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:10001;
+        max-width:480px;width:calc(100% - 32px);padding:14px 18px;
+        background:${c.bg};border:1px solid ${c.border};border-radius:12px;
+        box-shadow:0 8px 24px rgba(0,0,0,0.12);
+        display:flex;align-items:flex-start;gap:10px;
+        animation:slideUp 0.3s ease-out reverse;font-size:13px;line-height:1.5`;
+    toast.innerHTML = `
+        <span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:${c.border};color:white;
+            display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">${c.icon}</span>
+        <div style="flex:1;color:${c.text};white-space:pre-line">${message}</div>
+        <button onclick="this.parentElement.remove()" style="background:none;border:none;color:${c.text};opacity:0.5;cursor:pointer;font-size:16px">&times;</button>
+    `;
+    document.body.appendChild(toast);
+    if (duration > 0) {
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, duration);
+    }
+}
+
+// ── 프로그레스바 ──
+function showProgress(containerId, message) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = `
+        <div style="padding:20px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <div class="progress-spinner"></div>
+                <span style="font-size:13px;color:var(--text-mid,#4a5568)" id="${containerId}-msg">${message}</span>
+            </div>
+            <div style="height:4px;background:var(--border,#e2e8f0);border-radius:4px;overflow:hidden">
+                <div id="${containerId}-bar" style="height:100%;width:0%;background:var(--kepco,#0066cc);border-radius:4px;transition:width 0.3s ease"></div>
+            </div>
+        </div>`;
+}
+
+function updateProgress(containerId, percent, message) {
+    const bar = document.getElementById(`${containerId}-bar`);
+    const msg = document.getElementById(`${containerId}-msg`);
+    if (bar) bar.style.width = `${Math.min(percent, 100)}%`;
+    if (msg && message) msg.textContent = message;
+}
+
 // ── 안내 모달 (alert 대체) ──
 function showGuideModal(title, message) {
     // 기존 모달 제거
@@ -403,7 +455,11 @@ async function selectSite(siteId) {
 // ── 전체 현장 날씨 일괄 조회 ──
 async function loadAllSitesWeather() {
     try {
+        showProgress('all-sites-overview', `${state.sites.length}개 현장 날씨 조회 중...`);
+        updateProgress('all-sites-overview', 30);
+
         const data = await api('/api/weather/status-all');
+        updateProgress('all-sites-overview', 90, '화면 렌더링 중...');
         state.allSitesWeather = data.sites;
         renderAllSitesOverview(data.sites);
 
@@ -498,12 +554,14 @@ function renderAllSitesOverview(sites) {
                     <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
                     ${s.worker_count > 0 ? (() => {
+                        const total = s.workers?.length || 0;
                         const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
                         const failed = s.workers?.filter(w => w.last_alert?.status === 'failed').length || 0;
-                        const alertSummary = (sent + failed) > 0
-                            ? ` | 알림 <span style="color:var(--safe,#10b981)">${sent}</span>${failed ? `/<span style="color:var(--danger,#dc2626)">${failed}</span>` : ''}건`
-                            : '';
-                        return `<div style="font-size:11px;color:var(--kepco, #0066cc);margin-top:1px">작업자 ${s.worker_count}명${s.workers?.some(w=>w.is_vulnerable) ? ' (취약 포함)' : ''}${alertSummary}</div>`;
+                        const hasAlerts = (sent + failed) > 0;
+                        return `<div style="font-size:11px;margin-top:2px">
+                            <span style="color:var(--kepco,#0066cc)">작업자 ${total}명</span>${s.workers?.some(w=>w.is_vulnerable) ? ' <span style="color:#e74c3c;font-size:10px">(취약 포함)</span>' : ''}
+                            ${hasAlerts ? ` <span style="color:var(--text-dim,#8896a6)">|</span> 알림 <span style="color:${sent > 0 ? 'var(--safe,#10b981)' : 'var(--text-faint)'};font-weight:600">${sent}</span><span style="color:var(--text-faint)">/${total}건 성공</span>${failed > 0 ? ` <span style="color:var(--danger,#dc2626);font-weight:600">${failed}건 실패</span>` : ''}` : ''}
+                        </div>`;
                     })() : ''}
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
@@ -762,11 +820,12 @@ async function loadStats() {
 async function triggerMonitoring() {
     try {
         const result = await api('/api/monitor/trigger', { method: 'POST' });
-        alert(`모니터링 완료\n점검 현장: ${result.sites_checked}개\n알림 발송: ${result.alerts_sent}건`);
+        showToast(`모니터링 완료 - 점검 ${result.sites_checked}개 현장, 알림 ${result.alerts_sent}건 발송`, 'success');
         loadAlertHistory();
         loadStats();
+        loadAllSitesWeather();
     } catch (e) {
-        alert('모니터링 실행 실패: ' + e.message);
+        showToast('모니터링 실행 실패: ' + e.message, 'error');
     }
 }
 
@@ -820,9 +879,10 @@ async function submitSite(e) {
         await api('/api/sites', { method: 'POST', body: JSON.stringify(data) });
         closeModal('site-modal');
         form.reset();
+        showToast('현장이 등록되었습니다.', 'success');
         loadSites();
     } catch (e) {
-        alert('등록 실패: ' + e.message);
+        showToast('등록 실패: ' + e.message, 'error');
     }
 }
 
@@ -1029,11 +1089,13 @@ async function importSelectedSites() {
         return;
     }
 
+    const btn = document.querySelector('#excel-preview .btn-primary');
     try {
-        const btn = document.querySelector('#excel-preview .btn-primary');
         if (btn) {
             btn.disabled = true;
-            btn.textContent = locationMode === 'auto' ? '주소 변환 및 등록 중...' : '등록 중...';
+            btn.innerHTML = locationMode === 'auto'
+                ? '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>주소 변환 및 등록 중... (현장 ' + sites.length + '개)'
+                : '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>등록 중...';
         }
 
         const result = await api('/api/upload/import-sites', {
@@ -1041,24 +1103,22 @@ async function importSelectedSites() {
             body: JSON.stringify({ sites }),
         });
 
-        let msg = `[현장] ${result.created}건 등록`;
-        if (result.geocoded > 0) msg += ` (좌표 변환 ${result.geocoded}건)`;
-        if (result.workers_assigned > 0) msg += `\n[작업자] ${result.workers_created}명 신규등록, ${result.workers_assigned}명 현장 배정`;
-        if (result.errors > 0) msg += `\n[실패] ${result.errors}건`;
-
-        if (result.error_details?.length > 0) {
-            const first3 = result.error_details.slice(0, 3).map(e => `  - ${e.name}: ${e.error}`).join('\n');
-            msg += `\n\n실패 상세:\n${first3}`;
-        }
-        alert(msg);
         closeModal('site-modal');
         resetExcelUpload();
-        loadSites();
-        loadWorkers();
+
+        let msg = `현장 ${result.created}건 등록 완료`;
+        if (result.geocoded > 0) msg += ` (좌표 변환 ${result.geocoded}건)`;
+        if (result.workers_assigned > 0) msg += `\n작업자 ${result.workers_created}명 등록, ${result.workers_assigned}명 배정`;
+        if (result.errors > 0) msg += `\n실패 ${result.errors}건`;
+        if (result.error_details?.length > 0) {
+            const first3 = result.error_details.slice(0, 3).map(e => `${e.name}: ${e.error}`).join(', ');
+            msg += ` (${first3})`;
+        }
+        showToast(msg, result.errors > 0 ? 'warning' : 'success', 6000);
+        await loadSites();
     } catch (e) {
-        alert('일괄 등록 실패: ' + e.message);
+        showToast('일괄 등록 실패: ' + e.message, 'error');
     } finally {
-        const btn = document.querySelector('#excel-preview .btn-primary');
         if (btn) {
             btn.disabled = false;
             btn.textContent = '일괄 등록';
@@ -1254,15 +1314,16 @@ async function importSelectedWorkers() {
             method: 'POST',
             body: JSON.stringify({ workers }),
         });
-        let msg = `등록 완료!\n성공: ${result.created}명`;
-        if (result.skipped > 0) msg += `\n중복 건너뜀: ${result.skipped}명`;
-        if (result.errors > 0) msg += `\n실패: ${result.errors}건`;
-        alert(msg);
+        let msg = `작업자 ${result.created}명 등록 완료`;
+        if (result.skipped > 0) msg += ` (중복 ${result.skipped}명 건너뜀)`;
+        if (result.errors > 0) msg += ` (실패 ${result.errors}건)`;
+        showToast(msg, result.errors > 0 ? 'warning' : 'success');
         closeModal('worker-modal');
         resetWorkerExcelUpload();
         switchWorkerTab('manual');
+        loadSites();
     } catch (e) {
-        alert('일괄 등록 실패: ' + e.message);
+        showToast('일괄 등록 실패: ' + e.message, 'error');
     }
 }
 
@@ -1282,9 +1343,10 @@ async function submitWorker(e) {
         await api('/api/workers', { method: 'POST', body: JSON.stringify(data) });
         closeModal('worker-modal');
         form.reset();
-        alert('작업자가 등록되었습니다.');
+        showToast('작업자가 등록되었습니다.', 'success');
+        loadSites();
     } catch (e) {
-        alert('등록 실패: ' + e.message);
+        showToast('등록 실패: ' + e.message, 'error');
     }
 }
 
@@ -1320,13 +1382,12 @@ async function resetAllData() {
     if (!confirm('모든 작업현장과 작업자 데이터를 삭제합니다.\n정말 초기화하시겠습니까?')) return;
     try {
         await api('/api/reset', { method: 'POST' });
-        alert('초기화 완료');
+        showToast('초기화 완료', 'success');
         loadSites();
-        loadWorkers();
         loadStats();
         loadAlertHistory();
     } catch (e) {
-        alert('초기화 실패: ' + e.message);
+        showToast('초기화 실패: ' + e.message, 'error');
     }
 }
 

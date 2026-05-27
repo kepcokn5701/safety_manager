@@ -130,3 +130,13 @@ class PushSubscription(Base):
     endpoint = Column(String(500), nullable=False, unique=True)
     subscription_json = Column(Text, nullable=False)  # 전체 subscription 객체
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ── 시스템 설정 (VAPID 키 등 영구 보관) ──
+class SystemSetting(Base):
+    __tablename__ = "system_settings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(100), nullable=False, unique=True)
+    value = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -45,6 +45,10 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("데이터베이스 초기화 완료")
 
+    # VAPID 키 DB 초기화 (Vercel 배포 시에도 키 유지)
+    from backend.services.vapid_manager import init_vapid_keys_from_db
+    await init_vapid_keys_from_db()
+
     # 스케줄러는 Vercel(서버리스)에서는 실행하지 않음
     scheduler = None
     if not IS_VERCEL:
