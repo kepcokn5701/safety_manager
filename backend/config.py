@@ -17,22 +17,15 @@ _is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 
 
 def _resolve_database_url() -> str:
-    """데이터베이스 URL 결정"""
-    # DATABASE_URL 우선 (사용자 직접 설정), 없으면 POSTGRES_URL
-    db_url = os.environ.get("DATABASE_URL", "") or os.environ.get("POSTGRES_URL", "")
+    """데이터베이스 URL 결정 (POSTGRES_URL > DATABASE_URL > SQLite)"""
+    pg_url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL", "")
 
-    # 이미 +psycopg 드라이버가 지정된 경우 그대로 사용
-    if "+psycopg" in db_url or "+asyncpg" in db_url:
-        return db_url
-
-    # postgres:// 또는 postgresql:// → psycopg async 드라이버로 변환
-    if db_url.startswith(("postgres://", "postgresql://")):
+    if pg_url.startswith(("postgres://", "postgresql://")):
         from urllib.parse import urlparse, urlunparse
+        parsed = urlparse(pg_url)
+        # asyncpg 드라이버로 변환
+        return urlunparse(parsed._replace(scheme="postgresql+asyncpg"))
 
-        # 스킴 교체
-        parsed = urlparse(db_url)
-        url = urlunparse(parsed._replace(scheme="postgresql+psycopg"))
-        return url
     if _is_vercel:
         return "sqlite+aiosqlite:////tmp/safety_manager.db"
     return "sqlite+aiosqlite:///./safety_manager.db"
