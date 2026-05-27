@@ -23,8 +23,9 @@ def _resolve_database_url() -> str:
     if pg_url.startswith(("postgres://", "postgresql://")):
         from urllib.parse import urlparse, urlunparse
         parsed = urlparse(pg_url)
-        # asyncpg 드라이버로 변환
-        return urlunparse(parsed._replace(scheme="postgresql+asyncpg"))
+        # asyncpg 드라이버로 변환 + sslmode→ssl 변환
+        query = parsed.query.replace("sslmode=", "ssl=") if parsed.query else ""
+        return urlunparse(parsed._replace(scheme="postgresql+asyncpg", query=query))
 
     if _is_vercel:
         return "sqlite+aiosqlite:////tmp/safety_manager.db"
