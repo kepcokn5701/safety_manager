@@ -46,8 +46,9 @@ class Settings(BaseSettings):
     # 데이터베이스 (SQLite ↔ PostgreSQL 교체 가능)
     database_url: str = _default_db
 
-    # 카카오 알림톡
+    # 카카오 API
     kakao_rest_api_key: str = ""
+    kakao_java_script_key: str = ""
     kakao_sender_key: str = ""
     kakao_template_code_caution: str = "heat_caution"
     kakao_template_code_warning: str = "heat_warning"
