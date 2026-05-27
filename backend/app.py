@@ -123,6 +123,12 @@ async def root():
     return _file("index.html")
 
 
+@app.get("/worker")
+async def worker_index():
+    """작업자 앱 - site_id 없이 접속 시 안내 페이지"""
+    return _file("worker.html")
+
+
 @app.get("/worker/{site_id}")
 async def worker_page(site_id: int):
     return _file("worker.html")
