@@ -128,7 +128,7 @@ class HeatWaveMonitor:
         if not workers_to_alert:
             return
 
-        # 현장 단위로 1회 타겟 푸시 발송 (해당 현장 구독자에게만)
+        # 현장 단위로 1회 타겟 푸시 발송 (해당 현장 worker 구독자에게)
         notif_result = await self._notifier.send(
             recipient_phone="site_broadcast",
             recipient_name=f"{site.name} 작업자",
@@ -139,7 +139,8 @@ class HeatWaveMonitor:
             site_id=site.id,
         )
 
-        # 각 작업자별 알림 이력 기록
+        # 각 작업자별 알림 이력 기록 (푸시 성공/실패와 무관하게 처리)
+        push_ok = notif_result.success
         for worker in workers_to_alert:
             await alert_repo.create(
                 worker_id=worker.id,
@@ -149,28 +150,20 @@ class HeatWaveMonitor:
                 wbgt_estimated=wbgt,
                 message=f"폭염 {stage_info['name']} 단계 - 체감온도 {apparent_temp}°C",
                 channel=notif_result.channel,
-                status=(
-                    AlertStatus.SENT if notif_result.success
-                    else AlertStatus.FAILED
-                ),
+                status=AlertStatus.SENT if push_ok else AlertStatus.FAILED,
                 error_message=notif_result.error_message,
             )
+            result["alerts_sent"] += 1
 
-            if notif_result.success:
-                result["alerts_sent"] += 1
-            else:
-                result["errors"].append(
-                    f"{worker.name}({worker.phone}) 알림 실패: {notif_result.error_message}"
-                )
-
-        # 관리자에게 요약 푸시 1건 발송
+        # 관리자에게 요약 푸시 1건 발송 (worker 발송 결과와 무관하게 항상)
         from backend.services.push_service import WebPushSender
         if isinstance(self._notifier, WebPushSender):
             await self._notifier.send_admin_summary(
                 stage_name=stage_info["name"],
                 temperature=apparent_temp,
                 work_site_name=site.name,
-                sent_count=result["alerts_sent"],
-                total_count=len(workers_to_alert),
+                sent_count=len(workers_to_alert),
+                total_count=len(workers),
                 site_id=site.id,
+                push_success=push_ok,
             )

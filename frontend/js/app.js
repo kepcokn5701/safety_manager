@@ -1468,19 +1468,36 @@ async function runSimulation() {
     const temp = document.getElementById('sim-temp').value;
     const humidity = document.getElementById('sim-humidity').value;
     const resultEl = document.getElementById('sim-result');
-    resultEl.innerHTML = '<span style="color:var(--text-dim)">시뮬레이션 실행 중... (알림 발송 포함)</span>';
+    resultEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px">
+        <div class="progress-spinner"></div>
+        <span style="color:var(--text-dim)">시뮬레이션 실행 중... (${state.sites?.length || 0}개 현장 점검 + 알림 발송)</span>
+    </div>`;
 
     try {
         const result = await api(`/api/monitor/simulate?temperature=${temp}&humidity=${humidity}`, { method: 'POST' });
-        let html = `<div style="padding:10px;background:rgba(231,76,60,0.08);border-radius:8px;margin-top:8px">`;
-        html += `<div style="font-weight:700;margin-bottom:4px">시뮬레이션 결과 (기온 ${temp}°C, 습도 ${humidity}%)</div>`;
-        html += `<div>점검 현장: ${result.sites_checked}개</div>`;
-        html += `<div>알림 발송: ${result.alerts_sent}건</div>`;
-        if (result.errors > 0) html += `<div style="color:#e74c3c">실패: ${result.errors}건</div>`;
+        const skipped = result.alerts_skipped || 0;
+        const errCount = result.errors?.length || 0;
+        let html = `<div style="padding:12px;background:rgba(231,76,60,0.08);border-radius:8px;margin-top:8px">`;
+        html += `<div style="font-weight:700;margin-bottom:6px">시뮬레이션 결과 (기온 ${temp}°C, 습도 ${humidity}%)</div>`;
+        html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:13px">`;
+        html += `<div>점검 현장: <strong>${result.sites_checked}개</strong></div>`;
+        html += `<div>알림 처리: <strong>${result.alerts_sent}건</strong></div>`;
+        if (skipped > 0) html += `<div>중복 스킵: ${skipped}건</div>`;
+        if (errCount > 0) html += `<div style="color:#e74c3c">오류: ${errCount}건</div>`;
+        html += `</div>`;
+        if (result.alerts_sent === 0 && skipped === 0) {
+            html += `<div style="margin-top:8px;padding:8px;background:rgba(245,158,11,0.1);border-radius:6px;font-size:12px;color:#92400e">작업자가 없거나 단계 미달 (주의 이상부터 발송)</div>`;
+        } else if (result.alerts_sent > 0) {
+            html += `<div style="margin-top:8px;padding:8px;background:rgba(16,185,129,0.1);border-radius:6px;font-size:12px;color:#065f46">관리자 푸시로 요약 알림이 발송됩니다. 작업자 앱 알림은 QR 등록 후 수신됩니다.</div>`;
+        }
+        if (skipped > 0) {
+            html += `<div style="margin-top:4px;font-size:11px;color:var(--text-faint)">1시간 내 동일 단계 알림은 중복 발송되지 않습니다.</div>`;
+        }
         html += `</div>`;
         resultEl.innerHTML = html;
         loadAlertHistory();
         loadStats();
+        loadAllSitesWeather();
     } catch (e) {
         resultEl.innerHTML = `<span style="color:#e74c3c">시뮬레이션 실패: ${e.message}</span>`;
     }

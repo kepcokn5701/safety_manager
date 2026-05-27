@@ -184,6 +184,7 @@ class WebPushSender(NotificationSender):
         sent_count: int,
         total_count: int,
         site_id: int | None = None,
+        push_success: bool = True,
     ) -> None:
         """관리자에게 발송 결과 요약 푸시 1건"""
         subscriptions = await self._get_admin_subscriptions()
@@ -197,9 +198,10 @@ class WebPushSender(NotificationSender):
             "위험": "/static/icons/alert-danger.svg",
         }
 
+        push_status = "푸시 발송 완료" if push_success else "푸시 구독자 없음 (작업자 QR 등록 필요)"
         payload = {
-            "title": f"[발송 완료] {work_site_name}",
-            "body": f"폭염 {stage_name} - 체감 {temperature}°C\n알림 {sent_count}/{total_count}건 발송 완료",
+            "title": f"[폭염 {stage_name}] {work_site_name}",
+            "body": f"체감 {temperature}°C - 대상 {sent_count}/{total_count}명\n{push_status}",
             "icon": stage_icon_map.get(stage_name, "/static/icons/icon-192.svg"),
             "badge": "/static/icons/badge-72.svg",
             "tag": f"admin-summary-{site_id}",
