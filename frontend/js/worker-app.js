@@ -161,21 +161,28 @@ async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
 
     try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.register('/sw.js');
+        // SW가 완전히 활성화될 때까지 대기
+        const reg = await navigator.serviceWorker.ready;
 
-        // 기존 구독 확인
+        // 기존 구독 확인 + 서버에 재등록
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
             pushSubscription = sub;
             updatePushButton(true);
-            api('/api/push/subscribe', {
-                method: 'POST',
-                body: JSON.stringify({
-                    subscription: sub.toJSON(),
-                    subscriber_type: 'worker',
-                    site_id: siteId,
-                }),
-            }).catch(() => {});
+            try {
+                await api('/api/push/subscribe', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        subscription: sub.toJSON(),
+                        subscriber_type: 'worker',
+                        site_id: siteId,
+                    }),
+                });
+                console.log('기존 구독 서버 재등록 완료');
+            } catch (e) {
+                console.error('구독 재등록 실패:', e);
+            }
         }
 
         // 모바일 + PWA 미설치 → 설치 배너

@@ -49,17 +49,17 @@ async function initServiceWorker() {
     }
 
     try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker 등록 성공:', reg.scope);
+        await navigator.serviceWorker.register('/sw.js');
+        const reg = await navigator.serviceWorker.ready;
 
-        // 기존 구독이 있으면 서버에 재등록 (서버 재시작 대응)
+        // 기존 구독이 있으면 서버에 재등록
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
             state.pushSubscription = sub;
             updatePushButton(true);
             api('/api/push/subscribe', {
                 method: 'POST',
-                body: JSON.stringify({ subscription: sub.toJSON() }),
+                body: JSON.stringify({ subscription: sub.toJSON(), subscriber_type: 'admin' }),
             }).catch(() => {});
         }
 
@@ -322,7 +322,7 @@ async function subscribePush() {
 
         await api('/api/push/subscribe', {
             method: 'POST',
-            body: JSON.stringify({ subscription: sub.toJSON() }),
+            body: JSON.stringify({ subscription: sub.toJSON(), subscriber_type: 'admin' }),
         });
 
         state.pushSubscription = sub;
