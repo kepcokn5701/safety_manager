@@ -30,7 +30,6 @@ async function api(path, options = {}) {
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', () => {
     loadSites();
-    loadWorkers();
     loadAlertHistory();
     loadStats();
     initServiceWorker();
@@ -71,9 +70,116 @@ async function initServiceWorker() {
             const banner = document.getElementById('install-banner');
             if (banner) banner.style.display = 'block';
         }
+
+        // SW로부터 푸시 메시지 수신 → 인앱 팝업 + 경고음
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data?.type === 'PUSH_RECEIVED') {
+                showInAppAlert(event.data);
+            }
+        });
     } catch (e) {
         console.error('Service Worker 등록 실패:', e);
     }
+}
+
+// ── 경고음 (Web Audio API) ──
+function playAlertSound(stage) {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const isDanger = stage === '위험';
+        const isWarning = stage === '경고';
+
+        // 단계별 다른 경고음
+        const freqs = isDanger ? [880, 660, 880, 660, 880] :
+                      isWarning ? [780, 580, 780] :
+                      [660, 520];
+        const noteDuration = isDanger ? 0.15 : 0.2;
+        const gap = 0.08;
+
+        freqs.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+
+            osc.type = isDanger ? 'square' : 'sine';
+            osc.frequency.value = freq;
+
+            const start = ctx.currentTime + i * (noteDuration + gap);
+            gain.gain.setValueAtTime(0.3, start);
+            gain.gain.exponentialRampToValueAtTime(0.01, start + noteDuration);
+
+            osc.start(start);
+            osc.stop(start + noteDuration);
+        });
+
+        // 컨텍스트 자동 정리
+        setTimeout(() => ctx.close(), 3000);
+    } catch (e) {
+        console.warn('경고음 재생 실패:', e);
+    }
+}
+
+// ── 인앱 폭염 팝업 ──
+function showInAppAlert(data) {
+    // 경고음 재생
+    playAlertSound(data.stage);
+
+    const stageColors = {
+        '관심': { bg: '#FFF8E1', border: '#FFC107', text: '#F57F17', icon: '/static/icons/alert-interest.svg' },
+        '주의': { bg: '#FFF3E0', border: '#FF9800', text: '#E65100', icon: '/static/icons/alert-caution.svg' },
+        '경고': { bg: '#FBE9E7', border: '#FF5722', text: '#BF360C', icon: '/static/icons/alert-warning.svg' },
+        '위험': { bg: '#FFEBEE', border: '#D32F2F', text: '#B71C1C', icon: '/static/icons/alert-danger.svg' },
+    };
+    const colors = stageColors[data.stage] || stageColors['경고'];
+
+    // 기존 인앱 알림 제거
+    const old = document.getElementById('inapp-alert');
+    if (old) old.remove();
+
+    const popup = document.createElement('div');
+    popup.id = 'inapp-alert';
+    popup.style.cssText = `
+        position:fixed; top:0; left:0; right:0; z-index:10000;
+        animation: slideDown 0.3s ease-out;
+    `;
+    popup.innerHTML = `
+        <div style="
+            max-width:540px; margin:12px auto; padding:16px 18px;
+            background:${colors.bg}; border:2px solid ${colors.border};
+            border-radius:16px; box-shadow:0 8px 32px rgba(0,0,0,0.18);
+            display:flex; align-items:flex-start; gap:14px;
+        ">
+            <img src="${colors.icon}" alt="" style="width:48px;height:48px;border-radius:12px;flex-shrink:0">
+            <div style="flex:1;min-width:0">
+                <div style="font-size:16px;font-weight:800;color:${colors.text};margin-bottom:4px">
+                    ${data.title}
+                </div>
+                <div style="font-size:13px;color:#333;line-height:1.5;white-space:pre-line">${data.body}</div>
+                ${data.actions?.length ? `<div style="font-size:12px;color:${colors.text};margin-top:6px;opacity:0.8">${data.actions[0]}</div>` : ''}
+            </div>
+            <button onclick="this.closest('#inapp-alert').remove()" style="
+                background:none; border:none; font-size:22px; color:${colors.text};
+                cursor:pointer; padding:0; line-height:1; opacity:0.6; flex-shrink:0;
+            ">&times;</button>
+        </div>
+    `;
+    document.body.appendChild(popup);
+
+    // 위험 단계가 아니면 8초 후 자동 닫힘
+    if (data.stage !== '위험') {
+        setTimeout(() => {
+            if (popup.parentNode) {
+                popup.style.animation = 'slideUp 0.3s ease-in forwards';
+                setTimeout(() => popup.remove(), 300);
+            }
+        }, 8000);
+    }
+
+    // 데이터 갱신
+    loadAllSitesWeather();
+    loadAlertHistory();
+    loadStats();
 }
 
 async function togglePushSubscription() {
@@ -391,7 +497,14 @@ function renderAllSitesOverview(sites) {
                 <div style="flex:1;min-width:0">
                     <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
-                    ${s.worker_count > 0 ? `<div style="font-size:11px;color:var(--kepco, #0066cc);margin-top:1px">작업자 ${s.worker_count}명${s.workers?.some(w=>w.is_vulnerable) ? ' (취약 포함)' : ''}</div>` : ''}
+                    ${s.worker_count > 0 ? (() => {
+                        const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
+                        const failed = s.workers?.filter(w => w.last_alert?.status === 'failed').length || 0;
+                        const alertSummary = (sent + failed) > 0
+                            ? ` | 알림 <span style="color:var(--safe,#10b981)">${sent}</span>${failed ? `/<span style="color:var(--danger,#dc2626)">${failed}</span>` : ''}건`
+                            : '';
+                        return `<div style="font-size:11px;color:var(--kepco, #0066cc);margin-top:1px">작업자 ${s.worker_count}명${s.workers?.some(w=>w.is_vulnerable) ? ' (취약 포함)' : ''}${alertSummary}</div>`;
+                    })() : ''}
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
                     <div style="text-align:right">
@@ -408,10 +521,28 @@ function renderAllSitesOverview(sites) {
             ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color}">${stg.work_restriction}</div>` : ''}
             ${s.workers?.length > 0 && isSelected ? `<div style="margin-top:8px;padding:8px;background:var(--bg-card,#f8fafc);border-radius:6px;font-size:12px">
                 <div style="font-weight:600;margin-bottom:4px;color:var(--text-dim)">배정 작업자 (${s.workers.length}명)</div>
-                ${s.workers.map(w => `<div style="display:flex;justify-content:space-between;padding:2px 0">
-                    <span>${w.name} <span style="color:var(--text-faint)">${w.phone}</span></span>
-                    ${w.is_vulnerable ? '<span style="font-size:10px;color:#e74c3c">취약</span>' : ''}
-                </div>`).join('')}
+                ${s.workers.map(w => {
+                    const a = w.last_alert;
+                    const alertOk = a && a.status === 'sent';
+                    const alertFail = a && a.status === 'failed';
+                    const stageNames = { 'stage_1_interest': '관심', 'stage_2_caution': '주의', 'stage_3_warning': '경고', 'stage_4_danger': '위험' };
+                    const alertTime = a ? new Date(a.sent_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+                    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border-light,#edf2f7)">
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span style="font-weight:500">${w.name}</span>
+                        <span style="color:var(--text-faint);font-size:11px">${w.phone}</span>
+                        ${w.is_vulnerable ? '<span style="font-size:9px;padding:1px 4px;background:rgba(231,76,60,0.12);color:#e74c3c;border-radius:4px">취약</span>' : ''}
+                    </div>
+                    <div style="display:flex;align-items:center;gap:4px;font-size:11px">
+                        ${a ? `
+                            <span style="color:${alertOk ? 'var(--safe,#10b981)' : 'var(--danger,#dc2626)'};font-weight:600">${alertOk ? 'V' : 'X'}</span>
+                            <span style="color:${alertOk ? 'var(--safe,#10b981)' : 'var(--danger,#dc2626)'}">${stageNames[a.stage] || ''} ${a.temperature}°</span>
+                            <span style="color:var(--text-faint);font-size:10px">${alertTime}</span>
+                            <span style="color:var(--text-faint);font-size:9px;padding:1px 3px;background:var(--border-light,#edf2f7);border-radius:3px">${a.channel === 'web_push' ? '푸시' : a.channel === 'kakao_alimtalk' ? '카톡' : a.channel || ''}</span>
+                        ` : '<span style="color:var(--text-faint)">알림 없음</span>'}
+                    </div>
+                </div>`;
+                }).join('')}
             </div>` : ''}
         </div>`;
     }).join('');

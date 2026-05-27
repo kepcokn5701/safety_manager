@@ -26,3 +26,5 @@ logs/
 # Misc
 *.xls
 *.xlsx
+
+.vercel

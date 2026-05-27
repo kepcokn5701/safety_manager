@@ -200,6 +200,27 @@ class AlertLogRepository:
         )
         return list(result.scalars().all())
 
+    async def get_latest_by_site_workers(
+        self, site_id: int, worker_ids: list[int]
+    ) -> dict[int, AlertLog]:
+        """현장의 작업자별 가장 최근 알림 조회"""
+        if not worker_ids:
+            return {}
+        result = await self._session.execute(
+            select(AlertLog).where(
+                and_(
+                    AlertLog.work_site_id == site_id,
+                    AlertLog.worker_id.in_(worker_ids),
+                )
+            ).order_by(AlertLog.sent_at.desc())
+        )
+        logs = list(result.scalars().all())
+        latest = {}
+        for log in logs:
+            if log.worker_id not in latest:
+                latest[log.worker_id] = log
+        return latest
+
     async def get_history(
         self,
         site_id: Optional[int] = None,

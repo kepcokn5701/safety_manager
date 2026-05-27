@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFB74D"/>
+      <stop offset="100%" stop-color="#FF9800"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <!-- warning triangle -->
+  <g transform="translate(96,88)">
+    <path d="M0-52 L50,38 L-50,38 Z" fill="#fff" opacity="0.95" stroke="#E65100" stroke-width="3" stroke-linejoin="round"/>
+    <text x="0" y="24" text-anchor="middle" font-family="Arial,sans-serif" font-size="52" font-weight="900" fill="#E65100">!</text>
+    <!-- heat waves -->
+    <g stroke="#fff" stroke-width="3" fill="none" opacity="0.8">
+      <path d="M-20,-68 Q-15,-76 -10,-68 Q-5,-60 0,-68"/>
+      <path d="M10,-68 Q15,-76 20,-68 Q25,-60 30,-68"/>
+    </g>
+  </g>
+  <text x="96" y="175" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#fff">CAUTION</text>
+</svg>

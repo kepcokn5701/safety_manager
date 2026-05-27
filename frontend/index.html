@@ -86,25 +86,14 @@
         </div>
     </div>
 
-    <!-- 하단 통계 + 이력 -->
-    <div class="grid grid-2">
-        <div class="card">
-            <div class="card-header">
-                <h3>알림 통계</h3>
-                <button class="btn btn-ghost btn-sm" onclick="triggerMonitoring()">수동 점검</button>
-            </div>
-            <div class="card-body" id="stats-content">
-                <p style="color:var(--text-dim);text-align:center">로딩 중...</p>
-            </div>
+    <!-- 알림 통계 -->
+    <div class="card" style="margin-bottom:12px">
+        <div class="card-header">
+            <h3>알림 통계</h3>
+            <button class="btn btn-ghost btn-sm" onclick="triggerMonitoring()">수동 점검</button>
         </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h3>작업자</h3>
-            </div>
-            <div class="card-body" id="worker-list-content" style="font-size:13px;padding:12px;max-height:200px;overflow-y:auto">
-                <p style="text-align:center;color:var(--text-dim)">로딩 중...</p>
-            </div>
+        <div class="card-body" id="stats-content">
+            <p style="color:var(--text-dim);text-align:center">로딩 중...</p>
         </div>
     </div>
 

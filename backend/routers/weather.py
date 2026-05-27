@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.models.database import get_db
 from backend.models.models import WorkIntensity
 from backend.models.schemas import WeatherStatusResponse, WeatherData, HeatStageInfo
-from backend.services.repository import WorkSiteRepository, WeatherLogRepository
+from backend.services.repository import WorkSiteRepository, WeatherLogRepository, AlertLogRepository
 from backend.services.weather_service import (
     HeatIndexCalculator,
     ThresholdManager,
@@ -123,10 +123,27 @@ async def get_all_weather_status(
 
             # 현장에 배정된 작업자 조회
             workers = await site_repo.get_workers(site.id)
-            worker_list = [
-                {"id": w.id, "name": w.name, "phone": w.phone, "is_vulnerable": w.is_vulnerable}
-                for w in workers
-            ]
+            worker_ids = [w.id for w in workers]
+
+            # 작업자별 최근 알림 발송 상태 조회
+            alert_repo = AlertLogRepository(db)
+            latest_alerts = await alert_repo.get_latest_by_site_workers(site.id, worker_ids)
+
+            worker_list = []
+            for w in workers:
+                wdata = {"id": w.id, "name": w.name, "phone": w.phone, "is_vulnerable": w.is_vulnerable}
+                alert = latest_alerts.get(w.id)
+                if alert:
+                    wdata["last_alert"] = {
+                        "stage": alert.stage.value if alert.stage else None,
+                        "status": alert.status.value if alert.status else None,
+                        "channel": alert.channel,
+                        "sent_at": alert.sent_at.isoformat(),
+                        "temperature": alert.apparent_temperature,
+                    }
+                else:
+                    wdata["last_alert"] = None
+                worker_list.append(wdata)
 
             results.append({
                 "site_id": site.id,

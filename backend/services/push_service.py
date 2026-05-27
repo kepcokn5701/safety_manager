@@ -78,13 +78,20 @@ class WebPushSender(NotificationSender):
                 error_message="등록된 푸시 구독자가 없습니다.",
             )
 
+        stage_icon_map = {
+            "관심": "/static/icons/alert-interest.svg",
+            "주의": "/static/icons/alert-caution.svg",
+            "경고": "/static/icons/alert-warning.svg",
+            "위험": "/static/icons/alert-danger.svg",
+        }
+
         payload = {
             "title": f"[폭염 {stage_name}] {work_site_name}",
             "body": (
                 f"체감온도 {temperature}°C\n"
                 f"{actions[0] if actions else '안전에 유의하세요.'}"
             ),
-            "icon": "/static/icons/icon-192.svg",
+            "icon": stage_icon_map.get(stage_name, "/static/icons/icon-192.svg"),
             "badge": "/static/icons/badge-72.svg",
             "tag": f"heat-{stage_name}",
             "data": {

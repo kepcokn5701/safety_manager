@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFD54F"/>
+      <stop offset="100%" stop-color="#FFC107"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <!-- thermometer -->
+  <g transform="translate(96,96)">
+    <circle cx="0" cy="36" r="22" fill="#F57F17" opacity="0.9"/>
+    <rect x="-8" y="-50" width="16" height="76" rx="8" fill="#fff" opacity="0.95"/>
+    <rect x="-5" y="-10" width="10" height="46" rx="5" fill="#F57F17"/>
+    <circle cx="0" cy="36" r="14" fill="#F57F17"/>
+    <!-- sun rays -->
+    <g stroke="#F57F17" stroke-width="3.5" stroke-linecap="round" opacity="0.7">
+      <line x1="30" y1="-40" x2="42" y2="-52"/>
+      <line x1="38" y1="-20" x2="52" y2="-20"/>
+      <line x1="30" y1="0" x2="42" y2="12"/>
+    </g>
+  </g>
+  <!-- text -->
+  <text x="96" y="175" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#F57F17">INTEREST</text>
+</svg>

@@ -13,6 +13,14 @@ self.addEventListener('activate', (event) => {
     event.waitUntil(self.clients.claim());
 });
 
+// 단계별 아이콘 매핑
+const stageIconMap = {
+    '관심': '/static/icons/alert-interest.svg',
+    '주의': '/static/icons/alert-caution.svg',
+    '경고': '/static/icons/alert-warning.svg',
+    '위험': '/static/icons/alert-danger.svg',
+};
+
 // 푸시 알림 수신
 self.addEventListener('push', (event) => {
     console.log('[SW] 푸시 알림 수신');
@@ -25,21 +33,17 @@ self.addEventListener('push', (event) => {
         data.body = event.data ? event.data.text() : data.body;
     }
 
-    const stageColors = {
-        '관심': '#FFC107',
-        '주의': '#FF9800',
-        '경고': '#FF5722',
-        '위험': '#D32F2F',
-    };
+    const stage = data.data?.stage;
+    const icon = data.icon || stageIconMap[stage] || '/static/icons/icon-192.svg';
 
     const options = {
         body: data.body,
-        icon: data.icon || '/static/icon-192.png',
-        badge: data.badge || '/static/badge-72.png',
+        icon: icon,
+        badge: data.badge || '/static/icons/badge-72.svg',
         tag: data.tag || 'heat-alert',
         renotify: true,
-        requireInteraction: data.data?.stage === '위험',
-        vibrate: data.data?.stage === '위험'
+        requireInteraction: stage === '위험',
+        vibrate: stage === '위험'
             ? [300, 100, 300, 100, 300]
             : [200, 100, 200],
         actions: [
@@ -50,7 +54,24 @@ self.addEventListener('push', (event) => {
     };
 
     event.waitUntil(
-        self.registration.showNotification(data.title, options)
+        Promise.all([
+            self.registration.showNotification(data.title, options),
+            // 열려 있는 앱 화면에 인앱 팝업 표시를 위해 메시지 전달
+            self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+                .then(clients => {
+                    clients.forEach(client => {
+                        client.postMessage({
+                            type: 'PUSH_RECEIVED',
+                            title: data.title,
+                            body: data.body,
+                            stage: stage,
+                            temperature: data.data?.temperature,
+                            site: data.data?.site,
+                            actions: data.data?.actions,
+                        });
+                    });
+                }),
+        ])
     );
 });
 
