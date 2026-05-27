@@ -89,6 +89,80 @@ async def get_weather_status(
     )
 
 
+@router.get("/status-all")
+async def get_all_weather_status(
+    db: AsyncSession = Depends(get_db),
+    weather_provider=Depends(get_weather_provider),
+):
+    """모든 활성 옥외 작업현장의 날씨를 한 번에 조회"""
+    site_repo = WorkSiteRepository(db)
+    sites = await site_repo.get_all_outdoor_active()
+
+    results = []
+    for site in sites:
+        try:
+            weather = await weather_provider.get_current_weather(
+                site.latitude, site.longitude
+            )
+            apparent_temp = HeatIndexCalculator.calculate_heat_index(
+                weather.temperature, weather.humidity
+            )
+            wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(
+                weather.temperature, weather.humidity, weather.wind_speed
+            )
+            stage_info = threshold_mgr.determine_stage(apparent_temp)
+            intensity = (
+                site.work_intensity.value
+                if isinstance(site.work_intensity, WorkIntensity)
+                else site.work_intensity
+            )
+            wbgt_rec = threshold_mgr.get_wbgt_recommendation(wbgt, intensity)
+
+            results.append({
+                "site_id": site.id,
+                "site_name": site.name,
+                "address": site.address or "",
+                "latitude": site.latitude,
+                "longitude": site.longitude,
+                "work_intensity": intensity,
+                "weather": {
+                    "temperature": weather.temperature,
+                    "humidity": weather.humidity,
+                    "wind_speed": weather.wind_speed,
+                    "apparent_temperature": apparent_temp,
+                    "wbgt_estimated": wbgt,
+                },
+                "stage": {
+                    "key": stage_info["key"],
+                    "name": stage_info["name"],
+                    "color": stage_info["color"],
+                    "actions": stage_info["actions"],
+                    "rest_guideline": stage_info["rest_guideline"],
+                    "work_restriction": stage_info["work_restriction"],
+                } if stage_info else None,
+                "wbgt_recommendation": wbgt_rec,
+                "checked_at": datetime.now().isoformat(),
+            })
+        except Exception as e:
+            results.append({
+                "site_id": site.id,
+                "site_name": site.name,
+                "address": site.address or "",
+                "error": str(e),
+            })
+
+    # 위험도 높은 순으로 정렬
+    stage_order = {
+        "stage_4_danger": 0, "stage_3_warning": 1,
+        "stage_2_caution": 2, "stage_1_interest": 3,
+    }
+    results.sort(key=lambda r: stage_order.get(
+        (r.get("stage") or {}).get("key", ""), 99
+    ))
+
+    return {"sites": results, "total": len(results)}
+
+
 @router.get("/history/{site_id}")
 async def get_weather_history(
     site_id: int,

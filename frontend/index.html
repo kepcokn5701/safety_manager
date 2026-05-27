@@ -67,14 +67,17 @@
             </div>
         </div>
 
-        <!-- 작업현장 목록 -->
-        <div class="card">
+        <!-- 전체 현장 현황 (위험도순 정렬) -->
+        <div class="card" style="grid-column: 1 / -1">
             <div class="card-header">
-                <h3>작업현장</h3>
-                <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
+                <h3>전체 현장 현황 (지역별 날씨)</h3>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-primary btn-sm" onclick="loadAllSitesWeather()">전체 새로고침</button>
+                    <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
+                </div>
             </div>
-            <div class="card-body" id="site-list">
-                <p style="color:var(--text-secondary)">로딩 중...</p>
+            <div class="card-body" style="padding:0" id="all-sites-overview">
+                <p style="padding:20px;color:var(--text-secondary)">로딩 중...</p>
             </div>
         </div>
 
@@ -89,11 +92,23 @@
             </div>
         </div>
 
+        <!-- 작업자 관리 -->
+        <div class="card">
+            <div class="card-header">
+                <h3>작업자 관리</h3>
+                <button class="btn btn-primary btn-sm" onclick="openModal('worker-modal')">+ 작업자 등록</button>
+            </div>
+            <div class="card-body" id="site-list" style="display:none"></div>
+            <div class="card-body" id="stats-workers" style="padding:16px;text-align:center;color:var(--text-secondary);font-size:14px">
+                작업자 등록 후 현장에 배정하세요.<br>
+                <a href="/docs" target="_blank" style="color:var(--kepco-light)">API 문서</a>에서 배정할 수 있습니다.
+            </div>
+        </div>
+
         <!-- 알림 이력 -->
         <div class="card" style="grid-column: 1 / -1">
             <div class="card-header">
                 <h3>최근 알림 이력</h3>
-                <button class="btn btn-primary btn-sm" onclick="openModal('worker-modal')">+ 작업자 등록</button>
             </div>
             <div class="card-body" id="alert-history">
                 <p style="color:var(--text-secondary)">로딩 중...</p>

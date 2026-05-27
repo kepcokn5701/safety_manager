@@ -36,8 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1분마다 자동 갱신
     state.refreshInterval = setInterval(() => {
-        if (state.selectedSiteId) {
-            loadWeather(state.selectedSiteId);
+        if (state.sites.length > 0) {
+            loadAllSitesWeather();
         }
         loadAlertHistory();
     }, 60000);
@@ -244,7 +244,7 @@ async function loadSites() {
         state.sites = await api('/api/sites');
         renderSiteList();
         if (state.sites.length > 0) {
-            selectSite(state.sites[0].id);
+            loadAllSitesWeather();
         }
     } catch (e) {
         console.error('현장 목록 로딩 실패:', e);
@@ -266,8 +266,7 @@ function renderSiteList() {
     }
 
     container.innerHTML = state.sites.map(site => `
-        <div class="site-item ${state.selectedSiteId === site.id ? 'active' : ''}"
-             onclick="selectSite(${site.id})"
+        <div class="site-item" onclick="selectSite(${site.id})"
              style="${state.selectedSiteId === site.id ? 'background:var(--bg-card-hover)' : ''}">
             <div>
                 <div class="site-name">${site.name}</div>
@@ -284,7 +283,124 @@ async function selectSite(siteId) {
     await loadWeather(siteId);
 }
 
-// ── 날씨 조회 ──
+// ── 전체 현장 날씨 일괄 조회 ──
+async function loadAllSitesWeather() {
+    try {
+        const data = await api('/api/weather/status-all');
+        state.allSitesWeather = data.sites;
+        renderAllSitesOverview(data.sites);
+
+        // 첫 번째 현장 또는 가장 위험한 현장을 상세 표시
+        if (data.sites.length > 0) {
+            const top = data.sites[0];
+            if (top.weather) {
+                state.selectedSiteId = top.site_id;
+                renderSiteList();
+                renderWeatherDashboard({
+                    work_site_name: top.site_name,
+                    weather: top.weather,
+                    stage: top.stage,
+                    wbgt_work_recommendation: top.wbgt_recommendation,
+                });
+            }
+        }
+
+        // 사이트 목록에 배지 표시
+        data.sites.forEach(s => {
+            const badge = document.getElementById(`site-badge-${s.site_id}`);
+            if (badge && s.weather) {
+                const stg = s.stage;
+                const color = stg ? stg.color : '#27ae60';
+                const label = stg ? stg.name : '정상';
+                const temp = s.weather.apparent_temperature;
+                badge.innerHTML = `
+                    <div style="text-align:right">
+                        <div style="font-size:18px;font-weight:700">${temp}°</div>
+                        <span class="site-stage-badge" style="background:${color};color:white">${label}</span>
+                    </div>`;
+            }
+        });
+    } catch (e) {
+        console.error('전체 현장 날씨 조회 실패:', e);
+    }
+}
+
+function renderAllSitesOverview(sites) {
+    const container = document.getElementById('all-sites-overview');
+    if (!container) return;
+
+    if (sites.length === 0) {
+        container.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">등록된 현장이 없습니다.</p>';
+        return;
+    }
+
+    container.innerHTML = sites.map(s => {
+        if (s.error) {
+            return `<div style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;color:var(--text-secondary)">
+                ${s.site_name}: 조회 실패</div>`;
+        }
+
+        const stg = s.stage;
+        const color = stg ? stg.color : '#27ae60';
+        const label = stg ? stg.name : '정상';
+        const w = s.weather;
+        const isSelected = state.selectedSiteId === s.site_id;
+
+        return `
+        <div onclick="selectSiteFromOverview(${s.site_id})" style="
+            padding:14px 16px;
+            border-bottom:1px solid rgba(255,255,255,0.05);
+            cursor:pointer;
+            transition:background 0.2s;
+            ${isSelected ? 'background:rgba(41,128,185,0.15);border-left:3px solid var(--kepco-light)' : 'border-left:3px solid transparent'}
+        " onmouseover="this.style.background='var(--bg-card-hover)'" onmouseout="this.style.background='${isSelected ? 'rgba(41,128,185,0.15)' : ''}'">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
+                    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${s.address || ''}</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
+                    <div style="text-align:right">
+                        <div style="font-size:11px;color:var(--text-secondary)">체감</div>
+                        <div style="font-size:20px;font-weight:700;color:${w.apparent_temperature >= 33 ? color : 'var(--text-primary)'}">${w.apparent_temperature}°</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-size:11px;color:var(--text-secondary)">기온</div>
+                        <div style="font-size:14px">${w.temperature}°</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-size:11px;color:var(--text-secondary)">습도</div>
+                        <div style="font-size:14px">${w.humidity}%</div>
+                    </div>
+                    <span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:${color};color:white;min-width:44px;text-align:center">${label}</span>
+                </div>
+            </div>
+            ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color};opacity:0.9">${stg.work_restriction}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function selectSiteFromOverview(siteId) {
+    state.selectedSiteId = siteId;
+    // 해당 현장 날씨 데이터를 캐시에서 찾아 렌더링
+    const siteData = (state.allSitesWeather || []).find(s => s.site_id === siteId);
+    if (siteData && siteData.weather) {
+        renderWeatherDashboard({
+            work_site_name: siteData.site_name,
+            weather: siteData.weather,
+            stage: siteData.stage,
+            wbgt_work_recommendation: siteData.wbgt_recommendation,
+        });
+    } else {
+        loadWeather(siteId);
+    }
+    renderSiteList();
+    renderAllSitesOverview(state.allSitesWeather || []);
+    // 모바일에서 상단으로 스크롤
+    if (isMobile()) window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── 개별 현장 날씨 조회 ──
 async function loadWeather(siteId) {
     try {
         const data = await api(`/api/weather/status/${siteId}`);
