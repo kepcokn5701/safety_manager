@@ -27,17 +27,19 @@ def _resolve_database_url() -> str:
         url = postgres_url.replace("postgres://", "postgresql+psycopg://", 1)
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
 
-        # asyncpg가 인식하는 파라미터만 유지 (Supabase 전용 파라미터 제거)
+        # Supabase 전용 파라미터 제거, sslmode 유지
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         clean_params = {}
         for key, vals in params.items():
             if key in ("ssl", "sslmode"):
-                clean_params["ssl"] = ["require"]
-            elif key in ("host", "port", "user", "password", "database",
-                         "timeout", "command_timeout", "statement_cache_size"):
+                clean_params["sslmode"] = ["require"]
+            elif key.startswith("supa"):
+                continue  # Supabase 전용 파라미터 무시
+            else:
                 clean_params[key] = vals
-            # Supabase 전용 파라미터(supa, sslcert 등)는 무시
+        if "sslmode" not in clean_params:
+            clean_params["sslmode"] = ["require"]
         query = urlencode({k: v[0] for k, v in clean_params.items()})
         url = urlunparse(parsed._replace(query=query))
         return url
