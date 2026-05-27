@@ -192,6 +192,62 @@ async def get_all_weather_status(
     return {"sites": results, "total": len(results)}
 
 
+@router.get("/cached/{site_id}")
+async def get_cached_weather(
+    site_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """DB에 저장된 최근 날씨 반환 (외부 API 호출 없음, 작업자 앱용)"""
+    site_repo = WorkSiteRepository(db)
+    site = await site_repo.get_by_id(site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="작업현장을 찾을 수 없습니다.")
+
+    log_repo = WeatherLogRepository(db)
+    latest = await log_repo.get_latest_by_site(site_id)
+
+    if not latest:
+        # 캐시 없으면 한 번만 조회
+        weather_provider = get_weather_provider()
+        weather = await weather_provider.get_current_weather(site.latitude, site.longitude)
+        apparent_temp = HeatIndexCalculator.calculate_heat_index(weather.temperature, weather.humidity)
+        wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(weather.temperature, weather.humidity, weather.wind_speed)
+        stage_info = threshold_mgr.determine_stage(apparent_temp)
+        await log_repo.create(
+            work_site_id=site.id,
+            temperature=weather.temperature, humidity=weather.humidity,
+            wind_speed=weather.wind_speed, apparent_temperature=apparent_temp,
+            wbgt_estimated=wbgt, stage=stage_info["key"] if stage_info else None,
+        )
+        latest = await log_repo.get_latest_by_site(site_id)
+
+    apparent_temp = latest.apparent_temperature
+    stage_info = threshold_mgr.determine_stage(apparent_temp)
+    intensity = site.work_intensity.value if isinstance(site.work_intensity, WorkIntensity) else site.work_intensity
+    wbgt_rec = threshold_mgr.get_wbgt_recommendation(latest.wbgt_estimated, intensity)
+
+    stage_response = None
+    if stage_info:
+        stage_response = HeatStageInfo(
+            stage_key=stage_info["key"], stage_name=stage_info["name"],
+            color=stage_info["color"], actions=stage_info["actions"],
+            rest_guideline=stage_info["rest_guideline"],
+            work_restriction=stage_info["work_restriction"],
+        )
+
+    return WeatherStatusResponse(
+        work_site_id=site.id, work_site_name=site.name,
+        weather=WeatherData(
+            temperature=latest.temperature, humidity=latest.humidity,
+            wind_speed=latest.wind_speed, apparent_temperature=apparent_temp,
+            wbgt_estimated=latest.wbgt_estimated,
+        ),
+        stage=stage_response,
+        wbgt_work_recommendation=wbgt_rec,
+        checked_at=latest.recorded_at,
+    )
+
+
 @router.get("/history/{site_id}")
 async def get_weather_history(
     site_id: int,

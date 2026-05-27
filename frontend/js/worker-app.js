@@ -45,13 +45,18 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(loadWeather, 60000);
 });
 
-// ── 날씨 조회 ──
+// ── 날씨 조회 (DB 캐시 사용 - 빠름) ──
 async function loadWeather() {
     try {
-        const data = await api(`/api/weather/status/${siteId}`);
+        const data = await api(`/api/weather/cached/${siteId}`);
         renderWeather(data);
     } catch (e) {
         console.error('날씨 조회 실패:', e);
+        document.getElementById('alert-banner').innerHTML = `
+            <div class="alert-content">
+                <h2>날씨 조회 실패</h2>
+                <p>관리자가 날씨를 새로고침할 때까지 기다려주세요.\n오류: ${e.message}</p>
+            </div>`;
     }
 }
 
