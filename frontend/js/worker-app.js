@@ -118,8 +118,12 @@ function renderWeather(data) {
         actEl.innerHTML = '<p style="text-align:center;color:#8896a6;padding:20px">특별 조치사항 없음</p>';
     }
 
-    // 하단 현장 정보
-    document.getElementById('site-info').textContent = `${work_site_name} | 자동 갱신 중`;
+    // 하단 현장 정보 + 알림 상태
+    const pushStatus = pushSubscription ? '알림 ON' : '알림 OFF';
+    const pwaMode = isPWA() ? 'PWA' : '브라우저';
+    const notifPerm = typeof Notification !== 'undefined' ? Notification.permission : '미지원';
+    const pushApi = 'PushManager' in window ? 'O' : 'X';
+    document.getElementById('site-info').innerHTML = `${work_site_name} | ${pushStatus} | ${pwaMode} 모드<br><span style="font-size:10px;color:#b0bec5">알림권한:${notifPerm} | PushAPI:${pushApi}</span>`;
 }
 
 function renderBanner(stage, weather, siteName) {
@@ -202,31 +206,56 @@ async function togglePush() {
 }
 
 async function subscribePush() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-        showGuideModal('이 브라우저에서는 알림을 지원하지 않습니다.',
-            isMobile() ? 'Chrome 또는 Samsung Internet 브라우저로 접속해주세요.' : 'Chrome 또는 Edge 브라우저로 접속해주세요.');
+    // 1) 브라우저 지원 확인
+    if (!('serviceWorker' in navigator)) {
+        showGuideModal('알림을 지원하지 않는 브라우저',
+            'Chrome, Samsung Internet, Edge 브라우저로 접속해주세요.\n\n현재 브라우저: ' + navigator.userAgent.slice(0, 80));
         return;
     }
 
+    if (!('PushManager' in window)) {
+        if (isIOS()) {
+            showGuideModal('iPhone 알림 설정 방법',
+                !isPWA()
+                    ? '① 하단 공유 버튼(□↑)을 터치\n② "홈 화면에 추가"를 터치\n③ 홈 화면에서 앱을 열기\n④ 다시 "알림 허용" 터치\n\n(iOS 16.4 이상 필요)'
+                    : 'iOS 설정 > Safari > 고급 > Push API가 켜져있는지 확인하세요.\n\niOS 16.4 이상에서만 알림이 지원됩니다.\n현재 iOS 버전을 확인해주세요.');
+        } else {
+            showGuideModal('알림을 지원하지 않습니다',
+                'Chrome 또는 Samsung Internet 최신 버전으로 업데이트해주세요.');
+        }
+        return;
+    }
+
+    // 2) iOS는 반드시 PWA 모드
     if (isIOS() && !isPWA()) {
         showGuideModal('먼저 홈 화면에 앱을 추가해주세요',
-            '① 하단 공유 버튼(□↑)을 터치\n② "홈 화면에 추가"를 터치\n③ 추가된 앱을 열고 다시 알림을 허용해주세요');
+            '① Safari 하단 공유 버튼(□↑) 터치\n② "홈 화면에 추가" 터치\n③ 홈 화면에서 앱을 열기\n④ 다시 "알림 허용" 터치\n\n(반드시 Safari에서 추가해야 합니다)');
         return;
     }
 
+    // 3) 알림 권한
     let permission = Notification.permission;
     if (permission === 'denied') {
         showGuideModal('알림이 차단된 상태입니다',
-            isMobile() ? '① 주소창 왼쪽 자물쇠 터치\n② "알림" → "허용"으로 변경\n③ 페이지 새로고침'
-                       : '① 주소창 왼쪽 자물쇠 클릭\n② "알림" → "허용"으로 변경\n③ 페이지 새로고침');
+            isIOS()
+                ? '① iPhone 설정 앱 열기\n② 현장안전 앱 찾기\n③ 알림 → 허용\n④ 앱으로 돌아와서 다시 시도'
+                : isAndroid()
+                    ? '① 주소창 왼쪽 자물쇠(🔒) 터치\n② "알림" → "허용"으로 변경\n③ 페이지 새로고침'
+                    : '① 주소창 왼쪽 자물쇠 클릭\n② "알림" → "허용"으로 변경');
         return;
     }
 
     if (permission === 'default') {
         permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
+        if (permission !== 'granted') {
+            showGuideModal('알림을 허용해주세요',
+                '방금 나타난 팝업에서 "허용"을 눌러야 합니다.\n\n팝업이 안 나타나면:\n'
+                + (isAndroid() ? '주소창 왼쪽 자물쇠 → 알림 → 허용' : '브라우저 설정에서 알림을 허용해주세요.'));
+            return;
+        }
     }
 
+    // 4) 푸시 구독
     try {
         const { public_key } = await api('/api/push/vapid-key');
         const reg = await navigator.serviceWorker.ready;
@@ -246,9 +275,11 @@ async function subscribePush() {
 
         pushSubscription = sub;
         updatePushButton(true);
+        showGuideModal('알림 설정 완료', '폭염 경보 발생 시 알림을 받게 됩니다.\n앱을 닫아도 알림이 도착합니다.');
     } catch (e) {
         console.error('푸시 구독 실패:', e);
-        showGuideModal('알림 설정 오류', '잠시 후 다시 시도해주세요.');
+        showGuideModal('알림 설정 실패',
+            `오류: ${e.message}\n\n다시 시도하거나, 브라우저를 최신 버전으로 업데이트해주세요.`);
     }
 }
 
