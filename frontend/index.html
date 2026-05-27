@@ -97,10 +97,13 @@
         <div class="card">
             <div class="card-header">
                 <h3>작업자</h3>
-                <button class="btn btn-primary btn-sm" onclick="openModal('worker-modal')">+ 등록</button>
+                <div style="display:flex;gap:4px">
+                    <button class="btn btn-ghost btn-sm" onclick="openModal('worker-modal')">+ 등록</button>
+                    <button class="btn btn-ghost btn-sm" style="color:var(--text-faint)" onclick="resetAllData()">초기화</button>
+                </div>
             </div>
-            <div class="card-body" style="text-align:center;color:var(--text-dim);font-size:13px;padding:16px">
-                작업자 등록 후<br><a href="/docs" target="_blank" style="color:var(--kepco-light)">API 문서</a>에서 현장 배정
+            <div class="card-body" id="worker-list-content" style="font-size:13px;padding:12px;max-height:200px;overflow-y:auto">
+                <p style="text-align:center;color:var(--text-dim)">로딩 중...</p>
             </div>
         </div>
     </div>

@@ -30,6 +30,7 @@ async function api(path, options = {}) {
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', () => {
     loadSites();
+    loadWorkers();
     loadAlertHistory();
     loadStats();
     initServiceWorker();
@@ -907,8 +908,8 @@ async function importSelectedSites() {
         alert(msg);
         closeModal('site-modal');
         resetExcelUpload();
-        switchSiteTab('manual');
         loadSites();
+        loadWorkers();
     } catch (e) {
         alert('일괄 등록 실패: ' + e.message);
     } finally {
@@ -1139,6 +1140,48 @@ async function submitWorker(e) {
         alert('작업자가 등록되었습니다.');
     } catch (e) {
         alert('등록 실패: ' + e.message);
+    }
+}
+
+// ── 작업자 목록 ──
+async function loadWorkers() {
+    const el = document.getElementById('worker-list-content');
+    if (!el) return;
+    try {
+        const workers = await api('/api/workers');
+        if (workers.length === 0) {
+            el.innerHTML = '<p style="text-align:center;color:var(--text-dim)">등록된 작업자가 없습니다</p>';
+            return;
+        }
+        el.innerHTML = `
+            <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">총 ${workers.length}명</div>
+            ${workers.map(w => `
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+                    <div>
+                        <span style="font-weight:600">${w.name}</span>
+                        <span style="color:var(--text-dim);margin-left:6px;font-size:11px">${w.phone}</span>
+                    </div>
+                    ${w.is_vulnerable ? '<span style="font-size:10px;padding:1px 6px;background:rgba(231,76,60,0.15);color:#e74c3c;border-radius:8px">취약</span>' : ''}
+                </div>
+            `).join('')}
+        `;
+    } catch (e) {
+        el.innerHTML = '<p style="text-align:center;color:var(--text-dim)">조회 실패</p>';
+    }
+}
+
+// ── 데이터 초기화 ──
+async function resetAllData() {
+    if (!confirm('모든 작업현장과 작업자 데이터를 삭제합니다.\n정말 초기화하시겠습니까?')) return;
+    try {
+        await api('/api/reset', { method: 'POST' });
+        alert('초기화 완료');
+        loadSites();
+        loadWorkers();
+        loadStats();
+        loadAlertHistory();
+    } catch (e) {
+        alert('초기화 실패: ' + e.message);
     }
 }
 

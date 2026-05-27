@@ -147,6 +147,21 @@ async def health_check():
     }
 
 
+@app.post("/api/reset")
+async def reset_all_data():
+    """모든 데이터 초기화 (작업현장, 작업자, 날씨기록, 알림이력)"""
+    from sqlalchemy import text
+    async with async_session() as session:
+        # 외래키 순서에 맞게 삭제
+        await session.execute(text("DELETE FROM alert_logs"))
+        await session.execute(text("DELETE FROM weather_logs"))
+        await session.execute(text("DELETE FROM work_site_workers"))
+        await session.execute(text("DELETE FROM workers"))
+        await session.execute(text("DELETE FROM work_sites"))
+        await session.commit()
+    return {"message": "모든 데이터가 초기화되었습니다."}
+
+
 @app.post("/api/monitor/trigger")
 async def trigger_monitoring():
     """수동 모니터링 트리거"""

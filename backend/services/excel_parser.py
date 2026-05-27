@@ -21,8 +21,9 @@ COLUMN_MAP = {
         "작업현장", "현장", "공사", "작업현장명",
     ],
     "address": [
-        "공사장소", "작업장소", "주소", "소재지", "현장주소", "위치",
-        "공사위치", "작업위치", "장소", "공사지역", "시공장소",
+        "작업장소(주소)", "공사장소(주소)", "현장주소", "소재지", "주소",
+        "공사장소", "작업장소", "공사위치", "작업위치", "위치",
+        "장소", "공사지역", "시공장소",
     ],
     "period": [
         "공사기간", "작업기간", "기간", "시공기간", "공기",
@@ -74,14 +75,24 @@ WORKER_COLUMN_MAP = {
 
 
 def _match_column(col_name: str, column_map: dict | None = None) -> Optional[str]:
-    """컬럼명을 표준 필드명으로 매핑"""
+    """컬럼명을 표준 필드명으로 매핑 (정확 매칭 우선)"""
     if column_map is None:
         column_map = COLUMN_MAP
     col_clean = col_name.strip().replace(" ", "")
+
+    # 1차: 정확 매칭 (키워드가 컬럼명과 일치)
     for field, keywords in column_map.items():
         for kw in keywords:
-            if kw in col_clean or col_clean in kw:
+            if kw == col_clean:
                 return field
+
+    # 2차: 컬럼명에 키워드 포함 (긴 키워드부터 매칭)
+    for field, keywords in column_map.items():
+        sorted_kws = sorted(keywords, key=len, reverse=True)
+        for kw in sorted_kws:
+            if kw in col_clean:
+                return field
+
     return None
 
 
@@ -151,13 +162,33 @@ async def parse_excel(file_content: bytes, filename: str, *, column_map: dict | 
                 for col in df.columns
             ]
 
-        # 컬럼 매핑
+        # 컬럼 매핑 (필드별 최적 컬럼 선택)
         columns = [str(c) for c in df.columns.tolist()]
         mapped = {}
-        for col in columns:
-            field = _match_column(col, column_map)
-            if field and field not in mapped.values():
-                mapped[col] = field
+        used_cols = set()
+        target_map = column_map or COLUMN_MAP
+
+        for field, keywords in target_map.items():
+            best_col = None
+            best_score = 0
+            sorted_kws = sorted(keywords, key=len, reverse=True)
+            for col in columns:
+                if col in used_cols:
+                    continue
+                col_clean = col.strip().replace(" ", "")
+                for kw in sorted_kws:
+                    score = 0
+                    if kw == col_clean:
+                        score = 100  # 정확 매칭
+                    elif kw in col_clean:
+                        score = len(kw)  # 긴 키워드 우선
+                    if score > best_score:
+                        best_score = score
+                        best_col = col
+                        break  # 이 컬럼은 가장 긴 키워드로 매칭됨
+            if best_col:
+                mapped[best_col] = field
+                used_cols.add(best_col)
 
         # 행 데이터 변환
         rows = []
