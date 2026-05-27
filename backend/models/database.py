@@ -23,11 +23,14 @@ engine = create_async_engine(
     **_engine_kwargs,
 )
 
-# Supabase pgbouncer: prepared statement 완전 비활성화
-if "psycopg" in settings.database_url:
+# pgbouncer 사용 시 prepared statement 비활성화 (포트 6543)
+if "psycopg" in settings.database_url and ":6543" in settings.database_url:
     @event.listens_for(engine.sync_engine, "connect")
     def _set_prepare_threshold(dbapi_conn, connection_record):
-        dbapi_conn.prepare_threshold = 0
+        try:
+            dbapi_conn.prepare_threshold = 0
+        except AttributeError:
+            pass
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
