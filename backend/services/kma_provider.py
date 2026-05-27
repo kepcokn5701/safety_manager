@@ -8,6 +8,9 @@
 import logging
 import math
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+
+KST = ZoneInfo("Asia/Seoul")
 
 import httpx
 
@@ -72,7 +75,7 @@ def _get_base_datetime() -> tuple[str, str]:
     - API 제공은 발표 후 약 10분 뒤
     - 현재 시각 기준 가장 최근 발표 시각을 반환
     """
-    now = datetime.now()
+    now = datetime.now(KST)
     # 발표 후 약 10분 뒤 제공 → 여유있게 15분
     adjusted = now - timedelta(minutes=15)
 
@@ -96,7 +99,7 @@ def _get_base_datetime() -> tuple[str, str]:
 
 def _get_nearest_fcst_time() -> str:
     """현재 시각에 가장 가까운 예보시각(정시) 반환"""
-    now = datetime.now()
+    now = datetime.now(KST)
     # 현재 시각의 정시 (예: 11:30 → 1200, 11:10 → 1100)
     if now.minute >= 30:
         target = now + timedelta(hours=1)

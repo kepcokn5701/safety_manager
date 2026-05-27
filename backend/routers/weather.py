@@ -3,6 +3,9 @@
 """
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+KST = ZoneInfo("Asia/Seoul")
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,7 +88,7 @@ async def get_weather_status(
         ),
         stage=stage_response,
         wbgt_work_recommendation=wbgt_rec,
-        checked_at=datetime.now(),
+        checked_at=datetime.now(KST),
     )
 
 
@@ -141,7 +144,7 @@ async def get_all_weather_status(
                     "work_restriction": stage_info["work_restriction"],
                 } if stage_info else None,
                 "wbgt_recommendation": wbgt_rec,
-                "checked_at": datetime.now().isoformat(),
+                "checked_at": datetime.now(KST).isoformat(),
             })
         except Exception as e:
             results.append({
