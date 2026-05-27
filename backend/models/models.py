@@ -120,3 +120,13 @@ class AlertLog(Base):
     sent_at = Column(DateTime, default=datetime.utcnow)
 
     worker = relationship("Worker", back_populates="alert_logs")
+
+
+# ── 푸시 구독 ──
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    endpoint = Column(String(500), nullable=False, unique=True)
+    subscription_json = Column(Text, nullable=False)  # 전체 subscription 객체
+    created_at = Column(DateTime, default=datetime.utcnow)

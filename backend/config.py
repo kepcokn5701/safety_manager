@@ -87,7 +87,7 @@ class Settings(BaseSettings):
     vapid_email: str = "safety@kepco.co.kr"
 
     # 알림 채널 선택: "web_push" | "kakao" | "console"
-    notification_channel: str = "console" if _is_vercel else "web_push"
+    notification_channel: str = "web_push"
 
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"

@@ -1,7 +1,7 @@
 """
 웹 푸시 알림 API 라우터
 - VAPID 키 자동 제공
-- 구독/해제 (전화번호 불필요)
+- 구독/해제 (DB 저장, 서버리스 호환)
 """
 
 from fastapi import APIRouter
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/push", tags=["푸시 알림"])
 
 
 class SubscribeRequest(BaseModel):
-    subscription: dict  # 브라우저 PushSubscription 객체
+    subscription: dict
 
 
 class UnsubscribeRequest(BaseModel):
@@ -29,25 +29,26 @@ class UnsubscribeRequest(BaseModel):
 
 @router.get("/vapid-key")
 async def get_vapid_public_key():
-    """VAPID 공개키 반환 (서버가 자동 생성/관리)"""
+    """VAPID 공개키 반환"""
     keys = get_vapid_keys()
     return {"public_key": keys["public_key"]}
 
 
 @router.post("/subscribe")
 async def subscribe(data: SubscribeRequest):
-    """브라우저 푸시 알림 구독 (전화번호 입력 불필요)"""
-    endpoint = register_subscription(data.subscription)
+    """브라우저 푸시 알림 구독"""
+    endpoint = await register_subscription(data.subscription)
+    count = await get_subscription_count()
     return {
         "message": "알림이 활성화되었습니다.",
-        "total_subscriptions": get_subscription_count(),
+        "total_subscriptions": count,
     }
 
 
 @router.post("/unsubscribe")
 async def unsubscribe(data: UnsubscribeRequest):
     """구독 해제"""
-    unregister_subscription(data.endpoint)
+    await unregister_subscription(data.endpoint)
     return {"message": "알림이 해제되었습니다."}
 
 
@@ -75,8 +76,9 @@ async def test_push():
 async def push_status():
     """푸시 알림 상태"""
     keys = get_vapid_keys()
+    count = await get_subscription_count()
     return {
         "channel": settings.notification_channel,
         "vapid_configured": bool(keys.get("public_key")),
-        "active_subscriptions": get_subscription_count(),
+        "active_subscriptions": count,
     }

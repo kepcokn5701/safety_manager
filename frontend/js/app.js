@@ -406,6 +406,13 @@ function renderAllSitesOverview(sites) {
                 </div>
             </div>
             ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color}">${stg.work_restriction}</div>` : ''}
+            ${s.workers?.length > 0 && isSelected ? `<div style="margin-top:8px;padding:8px;background:var(--bg-card,#f8fafc);border-radius:6px;font-size:12px">
+                <div style="font-weight:600;margin-bottom:4px;color:var(--text-dim)">배정 작업자 (${s.workers.length}명)</div>
+                ${s.workers.map(w => `<div style="display:flex;justify-content:space-between;padding:2px 0">
+                    <span>${w.name} <span style="color:var(--text-faint)">${w.phone}</span></span>
+                    ${w.is_vulnerable ? '<span style="font-size:10px;color:#e74c3c">취약</span>' : ''}
+                </div>`).join('')}
+            </div>` : ''}
         </div>`;
     }).join('');
 }
