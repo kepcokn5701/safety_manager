@@ -197,11 +197,24 @@
                         <table id="excel-table" style="width:100%;border-collapse:collapse;font-size:11px"></table>
                     </div>
                     <div style="margin-top:10px;padding:10px;background:rgba(21,101,192,0.08);border-radius:var(--radius-sm)">
-                        <div style="font-size:12px;font-weight:600;margin-bottom:6px">위치 (일괄 적용)</div>
-                        <div style="display:flex;gap:6px">
-                            <input type="number" step="0.000001" id="bulk-lat" value="37.5665" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-                            <input type="number" step="0.000001" id="bulk-lng" value="126.9780" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-                            <button type="button" class="btn btn-ghost btn-sm" onclick="getCurrentLocationBulk()">내 위치</button>
+                        <div style="font-size:12px;font-weight:600;margin-bottom:6px">위치 설정</div>
+                        <div style="display:flex;gap:6px;align-items:center">
+                            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                                <input type="radio" name="location-mode" value="auto" checked onchange="toggleLocationMode()" style="width:auto"> 주소에서 자동 변환
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                                <input type="radio" name="location-mode" value="manual" onchange="toggleLocationMode()" style="width:auto"> 좌표 직접 입력
+                            </label>
+                        </div>
+                        <div id="location-auto" style="margin-top:6px;font-size:11px;color:var(--text-dim)">
+                            주소 컬럼의 값으로 각 현장의 좌표를 자동 변환합니다 (카카오 Maps)
+                        </div>
+                        <div id="location-manual" style="display:none;margin-top:6px">
+                            <div style="display:flex;gap:6px">
+                                <input type="number" step="0.000001" id="bulk-lat" value="37.5665" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px" placeholder="위도">
+                                <input type="number" step="0.000001" id="bulk-lng" value="126.9780" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px" placeholder="경도">
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="getCurrentLocationBulk()">내 위치</button>
+                            </div>
                         </div>
                     </div>
                     <div class="form-group" style="margin-top:10px">

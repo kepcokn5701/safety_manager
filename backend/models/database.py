@@ -10,9 +10,15 @@ from sqlalchemy.orm import DeclarativeBase
 from backend.config import settings
 
 
+_engine_kwargs = {}
+if "asyncpg" in settings.database_url:
+    # PostgreSQL: 서버리스 환경 커넥션 풀 최적화
+    _engine_kwargs.update(pool_size=5, max_overflow=10, pool_pre_ping=True)
+
 engine = create_async_engine(
     settings.database_url,
     echo=(settings.app_env == "development"),
+    **_engine_kwargs,
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

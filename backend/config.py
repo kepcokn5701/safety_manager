@@ -14,11 +14,27 @@ from typing import Optional
 
 # Vercel 환경에서는 /tmp/ 에만 쓰기 가능
 _is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
-_default_db = (
-    "sqlite+aiosqlite:////tmp/safety_manager.db"
-    if _is_vercel
-    else "sqlite+aiosqlite:///./safety_manager.db"
-)
+
+
+def _resolve_database_url() -> str:
+    """데이터베이스 URL 결정 (Vercel Postgres > 환경변수 > SQLite)"""
+    # Vercel Postgres가 설정되어 있으면 우선 사용
+    postgres_url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL", "")
+    if postgres_url.startswith("postgres://") or postgres_url.startswith("postgresql://"):
+        # asyncpg 드라이버로 변환
+        url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # Vercel Postgres는 sslmode 필요
+        if "sslmode=" not in url and "ssl=" not in url:
+            sep = "&" if "?" in url else "?"
+            url += f"{sep}ssl=require"
+        return url
+    if _is_vercel:
+        return "sqlite+aiosqlite:////tmp/safety_manager.db"
+    return "sqlite+aiosqlite:///./safety_manager.db"
+
+
+_default_db = _resolve_database_url()
 
 
 class Settings(BaseSettings):

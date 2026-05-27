@@ -780,6 +780,12 @@ function resetExcelUpload() {
     document.getElementById('excel-preview').style.display = 'none';
 }
 
+function toggleLocationMode() {
+    const mode = document.querySelector('input[name="location-mode"]:checked')?.value;
+    document.getElementById('location-auto').style.display = mode === 'auto' ? 'block' : 'none';
+    document.getElementById('location-manual').style.display = mode === 'manual' ? 'block' : 'none';
+}
+
 async function importSelectedSites() {
     if (!excelData) return;
 
@@ -799,9 +805,21 @@ async function importSelectedSites() {
         return;
     }
 
-    const lat = parseFloat(document.getElementById('bulk-lat').value) || 37.5665;
-    const lng = parseFloat(document.getElementById('bulk-lng').value) || 126.9780;
+    const locationMode = document.querySelector('input[name="location-mode"]:checked')?.value || 'auto';
     const intensity = document.getElementById('bulk-intensity').value;
+
+    let lat = 0, lng = 0;
+    if (locationMode === 'manual') {
+        lat = parseFloat(document.getElementById('bulk-lat').value) || 0;
+        lng = parseFloat(document.getElementById('bulk-lng').value) || 0;
+        if (!lat || !lng) {
+            alert('좌표를 입력하세요.');
+            return;
+        }
+    } else if (!addrCol) {
+        alert('자동 좌표 변환을 사용하려면 주소 컬럼을 선택하세요.');
+        return;
+    }
 
     const sites = checked.map(i => {
         const row = excelData.rows[i];
@@ -820,17 +838,37 @@ async function importSelectedSites() {
     }
 
     try {
+        const btn = document.querySelector('#excel-preview .btn-primary');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = locationMode === 'auto' ? '주소 변환 및 등록 중...' : '등록 중...';
+        }
+
         const result = await api('/api/upload/import-sites', {
             method: 'POST',
             body: JSON.stringify({ sites }),
         });
-        alert(`등록 완료!\n성공: ${result.created}건${result.errors > 0 ? `\n실패: ${result.errors}건` : ''}`);
+
+        let msg = `등록 완료!\n성공: ${result.created}건`;
+        if (result.geocoded > 0) msg += `\n주소→좌표 변환: ${result.geocoded}건`;
+        if (result.errors > 0) msg += `\n실패: ${result.errors}건`;
+        if (result.error_details?.length > 0) {
+            const first3 = result.error_details.slice(0, 3).map(e => `  - ${e.name}: ${e.error}`).join('\n');
+            msg += `\n\n실패 상세:\n${first3}`;
+        }
+        alert(msg);
         closeModal('site-modal');
         resetExcelUpload();
         switchSiteTab('manual');
         loadSites();
     } catch (e) {
         alert('일괄 등록 실패: ' + e.message);
+    } finally {
+        const btn = document.querySelector('#excel-preview .btn-primary');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '일괄 등록';
+        }
     }
 }
 

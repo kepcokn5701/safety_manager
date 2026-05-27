@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from backend.models.database import get_db
 from backend.services.excel_parser import parse_excel, parse_worker_excel
+from backend.services.geocoding import geocode_address
 from backend.services.repository import WorkSiteRepository, WorkerRepository
 
 router = APIRouter(prefix="/api/upload", tags=["파일 업로드"])
@@ -23,8 +24,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 class SiteImportItem(BaseModel):
     name: str
     address: str = ""
-    latitude: float
-    longitude: float
+    latitude: float = 0.0
+    longitude: float = 0.0
     work_intensity: str = "moderate"
 
 
@@ -61,23 +62,59 @@ async def upload_and_parse(file: UploadFile = File(...)):
     return result
 
 
+class GeocodingRequest(BaseModel):
+    address: str
+
+
+@router.post("/geocode")
+async def geocode_single(data: GeocodingRequest):
+    """단일 주소 → 좌표 변환"""
+    result = await geocode_address(data.address)
+    if not result:
+        raise HTTPException(status_code=404, detail="주소를 찾을 수 없습니다.")
+    return {
+        "latitude": result.latitude,
+        "longitude": result.longitude,
+        "address": result.address,
+    }
+
+
 @router.post("/import-sites")
 async def import_sites(
     data: BulkImportRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """파싱된 데이터에서 선택한 항목들을 작업현장으로 일괄 등록"""
+    """파싱된 데이터에서 선택한 항목들을 작업현장으로 일괄 등록.
+    좌표가 0이고 주소가 있으면 자동 지오코딩.
+    """
     repo = WorkSiteRepository(db)
     created = []
     errors = []
+    geocoded_count = 0
 
     for item in data.sites:
+        lat, lng = item.latitude, item.longitude
+
+        # 좌표가 없고 주소가 있으면 지오코딩 시도
+        if (lat == 0 or lng == 0) and item.address:
+            geo = await geocode_address(item.address)
+            if geo:
+                lat, lng = geo.latitude, geo.longitude
+                geocoded_count += 1
+            else:
+                errors.append({"name": item.name, "error": f"주소 좌표 변환 실패: {item.address}"})
+                continue
+
+        if lat == 0 or lng == 0:
+            errors.append({"name": item.name, "error": "좌표 정보가 없습니다."})
+            continue
+
         try:
             site = await repo.create(
                 name=item.name,
                 address=item.address,
-                latitude=item.latitude,
-                longitude=item.longitude,
+                latitude=lat,
+                longitude=lng,
                 work_intensity=item.work_intensity,
                 is_outdoor=True,
             )
@@ -87,6 +124,7 @@ async def import_sites(
 
     return {
         "created": len(created),
+        "geocoded": geocoded_count,
         "errors": len(errors),
         "sites": created,
         "error_details": errors,
