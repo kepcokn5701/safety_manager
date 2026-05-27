@@ -889,32 +889,35 @@ async function loadStats() {
 }
 
 // ── 수동 모니터링 트리거 ──
-async function triggerMonitoring() {
+async function triggerMonitoring(siteIds = null) {
+    const label = siteIds ? `${siteIds.length}개 선택 현장` : `${state.sites?.length || 0}개 전체 현장`;
     const progressEl = document.getElementById('send-progress');
     if (progressEl) {
         progressEl.style.display = 'block';
         progressEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
             <div class="progress-spinner"></div>
-            <span style="font-size:13px;color:var(--text-mid)">${state.sites?.length || 0}개 현장 전체 점검 + 알림 발송 중...</span>
+            <span style="font-size:13px;color:var(--text-mid)">${label} 알림 발송 중... (현재 날씨 기준)</span>
         </div>`;
     }
     try {
-        const result = await api('/api/monitor/trigger', { method: 'POST' });
+        const result = await api('/api/monitor/trigger', {
+            method: 'POST',
+            body: siteIds ? JSON.stringify(siteIds) : undefined,
+        });
+        const msg = `${result.sites_checked}개 현장, ${result.alerts_sent}건 처리${result.alerts_skipped ? ` (${result.alerts_skipped}건 중복스킵)` : ''}`;
         if (progressEl) {
-            progressEl.innerHTML = `<div style="font-size:13px;color:var(--safe);padding:4px 0">
-                전체 점검 완료 - ${result.sites_checked}개 현장, ${result.alerts_sent}건 처리${result.alerts_skipped ? ` (${result.alerts_skipped}건 스킵)` : ''}
-            </div>`;
+            progressEl.innerHTML = `<div style="font-size:13px;color:var(--safe);padding:4px 0">발송 완료 - ${msg}</div>`;
             setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
         }
-        showToast(`모니터링 완료 - ${result.sites_checked}개 현장, ${result.alerts_sent}건`, 'success');
+        showToast(`발송 완료 - ${msg}`, 'success');
         loadAlertHistory();
         loadStats();
         loadAllSitesWeather();
     } catch (e) {
         if (progressEl) {
-            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">점검 실패: ${e.message}</div>`;
+            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">발송 실패: ${e.message}</div>`;
         }
-        showToast('모니터링 실행 실패: ' + e.message, 'error');
+        showToast('발송 실패: ' + e.message, 'error');
     }
 }
 
@@ -1598,38 +1601,8 @@ async function triggerSelectedSites() {
         showToast('발송할 현장을 선택하세요.', 'warning');
         return;
     }
-
-    const progressEl = document.getElementById('send-progress');
-    progressEl.style.display = 'block';
-    progressEl.innerHTML = `
-        <div style="display:flex;align-items:center;gap:8px">
-            <div class="progress-spinner"></div>
-            <span style="font-size:13px;color:var(--text-mid)">${siteIds.length}개 현장 알림 발송 중...</span>
-        </div>
-        <div style="height:4px;background:var(--border);border-radius:4px;margin-top:8px;overflow:hidden">
-            <div style="height:100%;width:30%;background:var(--kepco);border-radius:4px;transition:width 0.5s"></div>
-        </div>`;
-
-    try {
-        const result = await api('/api/monitor/trigger', {
-            method: 'POST',
-            body: JSON.stringify(siteIds),
-        });
-
-        progressEl.innerHTML = `
-            <div style="padding:4px 0;font-size:13px;color:var(--safe)">
-                발송 완료 - ${result.sites_checked}개 현장, ${result.alerts_sent}건 처리
-                ${result.alerts_skipped ? ` (${result.alerts_skipped}건 중복 스킵)` : ''}
-            </div>`;
-        setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
-
-        hideSelectBar();
-        loadAlertHistory();
-        loadStats();
-        loadAllSitesWeather();
-    } catch (e) {
-        progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">발송 실패: ${e.message}</div>`;
-    }
+    hideSelectBar();
+    await triggerMonitoring(siteIds);
 }
 
 // ── 공지사항 ──

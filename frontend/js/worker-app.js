@@ -23,12 +23,21 @@ async function api(path, options = {}) {
 document.addEventListener('DOMContentLoaded', () => {
     // URL에서 site_id 추출: /worker/3 → 3
     const match = window.location.pathname.match(/\/worker\/(\d+)/);
-    if (!match) {
-        document.getElementById('alert-banner').innerHTML = `
-            <div class="alert-content"><h2>잘못된 접속입니다</h2><p>QR코드를 다시 스캔해주세요</p></div>`;
-        return;
+    if (match) {
+        siteId = parseInt(match[1]);
+        // 다음 접속을 위해 저장
+        localStorage.setItem('worker_site_id', siteId);
+    } else {
+        // URL에 site_id 없으면 저장된 값 사용
+        const saved = localStorage.getItem('worker_site_id');
+        if (saved) {
+            siteId = parseInt(saved);
+        } else {
+            document.getElementById('alert-banner').innerHTML = `
+                <div class="alert-content"><h2>현장 정보가 없습니다</h2><p>관리자에게 QR코드를 받아 다시 접속해주세요</p></div>`;
+            return;
+        }
     }
-    siteId = parseInt(match[1]);
     loadWeather();
     initServiceWorker();
 
