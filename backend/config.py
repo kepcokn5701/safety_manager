@@ -24,10 +24,10 @@ def _resolve_database_url() -> str:
         # asyncpg 드라이버로 변환
         url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        # Vercel Postgres는 sslmode 필요
-        if "sslmode=" not in url and "ssl=" not in url:
-            sep = "&" if "?" in url else "?"
-            url += f"{sep}ssl=require"
+        # asyncpg는 sslmode 대신 ssl 파라미터 사용
+        url = url.replace("sslmode=require", "ssl=require")
+        url = url.replace("sslmode=verify-full", "ssl=require")
+        url = url.replace("sslmode=prefer", "ssl=require")
         return url
     if _is_vercel:
         return "sqlite+aiosqlite:////tmp/safety_manager.db"
