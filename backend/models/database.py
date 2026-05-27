@@ -12,8 +12,13 @@ from backend.config import settings
 
 
 _engine_kwargs = {}
-if "psycopg" in settings.database_url or "asyncpg" in settings.database_url:
-    # Supabase 서버리스: SQLAlchemy 자체 풀 비활성화
+if "psycopg" in settings.database_url:
+    # Supabase pgbouncer: prepared statement 비활성화 + NullPool
+    _engine_kwargs.update(
+        poolclass=NullPool,
+        connect_args={"prepare_threshold": 0},
+    )
+elif "asyncpg" in settings.database_url:
     _engine_kwargs.update(poolclass=NullPool)
 
 engine = create_async_engine(
