@@ -12,8 +12,17 @@ from backend.config import settings
 
 _engine_kwargs = {}
 if "asyncpg" in settings.database_url:
-    # PostgreSQL: 서버리스 환경 커넥션 풀 최적화
-    _engine_kwargs.update(pool_size=5, max_overflow=10, pool_pre_ping=True)
+    # PostgreSQL (Supabase 등): pgbouncer 호환 설정
+    _engine_kwargs.update(
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+        # pgbouncer는 prepared statement 미지원 → 캐시 비활성화
+        connect_args={
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+        },
+    )
 
 engine = create_async_engine(
     settings.database_url,

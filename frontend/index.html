@@ -139,11 +139,11 @@
         <div class="modal-body">
             <!-- 탭 -->
             <div style="display:flex;gap:0;margin-bottom:16px">
-                <button class="btn btn-sm" id="tab-manual" onclick="switchSiteTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--kepco);color:white">직접 입력</button>
-                <button class="btn btn-sm" id="tab-excel" onclick="switchSiteTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">엑셀 업로드</button>
+                <button class="btn btn-sm" id="tab-manual" onclick="switchSiteTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">직접 입력</button>
+                <button class="btn btn-sm" id="tab-excel" onclick="switchSiteTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--kepco);color:white">엑셀 업로드</button>
             </div>
 
-            <div id="site-tab-manual">
+            <div id="site-tab-manual" style="display:none">
                 <form onsubmit="submitSite(event)">
                     <div class="form-group">
                         <label>현장명 *</label>
@@ -177,7 +177,7 @@
                 </form>
             </div>
 
-            <div id="site-tab-excel" style="display:none">
+            <div id="site-tab-excel">
                 <div id="excel-upload-area" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer" onclick="document.getElementById('excel-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--kepco)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleExcelDrop(event)">
                     <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
                     <div style="font-size:14px;font-weight:600">사전신고정보 파일 선택</div>
@@ -243,11 +243,11 @@
         <div class="modal-body">
             <!-- 탭 -->
             <div style="display:flex;gap:0;margin-bottom:16px">
-                <button class="btn btn-sm" id="worker-tab-manual-btn" onclick="switchWorkerTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:var(--kepco);color:white">직접 입력</button>
-                <button class="btn btn-sm" id="worker-tab-excel-btn" onclick="switchWorkerTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">엑셀 업로드</button>
+                <button class="btn btn-sm" id="worker-tab-manual-btn" onclick="switchWorkerTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">직접 입력</button>
+                <button class="btn btn-sm" id="worker-tab-excel-btn" onclick="switchWorkerTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--kepco);color:white">엑셀 업로드</button>
             </div>
 
-            <div id="worker-tab-manual">
+            <div id="worker-tab-manual" style="display:none">
                 <form onsubmit="submitWorker(event)">
                     <div class="form-group">
                         <label>이름 *</label>
@@ -273,7 +273,7 @@
                 </form>
             </div>
 
-            <div id="worker-tab-excel" style="display:none">
+            <div id="worker-tab-excel">
                 <div id="worker-excel-upload-area" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer" onclick="document.getElementById('worker-excel-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--kepco)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleWorkerExcelDrop(event)">
                     <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
                     <div style="font-size:14px;font-weight:600">작업자 명단 파일 선택</div>
