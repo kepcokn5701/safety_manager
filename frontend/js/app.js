@@ -889,9 +889,17 @@ async function importSelectedSites() {
         const importWorkers = document.getElementById('import-workers-check')?.checked;
         if (importWorkers && excelData.extracted_workers?.length > 0) {
             try {
+                // API에 필요한 필드만 전송
+                const cleanWorkers = excelData.extracted_workers.map(w => ({
+                    name: w.name,
+                    phone: w.phone,
+                    department: '',
+                    team: '',
+                    is_vulnerable: false,
+                }));
                 const wResult = await api('/api/upload/import-workers', {
                     method: 'POST',
-                    body: JSON.stringify({ workers: excelData.extracted_workers }),
+                    body: JSON.stringify({ workers: cleanWorkers }),
                 });
                 msg += `\n[작업자] ${wResult.created}명 등록`;
                 if (wResult.skipped > 0) msg += ` (중복 ${wResult.skipped}명)`;
