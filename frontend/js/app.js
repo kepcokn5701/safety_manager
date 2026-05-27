@@ -578,8 +578,22 @@ function renderAllSitesOverview(sites) {
     const container = document.getElementById('all-sites-overview');
     if (!container) return;
 
-    if (sites.length === 0) {
-        container.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">등록된 현장이 없습니다.</p>';
+    // 날씨 데이터가 비어있으면 state.sites 기반으로 기본 목록 표시
+    if (sites.length === 0 && state.sites.length > 0) {
+        container.innerHTML = state.sites.map(site => `
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="selectSiteFromOverview(${site.id})">
+                <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:14px">${site.name}</div>
+                    <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+                </div>
+                <div style="font-size:12px;color:var(--text-dim)">날씨 조회 중...</div>
+            </div>
+        `).join('');
+        return;
+    }
+
+    if (sites.length === 0 && state.sites.length === 0) {
+        container.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">현장을 등록하면 날씨가 표시됩니다.</p>';
         return;
     }
 
@@ -876,13 +890,30 @@ async function loadStats() {
 
 // ── 수동 모니터링 트리거 ──
 async function triggerMonitoring() {
+    const progressEl = document.getElementById('send-progress');
+    if (progressEl) {
+        progressEl.style.display = 'block';
+        progressEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
+            <div class="progress-spinner"></div>
+            <span style="font-size:13px;color:var(--text-mid)">${state.sites?.length || 0}개 현장 전체 점검 + 알림 발송 중...</span>
+        </div>`;
+    }
     try {
         const result = await api('/api/monitor/trigger', { method: 'POST' });
-        showToast(`모니터링 완료 - 점검 ${result.sites_checked}개 현장, 알림 ${result.alerts_sent}건 발송`, 'success');
+        if (progressEl) {
+            progressEl.innerHTML = `<div style="font-size:13px;color:var(--safe);padding:4px 0">
+                전체 점검 완료 - ${result.sites_checked}개 현장, ${result.alerts_sent}건 처리${result.alerts_skipped ? ` (${result.alerts_skipped}건 스킵)` : ''}
+            </div>`;
+            setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
+        }
+        showToast(`모니터링 완료 - ${result.sites_checked}개 현장, ${result.alerts_sent}건`, 'success');
         loadAlertHistory();
         loadStats();
         loadAllSitesWeather();
     } catch (e) {
+        if (progressEl) {
+            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">점검 실패: ${e.message}</div>`;
+        }
         showToast('모니터링 실행 실패: ' + e.message, 'error');
     }
 }
@@ -1469,13 +1500,34 @@ async function runSimulation() {
     const temp = document.getElementById('sim-temp').value;
     const humidity = document.getElementById('sim-humidity').value;
     const resultEl = document.getElementById('sim-result');
-    resultEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px;padding:10px">
-        <div class="progress-spinner"></div>
-        <span style="color:var(--text-dim)">시뮬레이션 실행 중... (${state.sites?.length || 0}개 현장 점검 + 알림 발송)</span>
+    const siteCount = state.sites?.length || 0;
+    resultEl.innerHTML = `<div style="padding:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <div class="progress-spinner"></div>
+            <span style="color:var(--text-dim)">시뮬레이션 실행 중... (${siteCount}개 현장 점검 + 알림 발송)</span>
+        </div>
+        <div style="height:4px;background:var(--border,#e2e8f0);border-radius:4px;overflow:hidden">
+            <div id="sim-progress-bar" style="height:100%;width:5%;background:var(--warning,#ef4444);border-radius:4px;transition:width 0.5s"></div>
+        </div>
+        <div id="sim-progress-text" style="font-size:11px;color:var(--text-faint);margin-top:4px">현장 날씨 확인 중...</div>
     </div>`;
+    // 진행률 애니메이션
+    let progress = 5;
+    const progressInterval = setInterval(() => {
+        progress = Math.min(progress + Math.random() * 15, 90);
+        const bar = document.getElementById('sim-progress-bar');
+        const txt = document.getElementById('sim-progress-text');
+        if (bar) bar.style.width = `${progress}%`;
+        if (txt) {
+            if (progress < 30) txt.textContent = `${siteCount}개 현장 날씨 확인 중...`;
+            else if (progress < 60) txt.textContent = '폭염 단계 판정 + 알림 발송 중...';
+            else txt.textContent = '관리자 요약 알림 발송 중...';
+        }
+    }, 800);
 
     try {
         const result = await api(`/api/monitor/simulate?temperature=${temp}&humidity=${humidity}`, { method: 'POST' });
+        clearInterval(progressInterval);
         const skipped = result.alerts_skipped || 0;
         const errCount = result.errors?.length || 0;
         let html = `<div style="padding:12px;background:rgba(231,76,60,0.08);border-radius:8px;margin-top:8px">`;
@@ -1500,6 +1552,7 @@ async function runSimulation() {
         loadStats();
         loadAllSitesWeather();
     } catch (e) {
+        clearInterval(progressInterval);
         resultEl.innerHTML = `<span style="color:#e74c3c">시뮬레이션 실패: ${e.message}</span>`;
     }
 }
