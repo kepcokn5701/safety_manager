@@ -439,7 +439,31 @@ function closeModal(id) {
     document.getElementById(id).classList.remove('active');
 }
 
-// ── 작업현장 등록 ──
+// ── 현장 등록 탭 전환 ──
+function switchSiteTab(tab) {
+    const manualTab = document.getElementById('site-tab-manual');
+    const excelTab = document.getElementById('site-tab-excel');
+    const btnManual = document.getElementById('tab-manual');
+    const btnExcel = document.getElementById('tab-excel');
+
+    if (tab === 'manual') {
+        manualTab.style.display = 'block';
+        excelTab.style.display = 'none';
+        btnManual.style.background = 'var(--kepco-light)';
+        btnManual.style.color = 'white';
+        btnExcel.style.background = 'var(--bg-card)';
+        btnExcel.style.color = 'var(--text-secondary)';
+    } else {
+        manualTab.style.display = 'none';
+        excelTab.style.display = 'block';
+        btnExcel.style.background = 'var(--kepco-light)';
+        btnExcel.style.color = 'white';
+        btnManual.style.background = 'var(--bg-card)';
+        btnManual.style.color = 'var(--text-secondary)';
+    }
+}
+
+// ── 작업현장 등록 (직접 입력) ──
 async function submitSite(e) {
     e.preventDefault();
     const form = e.target;
@@ -460,6 +484,177 @@ async function submitSite(e) {
     } catch (e) {
         alert('등록 실패: ' + e.message);
     }
+}
+
+// ── 엑셀 업로드 ──
+let excelData = null;  // 파싱된 엑셀 데이터
+
+function handleExcelDrop(e) {
+    e.preventDefault();
+    e.currentTarget.style.borderColor = 'var(--border-color)';
+    const file = e.dataTransfer.files[0];
+    if (file) uploadExcelFile(file);
+}
+
+function handleExcelUpload(input) {
+    const file = input.files[0];
+    if (file) uploadExcelFile(file);
+}
+
+async function uploadExcelFile(file) {
+    const area = document.getElementById('excel-upload-area');
+    area.innerHTML = '<div style="padding:20px;color:var(--text-secondary)">파일 분석 중...</div>';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const res = await fetch('/api/upload/parse-excel', { method: 'POST', body: formData });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(err.detail || '파일 처리 실패');
+        }
+        excelData = await res.json();
+        renderExcelPreview(file.name);
+    } catch (e) {
+        area.innerHTML = `
+            <div style="color:var(--stage-danger);padding:20px">
+                <div style="font-size:15px;font-weight:600;margin-bottom:4px">파일 처리 실패</div>
+                <div style="font-size:13px">${e.message}</div>
+                <button class="btn btn-sm" style="margin-top:12px;background:var(--kepco-light);color:white" onclick="resetExcelUpload()">다시 시도</button>
+            </div>`;
+    }
+}
+
+function renderExcelPreview(filename) {
+    document.getElementById('excel-upload-area').style.display = 'none';
+    document.getElementById('excel-preview').style.display = 'block';
+    document.getElementById('excel-info').textContent = `${filename} - ${excelData.total_rows}건`;
+
+    // 컬럼 매핑 표시
+    const mappingEl = document.getElementById('mapping-fields');
+    const fields = [
+        { key: 'name', label: '현장명' },
+        { key: 'address', label: '주소' },
+    ];
+    mappingEl.innerHTML = fields.map(f => {
+        const matchedCol = Object.entries(excelData.mapped_columns).find(([, v]) => v === f.key);
+        const options = excelData.columns.map(c =>
+            `<option value="${c}" ${matchedCol && matchedCol[0] === c ? 'selected' : ''}>${c}</option>`
+        ).join('');
+        return `
+            <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:12px;min-width:50px;color:var(--text-secondary)">${f.label}:</span>
+                <select data-field="${f.key}" style="flex:1;padding:4px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:12px">
+                    <option value="">(선택 안 함)</option>
+                    ${options}
+                </select>
+            </div>`;
+    }).join('');
+
+    // 테이블 렌더링
+    const table = document.getElementById('excel-table');
+    const cols = excelData.columns.slice(0, 8); // 최대 8열만 표시
+    let html = '<thead><tr>';
+    html += '<th style="padding:6px 8px;background:rgba(41,128,185,0.2);border:1px solid var(--border-color);text-align:center;width:40px"><input type="checkbox" checked onchange="toggleAllRows(this)"></th>';
+    cols.forEach(c => {
+        const mapped = excelData.mapped_columns[c];
+        const highlight = mapped ? 'background:rgba(41,128,185,0.3)' : 'background:rgba(41,128,185,0.2)';
+        html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${c}${mapped ? ' *' : ''}</th>`;
+    });
+    html += '</tr></thead><tbody>';
+
+    excelData.rows.forEach((row, i) => {
+        html += `<tr>`;
+        html += `<td style="padding:4px 8px;border:1px solid var(--border-color);text-align:center"><input type="checkbox" class="row-check" data-idx="${i}" checked></td>`;
+        cols.forEach(c => {
+            const val = row[c] || '';
+            html += `<td style="padding:4px 8px;border:1px solid var(--border-color);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${val}">${val}</td>`;
+        });
+        html += '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+}
+
+function toggleAllRows(master) {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = master.checked);
+}
+
+function resetExcelUpload() {
+    excelData = null;
+    document.getElementById('excel-upload-area').style.display = 'block';
+    document.getElementById('excel-upload-area').innerHTML = `
+        <div style="font-size:36px;margin-bottom:8px;opacity:0.5">+</div>
+        <div style="font-size:15px;font-weight:600">사전신고정보 파일을 드래그하거나 클릭하세요</div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-top:6px">지원 형식: .xls, .xlsx, .csv (최대 10MB)</div>
+        <input type="file" id="excel-file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleExcelUpload(this)">`;
+    document.getElementById('excel-preview').style.display = 'none';
+}
+
+async function importSelectedSites() {
+    if (!excelData) return;
+
+    // 선택된 행 인덱스
+    const checked = [...document.querySelectorAll('.row-check:checked')].map(cb => parseInt(cb.dataset.idx));
+    if (checked.length === 0) {
+        alert('등록할 현장을 선택하세요.');
+        return;
+    }
+
+    // 매핑된 컬럼 확인
+    const nameCol = document.querySelector('[data-field="name"]')?.value;
+    const addrCol = document.querySelector('[data-field="address"]')?.value;
+
+    if (!nameCol) {
+        alert('현장명 컬럼을 선택하세요.');
+        return;
+    }
+
+    const lat = parseFloat(document.getElementById('bulk-lat').value) || 37.5665;
+    const lng = parseFloat(document.getElementById('bulk-lng').value) || 126.9780;
+    const intensity = document.getElementById('bulk-intensity').value;
+
+    const sites = checked.map(i => {
+        const row = excelData.rows[i];
+        return {
+            name: row[nameCol] || `현장 ${i + 1}`,
+            address: addrCol ? (row[addrCol] || '') : '',
+            latitude: lat,
+            longitude: lng,
+            work_intensity: intensity,
+        };
+    }).filter(s => s.name.trim());
+
+    if (sites.length === 0) {
+        alert('등록할 유효한 현장이 없습니다.');
+        return;
+    }
+
+    try {
+        const result = await api('/api/upload/import-sites', {
+            method: 'POST',
+            body: JSON.stringify({ sites }),
+        });
+        alert(`등록 완료!\n성공: ${result.created}건${result.errors > 0 ? `\n실패: ${result.errors}건` : ''}`);
+        closeModal('site-modal');
+        resetExcelUpload();
+        switchSiteTab('manual');
+        loadSites();
+    } catch (e) {
+        alert('일괄 등록 실패: ' + e.message);
+    }
+}
+
+function getCurrentLocationBulk() {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            document.getElementById('bulk-lat').value = pos.coords.latitude.toFixed(6);
+            document.getElementById('bulk-lng').value = pos.coords.longitude.toFixed(6);
+        },
+        () => alert('위치를 가져올 수 없습니다.'),
+    );
 }
 
 // ── 작업자 등록 ──

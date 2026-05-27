@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 
 from backend.config import settings
 from backend.models.database import init_db, async_session
-from backend.routers import weather, alerts, workers, push
+from backend.routers import weather, alerts, workers, push, upload
 from backend.dependencies import (
     get_weather_provider,
     get_notification_sender,
@@ -106,6 +106,7 @@ app.include_router(weather.router)
 app.include_router(alerts.router)
 app.include_router(workers.router)
 app.include_router(push.router)
+app.include_router(upload.router)
 
 
 def _file(name: str):
