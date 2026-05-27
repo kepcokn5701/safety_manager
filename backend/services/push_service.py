@@ -1,8 +1,8 @@
 """
-웹 푸시 알림 서비스 구현체
-- 브라우저 Web Push API 사용
-- 카카오 알림톡 승인 전 프로토타입용
-- pywebpush 라이브러리 사용
+웹 푸시 알림 서비스
+- VAPID 키 자동 생성/관리
+- 구독 ID 기반 (전화번호 입력 불필요)
+- 모든 구독자에게 브로드캐스트
 """
 
 import json
@@ -11,31 +11,24 @@ from datetime import datetime
 
 from backend.config import settings
 from backend.services.interfaces import NotificationSender, NotificationResult
+from backend.services.vapid_manager import get_vapid_keys
 
 logger = logging.getLogger(__name__)
 
-# 인메모리 구독 저장소 (프로토타입용)
-# 운영 시 DB 테이블로 이관
+# 인메모리 구독 저장소: endpoint URL → subscription 객체
 _subscriptions: dict[str, dict] = {}
 
 
 class WebPushSender(NotificationSender):
     """
     Web Push API 기반 알림 발송자
-
-    동작 방식:
-    1. 사용자가 브라우저에서 알림 허용 → 구독 정보가 서버에 저장됨
-    2. 폭염 단계 감지 시 → 구독 정보를 이용해 브라우저 푸시 알림 발송
-    3. 브라우저가 꺼져 있어도 Service Worker가 알림을 수신
-
-    사전 준비:
-    - .env에 VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY 설정
-    - 프론트엔드에서 Service Worker 등록 및 구독
+    - VAPID 키 자동 관리 (수동 설정 불필요)
+    - 모든 구독자에게 발송 (브로드캐스트)
     """
 
     def __init__(self):
-        self._vapid_public_key = settings.vapid_public_key
-        self._vapid_private_key = settings.vapid_private_key
+        keys = get_vapid_keys()
+        self._vapid_private_key = keys["private_key"]
         self._vapid_email = settings.vapid_email
 
     async def send(
@@ -47,16 +40,14 @@ class WebPushSender(NotificationSender):
         work_site_name: str,
         actions: list[str],
     ) -> NotificationResult:
-        """웹 푸시 알림 발송"""
+        """모든 구독자에게 웹 푸시 알림 브로드캐스트"""
 
-        subscription = _subscriptions.get(recipient_phone)
-        if not subscription:
-            logger.warning(f"푸시 구독 정보 없음: {recipient_name}({recipient_phone})")
+        if not _subscriptions:
             return NotificationResult(
                 success=False,
                 channel="web_push",
-                recipient=recipient_phone,
-                error_message="푸시 구독 정보가 없습니다. 대시보드에서 알림을 허용해주세요.",
+                recipient="broadcast",
+                error_message="등록된 푸시 구독자가 없습니다.",
             )
 
         payload = {
@@ -65,8 +56,8 @@ class WebPushSender(NotificationSender):
                 f"체감온도 {temperature}°C\n"
                 f"{actions[0] if actions else '안전에 유의하세요.'}"
             ),
-            "icon": "/static/icon-192.png",
-            "badge": "/static/badge-72.png",
+            "icon": "/static/icons/icon-192.svg",
+            "badge": "/static/icons/badge-72.svg",
             "tag": f"heat-{stage_name}",
             "data": {
                 "stage": stage_name,
@@ -77,58 +68,62 @@ class WebPushSender(NotificationSender):
             },
         }
 
-        try:
-            from pywebpush import webpush, WebPushException
+        sent = 0
+        failed = 0
+        expired_endpoints = []
 
-            webpush(
-                subscription_info=subscription,
-                data=json.dumps(payload, ensure_ascii=False),
-                vapid_private_key=self._vapid_private_key,
-                vapid_claims={
-                    "sub": f"mailto:{self._vapid_email}",
-                },
-            )
+        for endpoint, subscription in _subscriptions.items():
+            try:
+                from pywebpush import webpush
 
-            logger.info(f"웹 푸시 발송 성공: {recipient_name}({recipient_phone})")
-            return NotificationResult(
-                success=True,
-                channel="web_push",
-                recipient=recipient_phone,
-                message_id=f"push_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            )
+                webpush(
+                    subscription_info=subscription,
+                    data=json.dumps(payload, ensure_ascii=False),
+                    vapid_private_key=self._vapid_private_key,
+                    vapid_claims={"sub": f"mailto:{self._vapid_email}"},
+                )
+                sent += 1
 
-        except Exception as e:
-            error_msg = str(e)
-            logger.error(f"웹 푸시 발송 실패: {recipient_name} - {error_msg}")
+            except Exception as e:
+                error_msg = str(e)
+                if "410" in error_msg or "404" in error_msg:
+                    expired_endpoints.append(endpoint)
+                failed += 1
+                logger.warning(f"푸시 발송 실패 ({endpoint[:40]}...): {error_msg[:100]}")
 
-            # 구독 만료/취소된 경우 구독 정보 제거
-            if "410" in error_msg or "404" in error_msg:
-                _subscriptions.pop(recipient_phone, None)
-                error_msg = "구독이 만료되었습니다. 대시보드에서 다시 알림을 허용해주세요."
+        # 만료된 구독 정리
+        for ep in expired_endpoints:
+            _subscriptions.pop(ep, None)
+            logger.info(f"만료된 구독 제거: {ep[:40]}...")
 
-            return NotificationResult(
-                success=False,
-                channel="web_push",
-                recipient=recipient_phone,
-                error_message=error_msg,
-            )
+        logger.info(f"푸시 브로드캐스트: 성공 {sent}, 실패 {failed}")
+        return NotificationResult(
+            success=sent > 0,
+            channel="web_push",
+            recipient=f"broadcast({sent}/{sent + failed})",
+            message_id=f"push_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            error_message=f"실패 {failed}건" if failed else None,
+        )
 
     async def close(self) -> None:
         pass
 
 
-def register_subscription(phone: str, subscription: dict):
-    """브라우저 푸시 구독 등록"""
-    _subscriptions[phone] = subscription
-    logger.info(f"푸시 구독 등록: {phone}")
+def register_subscription(subscription: dict) -> str:
+    """구독 등록. endpoint를 키로 사용."""
+    endpoint = subscription.get("endpoint", "")
+    if not endpoint:
+        raise ValueError("유효하지 않은 구독 정보입니다.")
+    _subscriptions[endpoint] = subscription
+    logger.info(f"푸시 구독 등록 (총 {len(_subscriptions)}명)")
+    return endpoint
 
 
-def unregister_subscription(phone: str):
-    """브라우저 푸시 구독 해제"""
-    _subscriptions.pop(phone, None)
-    logger.info(f"푸시 구독 해제: {phone}")
+def unregister_subscription(endpoint: str):
+    """구독 해제"""
+    _subscriptions.pop(endpoint, None)
+    logger.info(f"푸시 구독 해제 (총 {len(_subscriptions)}명)")
 
 
 def get_subscription_count() -> int:
-    """등록된 구독 수"""
     return len(_subscriptions)

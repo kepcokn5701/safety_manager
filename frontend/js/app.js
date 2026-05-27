@@ -54,11 +54,15 @@ async function initServiceWorker() {
         const reg = await navigator.serviceWorker.register('/sw.js');
         console.log('Service Worker 등록 성공:', reg.scope);
 
-        // 기존 구독 확인
+        // 기존 구독이 있으면 서버에 재등록 (서버 재시작 대응)
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
             state.pushSubscription = sub;
             updatePushButton(true);
+            api('/api/push/subscribe', {
+                method: 'POST',
+                body: JSON.stringify({ subscription: sub.toJSON() }),
+            }).catch(() => {});
         }
     } catch (e) {
         console.error('Service Worker 등록 실패:', e);
@@ -75,10 +79,10 @@ async function togglePushSubscription() {
 
 async function subscribePush() {
     try {
-        // VAPID 공개키 가져오기
+        // VAPID 공개키 가져오기 (서버가 자동 생성/관리)
         const { public_key } = await api('/api/push/vapid-key');
         if (!public_key) {
-            alert('푸시 알림 설정이 완료되지 않았습니다.\n관리자에게 VAPID 키 설정을 요청하세요.');
+            alert('서버 설정 오류. 관리자에게 문의하세요.');
             return;
         }
 
@@ -97,36 +101,31 @@ async function subscribePush() {
             applicationServerKey: urlBase64ToUint8Array(public_key),
         });
 
-        // 전화번호 입력 받기 (구독 식별용)
-        const phone = prompt('알림을 받을 전화번호를 입력하세요:\n(작업자 등록 시 입력한 번호와 동일해야 합니다)', '010-');
-        if (!phone) {
-            await sub.unsubscribe();
-            return;
-        }
-
-        // 서버에 구독 등록
+        // 서버에 구독 등록 (전화번호 입력 불필요)
         await api('/api/push/subscribe', {
             method: 'POST',
-            body: JSON.stringify({
-                phone: phone,
-                subscription: sub.toJSON(),
-            }),
+            body: JSON.stringify({ subscription: sub.toJSON() }),
         });
 
         state.pushSubscription = sub;
         updatePushButton(true);
-        alert('푸시 알림이 활성화되었습니다!\n폭염 주의 단계 이상 시 알림을 받게 됩니다.');
 
     } catch (e) {
         console.error('푸시 구독 실패:', e);
-        alert('푸시 알림 설정 실패: ' + e.message);
+        alert('알림 설정 실패: ' + e.message);
     }
 }
 
 async function unsubscribePush() {
     try {
         if (state.pushSubscription) {
+            const endpoint = state.pushSubscription.endpoint;
             await state.pushSubscription.unsubscribe();
+            // 서버에도 해제 알림
+            await api('/api/push/unsubscribe', {
+                method: 'POST',
+                body: JSON.stringify({ endpoint }),
+            }).catch(() => {});
         }
         state.pushSubscription = null;
         updatePushButton(false);

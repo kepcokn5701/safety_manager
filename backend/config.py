@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     default_latitude: float = 37.5665
     default_longitude: float = 126.9780
 
-    # 웹 푸시 알림 (VAPID 키)
+    # 웹 푸시 알림 (VAPID 키 - 비어있으면 서버가 자동 생성)
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     vapid_email: str = "safety@kepco.co.kr"
