@@ -23,9 +23,9 @@ def _resolve_database_url() -> str:
     if postgres_url.startswith("postgres://") or postgres_url.startswith("postgresql://"):
         from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
-        # asyncpg 드라이버로 변환
-        url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        # psycopg (async) 드라이버로 변환
+        url = postgres_url.replace("postgres://", "postgresql+psycopg://", 1)
+        url = url.replace("postgresql://", "postgresql+psycopg://", 1)
 
         # asyncpg가 인식하는 파라미터만 유지 (Supabase 전용 파라미터 제거)
         parsed = urlparse(url)
