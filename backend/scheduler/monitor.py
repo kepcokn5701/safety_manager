@@ -40,10 +40,15 @@ class HeatWaveMonitor:
         self._notifier = notification_sender
         self._thresholds = threshold_manager
 
-    async def check_all_sites(self, session: AsyncSession, site_ids: list[int] | None = None) -> dict:
+    async def check_all_sites(
+        self, session: AsyncSession,
+        site_ids: list[int] | None = None,
+        use_cached_weather: bool = False,
+    ) -> dict:
         """
-        작업현장 날씨 확인 & 알림 발송
-        site_ids가 주어지면 해당 현장만, 없으면 전체 활성 현장
+        작업현장 알림 발송
+        - use_cached_weather=True: DB에 저장된 최근 날씨 사용 (수동 발송용)
+        - use_cached_weather=False: 날씨 API 재조회 (스케줄러용)
         """
         site_repo = WorkSiteRepository(session)
         if site_ids:
@@ -62,7 +67,7 @@ class HeatWaveMonitor:
 
         for site in sites:
             try:
-                await self._check_site(session, site, site_repo, result)
+                await self._check_site(session, site, site_repo, result, use_cached_weather)
                 result["sites_checked"] += 1
             except Exception as e:
                 error_msg = f"현장 '{site.name}'(ID:{site.id}) 모니터링 실패: {str(e)}"
@@ -76,36 +81,39 @@ class HeatWaveMonitor:
         )
         return result
 
-    async def _check_site(self, session, site, site_repo, result):
-        """개별 현장 날씨 확인 및 알림 처리"""
-
-        # 1. 날씨 조회
-        weather = await self._weather.get_current_weather(
-            site.latitude, site.longitude
-        )
-
-        # 2. 체감온도 & WBGT 계산
-        apparent_temp = HeatIndexCalculator.calculate_heat_index(
-            weather.temperature, weather.humidity
-        )
-        wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(
-            weather.temperature, weather.humidity, weather.wind_speed
-        )
-
-        # 3. 단계 판정
-        stage_info = self._thresholds.determine_stage(apparent_temp)
-
-        # 4. 날씨 기록 저장
+    async def _check_site(self, session, site, site_repo, result, use_cached_weather=False):
+        """개별 현장 알림 처리"""
         log_repo = WeatherLogRepository(session)
-        await log_repo.create(
-            work_site_id=site.id,
-            temperature=weather.temperature,
-            humidity=weather.humidity,
-            wind_speed=weather.wind_speed,
-            apparent_temperature=apparent_temp,
-            wbgt_estimated=wbgt,
-            stage=stage_info["key"] if stage_info else None,
-        )
+
+        if use_cached_weather:
+            # DB에서 최근 날씨 기록 사용 (날씨 API 호출 안 함)
+            latest = await log_repo.get_latest_by_site(site.id)
+            if not latest:
+                return  # 날씨 기록 없으면 스킵
+            apparent_temp = latest.apparent_temperature
+            wbgt = latest.wbgt_estimated
+        else:
+            # 날씨 API 조회 + DB 저장
+            weather = await self._weather.get_current_weather(
+                site.latitude, site.longitude
+            )
+            apparent_temp = HeatIndexCalculator.calculate_heat_index(
+                weather.temperature, weather.humidity
+            )
+            wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(
+                weather.temperature, weather.humidity, weather.wind_speed
+            )
+            await log_repo.create(
+                work_site_id=site.id,
+                temperature=weather.temperature,
+                humidity=weather.humidity,
+                wind_speed=weather.wind_speed,
+                apparent_temperature=apparent_temp,
+                wbgt_estimated=wbgt,
+                stage=self._thresholds.determine_stage(apparent_temp)["key"] if self._thresholds.determine_stage(apparent_temp) else None,
+            )
+
+        stage_info = self._thresholds.determine_stage(apparent_temp)
 
         # 5. 단계가 "주의" 이상이면 알림 발송
         if not stage_info or stage_info["key"] == "stage_1_interest":

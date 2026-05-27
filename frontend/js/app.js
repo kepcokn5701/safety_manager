@@ -912,7 +912,6 @@ async function triggerMonitoring(siteIds = null) {
         showToast(`발송 완료 - ${msg}`, 'success');
         loadAlertHistory();
         loadStats();
-        loadAllSitesWeather();
     } catch (e) {
         if (progressEl) {
             progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">발송 실패: ${e.message}</div>`;

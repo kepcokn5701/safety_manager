@@ -180,14 +180,16 @@ async def reset_all_data():
 
 @app.post("/api/monitor/trigger")
 async def trigger_monitoring(site_ids: list[int] | None = None):
-    """수동 모니터링 트리거 (선택 현장 또는 전체)"""
+    """수동 알림 발송 - 이미 조회된 날씨 기준 (날씨 재조회 안 함)"""
     monitor = HeatWaveMonitor(
         weather_provider=get_weather_provider(),
         notification_sender=get_notification_sender(),
         threshold_manager=get_threshold_manager(),
     )
     async with async_session() as session:
-        result = await monitor.check_all_sites(session, site_ids=site_ids)
+        result = await monitor.check_all_sites(
+            session, site_ids=site_ids, use_cached_weather=True
+        )
     return result
 
 
