@@ -64,6 +64,12 @@ async function initServiceWorker() {
                 body: JSON.stringify({ subscription: sub.toJSON() }),
             }).catch(() => {});
         }
+
+        // 모바일 + PWA 미설치 + 처음 방문 → 설치 배너 표시
+        if (isMobile() && !isPWA() && !sessionStorage.getItem('install-dismissed')) {
+            const banner = document.getElementById('install-banner');
+            if (banner) banner.style.display = 'block';
+        }
     } catch (e) {
         console.error('Service Worker 등록 실패:', e);
     }
@@ -77,31 +83,84 @@ async function togglePushSubscription() {
     }
 }
 
+// ── 환경 감지 ──
+function isPWA() {
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+}
+function isIOS() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+function isAndroid() {
+    return /android/i.test(navigator.userAgent);
+}
+function isMobile() {
+    return isIOS() || isAndroid();
+}
+
 async function subscribePush() {
-    try {
-        // VAPID 공개키 가져오기 (서버가 자동 생성/관리)
-        const { public_key } = await api('/api/push/vapid-key');
-        if (!public_key) {
-            alert('서버 설정 오류. 관리자에게 문의하세요.');
+    // 1) Service Worker 미지원
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        showGuideModal(
+            '이 브라우저에서는 알림을 지원하지 않습니다.',
+            isMobile()
+                ? 'Chrome 또는 Samsung Internet 브라우저로 접속해주세요.'
+                : 'Chrome 또는 Edge 브라우저로 접속해주세요.'
+        );
+        return;
+    }
+
+    // 2) iOS + Safari이고 PWA 미설치 → 홈화면 추가 안내
+    if (isIOS() && !isPWA()) {
+        showGuideModal(
+            '먼저 홈 화면에 앱을 추가해주세요',
+            '① 하단 공유 버튼(□↑)을 터치\n② "홈 화면에 추가"를 터치\n③ 추가된 앱을 열고 다시 알림을 허용해주세요\n\n(iOS는 앱 설치 후에만 알림이 동작합니다)'
+        );
+        return;
+    }
+
+    // 3) 알림 권한 확인
+    let permission = Notification.permission;
+
+    if (permission === 'denied') {
+        // 이미 거부됨 → 브라우저 설정 안내
+        showGuideModal(
+            '알림이 차단된 상태입니다',
+            isMobile()
+                ? '아래 방법으로 알림을 허용해주세요:\n\n'
+                  + (isAndroid()
+                      ? '① 주소창 왼쪽 자물쇠(🔒) 터치\n② "알림" → "허용"으로 변경\n③ 페이지 새로고침'
+                      : '① 설정 > Safari > 알림 > 이 사이트 허용\n② 페이지 새로고침')
+                : '① 주소창 왼쪽 자물쇠(🔒) 클릭\n② "알림" → "허용"으로 변경\n③ 페이지 새로고침'
+        );
+        return;
+    }
+
+    // 4) 권한 요청 (default 상태)
+    if (permission === 'default') {
+        permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            showGuideModal(
+                '알림 허용이 필요합니다',
+                '방금 나타난 팝업에서 "허용"을 터치해야 합니다.\n\n팝업이 안 나타나면:\n'
+                + (isMobile()
+                    ? '① 주소창 왼쪽 자물쇠(🔒) 터치\n② "알림" → "허용"으로 변경'
+                    : '① 주소창 왼쪽 자물쇠(🔒) 클릭\n② "알림" → "허용"으로 변경')
+            );
             return;
         }
+    }
 
+    // 5) 푸시 구독 실행
+    try {
+        const { public_key } = await api('/api/push/vapid-key');
         const reg = await navigator.serviceWorker.ready;
 
-        // 브라우저 알림 권한 요청
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-            alert('알림 권한이 거부되었습니다.\n브라우저 설정에서 알림을 허용해주세요.');
-            return;
-        }
-
-        // 푸시 구독
         const sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(public_key),
         });
 
-        // 서버에 구독 등록 (전화번호 입력 불필요)
         await api('/api/push/subscribe', {
             method: 'POST',
             body: JSON.stringify({ subscription: sub.toJSON() }),
@@ -112,7 +171,10 @@ async function subscribePush() {
 
     } catch (e) {
         console.error('푸시 구독 실패:', e);
-        alert('알림 설정 실패: ' + e.message);
+        showGuideModal(
+            '알림 설정 중 오류가 발생했습니다',
+            '잠시 후 다시 시도해주세요.\n문제가 계속되면 관리자에게 문의하세요.'
+        );
     }
 }
 
@@ -121,7 +183,6 @@ async function unsubscribePush() {
         if (state.pushSubscription) {
             const endpoint = state.pushSubscription.endpoint;
             await state.pushSubscription.unsubscribe();
-            // 서버에도 해제 알림
             await api('/api/push/unsubscribe', {
                 method: 'POST',
                 body: JSON.stringify({ endpoint }),
@@ -146,6 +207,26 @@ function updatePushButton(subscribed) {
         btn.style.background = 'rgba(255,255,255,0.2)';
         btn.style.borderColor = 'rgba(255,255,255,0.3)';
     }
+}
+
+// ── 안내 모달 (alert 대체) ──
+function showGuideModal(title, message) {
+    // 기존 모달 제거
+    const old = document.getElementById('guide-modal');
+    if (old) old.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'guide-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.innerHTML = `
+        <div style="background:var(--bg-card,#1a2632);border-radius:16px;max-width:380px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+            <div style="font-size:18px;font-weight:700;margin-bottom:12px;color:#ecf0f1">${title}</div>
+            <div style="font-size:14px;line-height:1.8;color:#bdc3c7;white-space:pre-line;text-align:left;margin-bottom:20px">${message}</div>
+            <button onclick="this.closest('#guide-modal').remove()" style="width:100%;padding:12px;background:#2980b9;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">확인</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
 }
 
 function urlBase64ToUint8Array(base64String) {
