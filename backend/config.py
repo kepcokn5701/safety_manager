@@ -21,13 +21,25 @@ def _resolve_database_url() -> str:
     # Vercel Postgres가 설정되어 있으면 우선 사용
     postgres_url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL", "")
     if postgres_url.startswith("postgres://") or postgres_url.startswith("postgresql://"):
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
         # asyncpg 드라이버로 변환
         url = postgres_url.replace("postgres://", "postgresql+asyncpg://", 1)
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        # asyncpg는 sslmode 대신 ssl 파라미터 사용
-        url = url.replace("sslmode=require", "ssl=require")
-        url = url.replace("sslmode=verify-full", "ssl=require")
-        url = url.replace("sslmode=prefer", "ssl=require")
+
+        # asyncpg가 인식하는 파라미터만 유지 (Supabase 전용 파라미터 제거)
+        parsed = urlparse(url)
+        params = parse_qs(parsed.query)
+        clean_params = {}
+        for key, vals in params.items():
+            if key in ("ssl", "sslmode"):
+                clean_params["ssl"] = ["require"]
+            elif key in ("host", "port", "user", "password", "database",
+                         "timeout", "command_timeout", "statement_cache_size"):
+                clean_params[key] = vals
+            # Supabase 전용 파라미터(supa, sslcert 등)는 무시
+        query = urlencode({k: v[0] for k, v in clean_params.items()})
+        url = urlunparse(parsed._replace(query=query))
         return url
     if _is_vercel:
         return "sqlite+aiosqlite:////tmp/safety_manager.db"
