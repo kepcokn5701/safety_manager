@@ -34,12 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadStats();
     initServiceWorker();
 
-    // 1분마다 자동 갱신
+    // 1분마다 알림 이력/통계만 갱신 (날씨는 새로고침 버튼으로만)
     state.refreshInterval = setInterval(() => {
-        if (state.sites.length > 0) {
-            loadAllSitesWeather();
-        }
         loadAlertHistory();
+        loadStats();
     }, 60000);
 });
 
