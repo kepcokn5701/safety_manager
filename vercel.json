@@ -3,7 +3,10 @@
     "builds": [
         {
             "src": "api/index.py",
-            "use": "@vercel/python"
+            "use": "@vercel/python",
+            "config": {
+                "maxLambdaSize": "50mb"
+            }
         },
         {
             "src": "frontend/**",
@@ -23,10 +26,5 @@
             "src": "/(.*)",
             "dest": "api/index.py"
         }
-    ],
-    "env": {
-        "APP_ENV": "development",
-        "NOTIFICATION_CHANNEL": "web_push",
-        "DATABASE_URL": "sqlite+aiosqlite:///./safety_manager.db"
-    }
+    ]
 }

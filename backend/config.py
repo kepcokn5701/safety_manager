@@ -5,9 +5,20 @@
 - 프록시 설정 지원
 """
 
+import os
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import Optional
+
+# Vercel 환경에서는 /tmp/ 에만 쓰기 가능
+_is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+_default_db = (
+    "sqlite+aiosqlite:////tmp/safety_manager.db"
+    if _is_vercel
+    else "sqlite+aiosqlite:///./safety_manager.db"
+)
 
 
 class Settings(BaseSettings):
@@ -17,7 +28,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
 
     # 데이터베이스 (SQLite ↔ PostgreSQL 교체 가능)
-    database_url: str = "sqlite+aiosqlite:///./safety_manager.db"
+    database_url: str = _default_db
 
     # 카카오 알림톡
     kakao_rest_api_key: str = ""
@@ -42,7 +53,7 @@ class Settings(BaseSettings):
     vapid_email: str = "safety@kepco.co.kr"
 
     # 알림 채널 선택: "web_push" | "kakao" | "console"
-    notification_channel: str = "web_push"
+    notification_channel: str = "console" if _is_vercel else "web_push"
 
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"
@@ -51,7 +62,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     model_config = {
-        "env_file": ".env",
+        "env_file": ".env" if not _is_vercel else None,
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
     }
