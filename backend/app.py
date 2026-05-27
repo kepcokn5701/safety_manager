@@ -173,3 +173,48 @@ async def trigger_monitoring():
     async with async_session() as session:
         result = await monitor.check_all_sites(session)
     return result
+
+
+@app.post("/api/monitor/simulate")
+async def simulate_heat_wave(
+    temperature: float = 36.0,
+    humidity: float = 70.0,
+):
+    """
+    혹서기 시뮬레이션 - 가상 온도로 폭염 알림 테스트.
+    체감온도 기준: 33° 관심, 35° 주의, 38° 경고, 41° 위험
+    예시: /api/monitor/simulate?temperature=39&humidity=75
+    """
+    from backend.services.interfaces import WeatherResult, WeatherProvider
+
+    class SimulatedWeather(WeatherProvider):
+        def __init__(self, temp, hum):
+            self.temp = temp
+            self.hum = hum
+
+        async def get_current_weather(self, lat, lon):
+            return WeatherResult(
+                temperature=self.temp,
+                humidity=self.hum,
+                wind_speed=1.5,
+                apparent_temperature=self.temp,
+                provider="simulation",
+            )
+
+        async def close(self):
+            pass
+
+    monitor = HeatWaveMonitor(
+        weather_provider=SimulatedWeather(temperature, humidity),
+        notification_sender=get_notification_sender(),
+        threshold_manager=get_threshold_manager(),
+    )
+    async with async_session() as session:
+        result = await monitor.check_all_sites(session)
+
+    return {
+        "simulation": True,
+        "simulated_temperature": temperature,
+        "simulated_humidity": humidity,
+        **result,
+    }

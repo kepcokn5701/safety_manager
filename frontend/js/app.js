@@ -301,6 +301,15 @@ async function loadAllSitesWeather() {
         state.allSitesWeather = data.sites;
         renderAllSitesOverview(data.sites);
 
+        // 헤더에 조회 시간 표시
+        const firstWithTime = data.sites.find(s => s.checked_at);
+        if (firstWithTime) {
+            const timeEl = document.getElementById('weather-checked-time');
+            if (timeEl) {
+                timeEl.textContent = `기상청 ${new Date(firstWithTime.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 기준`;
+            }
+        }
+
         // 첫 번째 현장 또는 가장 위험한 현장을 상세 표시
         if (data.sites.length > 0) {
             const top = data.sites[0];
@@ -382,7 +391,6 @@ function renderAllSitesOverview(sites) {
                 <div style="flex:1;min-width:0">
                     <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
-                    <div style="font-size:10px;color:var(--text-faint, #b0bec5);margin-top:1px">기상청 ${s.checked_at ? new Date(s.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''} 기준</div>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
                     <div style="text-align:right">
@@ -1194,6 +1202,44 @@ async function resetAllData() {
         loadAlertHistory();
     } catch (e) {
         alert('초기화 실패: ' + e.message);
+    }
+}
+
+// ── 폭염 시뮬레이션 ──
+function toggleTestMode() {
+    const on = document.getElementById('test-mode-toggle')?.checked;
+    document.getElementById('test-mode-panel').style.display = on ? 'block' : 'none';
+}
+
+function updateSimTemp() {
+    const temp = document.getElementById('sim-temp').value;
+    const el = document.getElementById('sim-temp-value');
+    el.textContent = `${temp}°C`;
+    const colors = { 25:'#27ae60', 33:'#FFC107', 35:'#FF9800', 38:'#FF5722', 41:'#D32F2F' };
+    let color = '#27ae60';
+    for (const [t, c] of Object.entries(colors)) { if (temp >= t) color = c; }
+    el.style.color = color;
+}
+
+async function runSimulation() {
+    const temp = document.getElementById('sim-temp').value;
+    const humidity = document.getElementById('sim-humidity').value;
+    const resultEl = document.getElementById('sim-result');
+    resultEl.innerHTML = '<span style="color:var(--text-dim)">시뮬레이션 실행 중... (알림 발송 포함)</span>';
+
+    try {
+        const result = await api(`/api/monitor/simulate?temperature=${temp}&humidity=${humidity}`, { method: 'POST' });
+        let html = `<div style="padding:10px;background:rgba(231,76,60,0.08);border-radius:8px;margin-top:8px">`;
+        html += `<div style="font-weight:700;margin-bottom:4px">시뮬레이션 결과 (기온 ${temp}°C, 습도 ${humidity}%)</div>`;
+        html += `<div>점검 현장: ${result.sites_checked}개</div>`;
+        html += `<div>알림 발송: ${result.alerts_sent}건</div>`;
+        if (result.errors > 0) html += `<div style="color:#e74c3c">실패: ${result.errors}건</div>`;
+        html += `</div>`;
+        resultEl.innerHTML = html;
+        loadAlertHistory();
+        loadStats();
+    } catch (e) {
+        resultEl.innerHTML = `<span style="color:#e74c3c">시뮬레이션 실패: ${e.message}</span>`;
     }
 }
 
