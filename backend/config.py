@@ -21,10 +21,19 @@ def _resolve_database_url() -> str:
     pg_url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL", "")
 
     if pg_url.startswith(("postgres://", "postgresql://")):
-        from urllib.parse import urlparse, urlunparse
+        from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
         parsed = urlparse(pg_url)
-        # asyncpg 드라이버로 변환 + sslmode→ssl 변환
-        query = parsed.query.replace("sslmode=", "ssl=") if parsed.query else ""
+        # asyncpg 호환 파라미터만 유지
+        clean_q = {}
+        for k, v in parse_qs(parsed.query).items():
+            if k == "sslmode":
+                clean_q["ssl"] = v
+            elif k in ("ssl", "timeout", "command_timeout", "statement_cache_size"):
+                clean_q[k] = v
+            # supa, sslcert 등 asyncpg 미지원 파라미터 제거
+        if "ssl" not in clean_q:
+            clean_q["ssl"] = ["require"]
+        query = urlencode({k: v[0] for k, v in clean_q.items()})
         return urlunparse(parsed._replace(scheme="postgresql+asyncpg", query=query))
 
     if _is_vercel:
