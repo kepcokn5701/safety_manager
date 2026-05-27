@@ -507,7 +507,7 @@
     <h3>1.3 동작 흐름</h3>
     <div class="flow-diagram">
         <div class="flow-row">
-            <div class="flow-box blue">Open-Meteo API<br><small>날씨 데이터 수집</small></div>
+            <div class="flow-box blue">기상청 API<br><small>날씨 데이터 수집</small></div>
             <div class="flow-arrow">&rarr;</div>
             <div class="flow-box green">체감온도 / WBGT<br><small>자동 계산</small></div>
             <div class="flow-arrow">&rarr;</div>
@@ -557,9 +557,9 @@
 
     <h3>2.2 네트워크 요건</h3>
     <ul style="margin-left:20px">
-        <li>인터넷 연결 필요 (Open-Meteo API, 카카오 API 호출용)</li>
+        <li>인터넷 연결 필요 (기상청 API, 카카오 API 호출용)</li>
         <li>사내망 프록시 환경인 경우 <a href="#proxy">프록시 설정</a> 참조</li>
-        <li>방화벽에서 <code>api.open-meteo.com</code>, <code>kapi.kakao.com</code> 허용 필요</li>
+        <li>방화벽에서 <code>apis.data.go.kr</code>, <code>kapi.kakao.com</code> 허용 필요</li>
     </ul>
 
     <div class="info-box tip">
@@ -1517,7 +1517,7 @@ DATABASE_URL=mysql+aiomysql://유저:비밀번호@DB서버주소:3306/safety_man
 
         <li id="proxy">
             <h4>프록시 설정</h4>
-            <p>사내망에서 외부 API(Open-Meteo, 카카오)에 접속하려면 프록시 설정이 필요합니다:</p>
+            <p>사내망에서 외부 API(기상청, 카카오)에 접속하려면 프록시 설정이 필요합니다:</p>
             <div class="code-block">
                 <span class="label">.env</span>
 HTTP_PROXY=http://proxy.kepco.co.kr:8080
@@ -1527,22 +1527,19 @@ HTTPS_PROXY=http://proxy.kepco.co.kr:8080
         </li>
 
         <li id="provider-change">
-            <h4>날씨 API 교체 (선택)</h4>
-            <p>사내망에서 Open-Meteo 접속이 불가능하거나 기상청 API를 사용하고 싶다면:</p>
+            <h4>날씨 API 설정</h4>
+            <p>현재 <strong>기상청 단기예보 API(초단기실황)</strong>를 사용하고 있습니다. 기상청 API허브(<code>apihub.kma.go.kr</code>)에서 인증키를 발급받아 <code>.env</code> 파일에 설정하세요:</p>
+            <div class="code-block">
+                <span class="label">.env</span>
+<span class="comment"># 기상청 API허브 인증키</span>
+KMA_API_KEY=발급받은_인증키
+            </div>
             <ol style="margin-left:20px;margin-top:8px">
-                <li><code>backend/services/</code> 폴더에 새 파일 생성 (예: <code>kma_provider.py</code>)</li>
-                <li><code>WeatherProvider</code> 인터페이스를 구현하는 클래스 작성</li>
-                <li><code>backend/dependencies.py</code> 파일에서 구현체를 교체:
-                    <div class="code-block">
-<span class="comment"># 변경 전</span>
-_weather_provider = OpenMeteoProvider()
-
-<span class="comment"># 변경 후</span>
-_weather_provider = KmaProvider()
-                    </div>
-                </li>
+                <li><a href="https://apihub.kma.go.kr" target="_blank">기상청 API허브</a> 회원가입 후 로그인</li>
+                <li>"기상청_단기예보" API를 찾아 활용신청</li>
+                <li>발급받은 인증키를 복사하여 위 설정에 입력</li>
             </ol>
-            <p>마찬가지로 알림 서비스도 <code>NotificationSender</code> 인터페이스를 구현하면 SMS 게이트웨이 등으로 교체할 수 있습니다.</p>
+            <p style="margin-top:12px">알림 서비스도 <code>NotificationSender</code> 인터페이스를 구현하면 SMS 게이트웨이 등으로 교체할 수 있습니다.</p>
         </li>
     </ol>
 </div>
@@ -1571,7 +1568,8 @@ _weather_provider = KmaProvider()
         <ul style="margin:8px 0 0 16px">
             <li>인터넷 연결을 확인하세요</li>
             <li>사내망이라면 프록시 설정을 확인하세요 (<a href="#proxy">프록시 설정</a> 참조)</li>
-            <li>방화벽에서 <code>api.open-meteo.com</code>이 차단되어 있지 않은지 확인하세요</li>
+            <li>방화벽에서 <code>apis.data.go.kr</code>이 차단되어 있지 않은지 확인하세요</li>
+            <li><code>.env</code> 파일에 <code>KMA_API_KEY</code>가 올바르게 설정되어 있는지 확인하세요</li>
         </ul>
     </div>
 

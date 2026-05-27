@@ -1,7 +1,7 @@
 """
-기상청 API 기반 날씨 데이터 제공자
-- 공공데이터포털(data.go.kr) 기상청 단기예보 API 사용
-- 초단기실황조회(getUltraSrtNcst): 현재 기온, 습도, 풍속 제공
+기상청 API허브 기반 날씨 데이터 제공자
+- 기상청 API허브(apihub.kma.go.kr) 단기예보 API 사용
+- 단기예보조회(getVilageFcst): 기온, 습도, 풍속 제공
 - 위경도 → 격자좌표(nx, ny) 변환 포함
 """
 
@@ -61,39 +61,65 @@ def latlon_to_grid(lat: float, lon: float) -> tuple[int, int]:
     return nx, ny
 
 
+# 단기예보 발표시각: 0200, 0500, 0800, 1100, 1400, 1700, 2000, 2300
+_BASE_TIMES = ["0200", "0500", "0800", "1100", "1400", "1700", "2000", "2300"]
+
+
 def _get_base_datetime() -> tuple[str, str]:
     """
-    초단기실황 API용 base_date, base_time 계산
-    - 매시 정각에 발표, API 제공은 약 10분 뒤
+    단기예보 API용 base_date, base_time 계산
+    - 발표시각: 02, 05, 08, 11, 14, 17, 20, 23시
+    - API 제공은 발표 후 약 10분 뒤
     - 현재 시각 기준 가장 최근 발표 시각을 반환
     """
     now = datetime.now()
+    # 발표 후 약 10분 뒤 제공 → 여유있게 15분
+    adjusted = now - timedelta(minutes=15)
 
-    # API 데이터는 매시 40분경에 확정 → 여유 있게 처리
-    if now.minute < 15:
-        now = now - timedelta(hours=1)
+    current_hhmm = adjusted.strftime("%H%M")
 
-    base_date = now.strftime("%Y%m%d")
-    base_time = now.strftime("%H00")
+    # 현재 시각 이전의 가장 최근 발표시각 찾기
+    base_time = None
+    for bt in reversed(_BASE_TIMES):
+        if current_hhmm >= bt:
+            base_time = bt
+            break
 
+    if base_time is None:
+        # 자정~02시15분 사이 → 전날 2300 발표
+        adjusted = adjusted - timedelta(days=1)
+        base_time = "2300"
+
+    base_date = adjusted.strftime("%Y%m%d")
     return base_date, base_time
+
+
+def _get_nearest_fcst_time() -> str:
+    """현재 시각에 가장 가까운 예보시각(정시) 반환"""
+    now = datetime.now()
+    # 현재 시각의 정시 (예: 11:30 → 1200, 11:10 → 1100)
+    if now.minute >= 30:
+        target = now + timedelta(hours=1)
+    else:
+        target = now
+    return target.strftime("%H00")
 
 
 class KmaProvider(WeatherProvider):
     """
-    기상청 초단기실황 API 기반 날씨 데이터 제공자
-    - 공공데이터포털(data.go.kr) 서비스키 필요
-    - 카테고리: T1H(기온), REH(습도), WSD(풍속)
+    기상청 API허브 단기예보 API 기반 날씨 데이터 제공자
+    - 기상청 API허브(apihub.kma.go.kr) 인증키 필요
+    - 카테고리: TMP(기온), REH(습도), WSD(풍속)
     """
 
-    BASE_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
+    BASE_URL = "https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst"
 
     def __init__(self):
         if not settings.kma_api_key:
             raise ValueError(
                 "기상청 API 키가 설정되지 않았습니다. "
                 ".env 파일에 KMA_API_KEY를 설정하세요. "
-                "(공공데이터포털 https://www.data.go.kr 에서 발급)"
+                "(기상청 API허브 https://apihub.kma.go.kr 에서 발급)"
             )
 
         proxy_config = settings.get_proxy_dict()
@@ -109,8 +135,8 @@ class KmaProvider(WeatherProvider):
         base_date, base_time = _get_base_datetime()
 
         params = {
-            "serviceKey": settings.kma_api_key,
-            "numOfRows": "10",
+            "authKey": settings.kma_api_key,
+            "numOfRows": "300",
             "pageNo": "1",
             "dataType": "JSON",
             "base_date": base_date,
@@ -141,17 +167,46 @@ class KmaProvider(WeatherProvider):
             .get("item", [])
         )
 
-        # 카테고리별 값 추출
+        # 현재 시각에 가장 가까운 예보시각의 데이터 추출
+        target_time = _get_nearest_fcst_time()
+        today = datetime.now().strftime("%Y%m%d")
+
+        # 해당 예보시각의 카테고리별 값 추출
         weather_data = {}
         for item in items:
-            category = item.get("category")
-            value = item.get("obsrValue")
-            if category and value is not None:
-                weather_data[category] = float(value)
+            fcst_date = item.get("fcstDate", "")
+            fcst_time = item.get("fcstTime", "")
+            if fcst_date == today and fcst_time == target_time:
+                category = item.get("category")
+                value = item.get("fcstValue")
+                if category and value is not None:
+                    try:
+                        weather_data[category] = float(value)
+                    except (ValueError, TypeError):
+                        pass
 
-        temperature = weather_data.get("T1H", 0.0)   # 기온 (°C)
+        # 정확한 시각 데이터가 없으면 가장 빠른 예보시각 사용
+        if not weather_data:
+            earliest_times = {}
+            for item in items:
+                fcst_time = item.get("fcstTime", "")
+                category = item.get("category")
+                value = item.get("fcstValue")
+                if category and value is not None and category not in earliest_times:
+                    try:
+                        earliest_times[category] = float(value)
+                    except (ValueError, TypeError):
+                        pass
+            weather_data = earliest_times
+
+        temperature = weather_data.get("TMP", 0.0)   # 기온 (°C)
         humidity = weather_data.get("REH", 0.0)       # 습도 (%)
         wind_speed = weather_data.get("WSD", 0.0)     # 풍속 (m/s)
+
+        logger.info(
+            f"기상청 날씨 조회: nx={nx}, ny={ny}, "
+            f"기온={temperature}°C, 습도={humidity}%, 풍속={wind_speed}m/s"
+        )
 
         # 기상청 API는 체감온도를 직접 제공하지 않으므로
         # HeatIndexCalculator에서 계산 (weather_service.py)

@@ -1,5 +1,6 @@
 """
-날씨 서비스 - Open-Meteo 구현체 + 체감온도/WBGT 계산
+날씨 서비스 - 체감온도/WBGT 계산 + 기준값 관리
+날씨 데이터 제공자는 kma_provider.py (기상청 API) 참조
 """
 
 import json

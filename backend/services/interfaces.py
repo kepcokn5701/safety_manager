@@ -35,8 +35,7 @@ class WeatherProvider(ABC):
     날씨 데이터 제공자 인터페이스
 
     구현 예시:
-    - OpenMeteoProvider: Open-Meteo 무료 API (기본)
-    - KmaProvider: 기상청 API (사내망 이관 시)
+    - KmaProvider: 기상청 단기예보 API (기본)
     - MockWeatherProvider: 테스트용
     """
 

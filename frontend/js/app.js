@@ -237,12 +237,28 @@ async function loadSites() {
     try {
         state.sites = await api('/api/sites');
         renderSiteList();
+        // 현장이 있으면 일단 기본 목록을 먼저 보여주고, 날씨는 비동기로
         if (state.sites.length > 0) {
+            renderSitesBasicList();
             loadAllSitesWeather();
         }
     } catch (e) {
         console.error('현장 목록 로딩 실패:', e);
     }
+}
+
+function renderSitesBasicList() {
+    const container = document.getElementById('all-sites-overview');
+    if (!container || !state.sites.length) return;
+    container.innerHTML = state.sites.map(site => `
+        <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="selectSiteFromOverview(${site.id})">
+            <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${site.name}</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+            </div>
+            <div style="font-size:12px;color:var(--text-dim)">날씨 조회 중...</div>
+        </div>
+    `).join('');
 }
 
 function renderSiteList() {
@@ -316,6 +332,19 @@ async function loadAllSitesWeather() {
         });
     } catch (e) {
         console.error('전체 현장 날씨 조회 실패:', e);
+        // 날씨 실패해도 기본 현장 목록은 유지
+        const container = document.getElementById('all-sites-overview');
+        if (container && state.sites.length > 0) {
+            container.innerHTML = state.sites.map(site => `
+                <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px">${site.name}</div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim)">날씨 조회 실패</div>
+                </div>
+            `).join('');
+        }
     }
 }
 
