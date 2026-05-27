@@ -71,9 +71,13 @@ async function initServiceWorker() {
             if (banner) banner.style.display = 'block';
         }
 
-        // SW로부터 푸시 메시지 수신 → 인앱 팝업 + 경고음
+        // SW로부터 푸시 메시지 수신
         navigator.serviceWorker.addEventListener('message', (event) => {
-            if (event.data?.type === 'PUSH_RECEIVED') {
+            if (event.data?.type === 'ADMIN_SUMMARY') {
+                // 관리자에게 발송 결과 요약 1건만 표시
+                showAdminSummary(event.data);
+            } else if (event.data?.type === 'PUSH_RECEIVED') {
+                // 작업자 알림이 관리자에 온 경우 (하위 호환)
                 showInAppAlert(event.data);
             }
         });
@@ -180,6 +184,56 @@ function showInAppAlert(data) {
     loadAllSitesWeather();
     loadAlertHistory();
     loadStats();
+}
+
+// ── 관리자 발송 요약 표시 ──
+function showAdminSummary(data) {
+    playAlertSound(data.stage);
+
+    const msg = `${data.site} - 폭염 ${data.stage} ${data.temperature}°C\n알림 ${data.sent_count}/${data.total_count}건 발송 완료`;
+    showToast(msg, data.sent_count > 0 ? 'success' : 'warning', 6000);
+
+    // 데이터 갱신
+    loadAllSitesWeather();
+    loadAlertHistory();
+    loadStats();
+}
+
+// ── QR 코드 모달 ──
+function showQrModal(siteId, siteName) {
+    const old = document.getElementById('qr-modal');
+    if (old) old.remove();
+
+    const workerUrl = `${window.location.origin}/worker/${siteId}`;
+
+    const modal = document.createElement('div');
+    modal.id = 'qr-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.innerHTML = `
+        <div style="background:white;border-radius:16px;max-width:380px;width:100%;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">${siteName}</div>
+            <div style="font-size:12px;color:#8896a6;margin-bottom:16px">현장 작업자용 QR 코드</div>
+            <div id="qr-canvas" style="display:inline-block;padding:16px;background:white;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px"></div>
+            <div style="font-size:11px;color:#8896a6;word-break:break-all;margin-bottom:16px;padding:8px;background:#f8fafc;border-radius:6px">${workerUrl}</div>
+            <div style="display:flex;gap:8px">
+                <button onclick="navigator.clipboard?.writeText('${workerUrl}');showToast('URL 복사됨','success',2000)" style="flex:1;padding:10px;background:#f0f2f5;border:none;border-radius:8px;font-size:13px;cursor:pointer">URL 복사</button>
+                <button onclick="document.getElementById('qr-modal').remove()" style="flex:1;padding:10px;background:#0066cc;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">닫기</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+    // QR 코드 생성 (qrcode.min.js CDN)
+    if (typeof QRCode !== 'undefined') {
+        new QRCode(document.getElementById('qr-canvas'), { text: workerUrl, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+    } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+        script.onload = () => {
+            new QRCode(document.getElementById('qr-canvas'), { text: workerUrl, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+        };
+        document.head.appendChild(script);
+    }
 }
 
 async function togglePushSubscription() {
@@ -551,7 +605,10 @@ function renderAllSitesOverview(sites) {
         ">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="flex:1;min-width:0">
-                    <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.site_name}</span>
+                        <button onclick="event.stopPropagation();showQrModal(${s.site_id},'${s.site_name.replace(/'/g, "\\'")}')" style="flex-shrink:0;padding:2px 6px;background:var(--bg-hover,#f7f9fb);border:1px solid var(--border,#e2e8f0);border-radius:4px;font-size:10px;color:var(--text-dim,#8896a6);cursor:pointer" title="작업자용 QR 코드">QR</button>
+                    </div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
                     ${s.worker_count > 0 ? (() => {
                         const total = s.workers?.length || 0;

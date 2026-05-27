@@ -113,28 +113,34 @@ class HeatWaveMonitor:
         workers = await site_repo.get_workers(site.id)
         alert_repo = AlertLogRepository(session)
 
+        # 발송 대상 작업자 확인 (중복 방지 체크)
+        workers_to_alert = []
         for worker in workers:
-            # 취약 작업자는 "관심" 단계부터 알림 (stage_2부터가 기본)
-            # 중복 발송 방지: 최근 1시간 내 같은 단계 알림이 있으면 스킵
             recent = await alert_repo.get_recent_by_worker(worker.id, hours=1)
             already_sent = any(
                 a.stage.value == stage_info["key"] for a in recent
             )
             if already_sent:
                 result["alerts_skipped"] += 1
-                continue
+            else:
+                workers_to_alert.append(worker)
 
-            # 알림 발송
-            notif_result = await self._notifier.send(
-                recipient_phone=worker.phone,
-                recipient_name=worker.name,
-                stage_name=stage_info["name"],
-                temperature=apparent_temp,
-                work_site_name=site.name,
-                actions=stage_info["actions"],
-            )
+        if not workers_to_alert:
+            return
 
-            # 알림 이력 저장
+        # 현장 단위로 1회 타겟 푸시 발송 (해당 현장 구독자에게만)
+        notif_result = await self._notifier.send(
+            recipient_phone="site_broadcast",
+            recipient_name=f"{site.name} 작업자",
+            stage_name=stage_info["name"],
+            temperature=apparent_temp,
+            work_site_name=site.name,
+            actions=stage_info["actions"],
+            site_id=site.id,
+        )
+
+        # 각 작업자별 알림 이력 기록
+        for worker in workers_to_alert:
             await alert_repo.create(
                 worker_id=worker.id,
                 work_site_id=site.id,
@@ -156,3 +162,15 @@ class HeatWaveMonitor:
                 result["errors"].append(
                     f"{worker.name}({worker.phone}) 알림 실패: {notif_result.error_message}"
                 )
+
+        # 관리자에게 요약 푸시 1건 발송
+        from backend.services.push_service import WebPushSender
+        if isinstance(self._notifier, WebPushSender):
+            await self._notifier.send_admin_summary(
+                stage_name=stage_info["name"],
+                temperature=apparent_temp,
+                work_site_name=site.name,
+                sent_count=result["alerts_sent"],
+                total_count=len(workers_to_alert),
+                site_id=site.id,
+            )

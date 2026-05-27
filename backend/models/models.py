@@ -129,6 +129,8 @@ class PushSubscription(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     endpoint = Column(String(500), nullable=False, unique=True)
     subscription_json = Column(Text, nullable=False)  # 전체 subscription 객체
+    subscriber_type = Column(String(20), default="admin")  # "admin" | "worker"
+    site_id = Column(Integer, ForeignKey("work_sites.id"), nullable=True)  # worker 전용
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

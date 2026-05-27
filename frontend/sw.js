@@ -59,15 +59,19 @@ self.addEventListener('push', (event) => {
             // 열려 있는 앱 화면에 인앱 팝업 표시를 위해 메시지 전달
             self.clients.matchAll({ type: 'window', includeUncontrolled: true })
                 .then(clients => {
+                    const msgType = data.data?.type || 'PUSH_RECEIVED';
                     clients.forEach(client => {
                         client.postMessage({
-                            type: 'PUSH_RECEIVED',
+                            type: msgType === 'admin_summary' ? 'ADMIN_SUMMARY' : 'PUSH_RECEIVED',
                             title: data.title,
                             body: data.body,
-                            stage: stage,
+                            stage: data.data?.stage || stage,
                             temperature: data.data?.temperature,
                             site: data.data?.site,
+                            site_id: data.data?.site_id,
                             actions: data.data?.actions,
+                            sent_count: data.data?.sent_count,
+                            total_count: data.data?.total_count,
                         });
                     });
                 }),

@@ -21,6 +21,8 @@ router = APIRouter(prefix="/api/push", tags=["푸시 알림"])
 
 class SubscribeRequest(BaseModel):
     subscription: dict
+    subscriber_type: str = "admin"  # "admin" | "worker"
+    site_id: int | None = None      # worker인 경우 현장 ID
 
 
 class UnsubscribeRequest(BaseModel):
@@ -37,10 +39,16 @@ async def get_vapid_public_key():
 @router.post("/subscribe")
 async def subscribe(data: SubscribeRequest):
     """브라우저 푸시 알림 구독"""
-    endpoint = await register_subscription(data.subscription)
+    endpoint = await register_subscription(
+        data.subscription,
+        subscriber_type=data.subscriber_type,
+        site_id=data.site_id,
+    )
     count = await get_subscription_count()
     return {
         "message": "알림이 활성화되었습니다.",
+        "subscriber_type": data.subscriber_type,
+        "site_id": data.site_id,
         "total_subscriptions": count,
     }
 

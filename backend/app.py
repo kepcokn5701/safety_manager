@@ -122,6 +122,11 @@ async def root():
     return _file("index.html")
 
 
+@app.get("/worker/{site_id}")
+async def worker_page(site_id: int):
+    return _file("worker.html")
+
+
 @app.get("/sw.js")
 async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "sw.js"), media_type="application/javascript")

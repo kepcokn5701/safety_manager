@@ -44,6 +44,7 @@ class KakaoAlimTalkSender(NotificationSender):
         temperature: float,
         work_site_name: str,
         actions: list[str],
+        site_id: int | None = None,
     ) -> NotificationResult:
         """카카오 알림톡으로 폭염 경보 발송"""
 
@@ -151,6 +152,7 @@ class ConsoleSender(NotificationSender):
         temperature: float,
         work_site_name: str,
         actions: list[str],
+        site_id: int | None = None,
     ) -> NotificationResult:
         now = datetime.now().strftime("%Y-%m-%d %H:%M")
         actions_text = "\n".join(f"    - {a}" for a in actions)

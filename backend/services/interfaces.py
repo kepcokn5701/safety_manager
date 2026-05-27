@@ -71,6 +71,7 @@ class NotificationSender(ABC):
         temperature: float,
         work_site_name: str,
         actions: list[str],
+        site_id: int | None = None,
     ) -> NotificationResult:
         """알림 발송"""
         ...
