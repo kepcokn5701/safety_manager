@@ -6,9 +6,13 @@
 
 import io
 import logging
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# 전화번호 패턴
+_PHONE_RE = re.compile(r"01[0-9][-.\s]?\d{3,4}[-.\s]?\d{4}")
 
 # 사전신고정보에서 흔히 사용되는 컬럼명 매핑
 COLUMN_MAP = {
@@ -179,3 +183,109 @@ async def parse_excel(file_content: bytes, filename: str, *, column_map: dict | 
     except Exception as e:
         logger.error(f"엑셀 파싱 실패: {e}", exc_info=True)
         raise ValueError(f"파일 처리 중 오류: {str(e)}")
+
+
+# ── 사전신고정보에서 작업자 자동 추출 ──
+
+# 작업자 정보가 포함될 수 있는 컬럼명 키워드
+_WORKER_SOURCE_KEYWORDS = [
+    "현장책임자", "책임자", "작업자명단", "작업자", "안전담당자",
+    "안전담당", "감독자", "작업반장", "관리자", "담당자",
+]
+
+
+def _extract_name_phone_pairs(text: str) -> list[dict]:
+    """텍스트에서 (이름, 전화번호) 쌍을 추출.
+    지원 형식:
+      - '김진호 010-5701-0001'
+      - '(박성진/010-5701-0002), (이동규/010-5701-0003)'
+      - '안전담당자 정해원 010-5701-0004'
+    """
+    if not text or not isinstance(text, str):
+        return []
+
+    results = []
+    phones = list(_PHONE_RE.finditer(text))
+    if not phones:
+        return []
+
+    for match in phones:
+        phone = match.group().strip()
+        # 전화번호 앞의 텍스트에서 이름 추출
+        before = text[:match.start()].strip()
+
+        # (이름/전화번호) 형식
+        paren_match = re.search(r"\(?([가-힣]{2,5})\s*/?\s*$", before)
+        if paren_match:
+            name = paren_match.group(1)
+        else:
+            # '직책 이름 전화번호' 또는 '이름 전화번호' 형식
+            words = re.findall(r"[가-힣]{2,5}", before)
+            name = words[-1] if words else ""
+
+        if name and phone:
+            # 전화번호 정규화
+            digits = re.sub(r"[^0-9]", "", phone)
+            if len(digits) == 11:
+                phone = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+            results.append({"name": name, "phone": phone})
+
+        # 다음 이름 추출을 위해 이미 처리된 부분 제거
+        text = text[match.end():]
+        # 재계산을 위해 남은 phone들의 offset 조정
+        phones = list(_PHONE_RE.finditer(text))
+        if not phones:
+            break
+
+    return results
+
+
+def extract_workers_from_site_data(rows: list[dict], columns: list[str]) -> list[dict]:
+    """사전신고정보의 행 데이터에서 작업자 정보를 자동 추출.
+
+    Returns:
+        [{"name": "김진호", "phone": "010-5701-0001", "source": "현장책임자", "site_name": "..."}, ...]
+    """
+    # 작업자 정보가 있을 수 있는 컬럼 찾기
+    worker_cols = []
+    for col in columns:
+        col_clean = col.strip().replace(" ", "")
+        for kw in _WORKER_SOURCE_KEYWORDS:
+            if kw in col_clean:
+                worker_cols.append(col)
+                break
+
+    if not worker_cols:
+        return []
+
+    # 현장명 컬럼 찾기
+    site_name_col = None
+    for col in columns:
+        field = _match_column(col)
+        if field == "name":
+            site_name_col = col
+            break
+
+    # 모든 행에서 작업자 추출
+    all_workers = []
+    seen_phones = set()
+
+    for row in rows:
+        site_name = row.get(site_name_col, "") if site_name_col else ""
+
+        for col in worker_cols:
+            text = row.get(col, "")
+            if not text:
+                continue
+            pairs = _extract_name_phone_pairs(text)
+            for p in pairs:
+                if p["phone"] not in seen_phones:
+                    seen_phones.add(p["phone"])
+                    all_workers.append({
+                        "name": p["name"],
+                        "phone": p["phone"],
+                        "source": col,
+                        "site_name": site_name,
+                    })
+
+    return all_workers

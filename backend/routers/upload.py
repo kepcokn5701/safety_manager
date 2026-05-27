@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from backend.models.database import get_db
-from backend.services.excel_parser import parse_excel, parse_worker_excel
+from backend.services.excel_parser import parse_excel, parse_worker_excel, extract_workers_from_site_data
 from backend.services.geocoding import geocode_address
 from backend.services.repository import WorkSiteRepository, WorkerRepository
 
@@ -58,6 +58,11 @@ async def upload_and_parse(file: UploadFile = File(...)):
         result = await parse_excel(content, file.filename)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # 사전신고정보에서 작업자 자동 추출
+    workers = extract_workers_from_site_data(result["rows"], result["columns"])
+    result["extracted_workers"] = workers
+    result["extracted_workers_count"] = len(workers)
 
     return result
 

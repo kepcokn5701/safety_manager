@@ -763,6 +763,37 @@ function renderExcelPreview(filename) {
     });
     html += '</tbody>';
     table.innerHTML = html;
+
+    // 추출된 작업자 표시
+    const workerSection = document.getElementById('extracted-workers');
+    if (workerSection && excelData.extracted_workers && excelData.extracted_workers.length > 0) {
+        const workers = excelData.extracted_workers;
+        workerSection.style.display = 'block';
+        workerSection.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                <div style="font-size:12px;font-weight:600">자동 추출된 작업자 (${workers.length}명)</div>
+                <label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer">
+                    <input type="checkbox" id="import-workers-check" checked style="width:auto"> 작업자도 함께 등록
+                </label>
+            </div>
+            <div style="max-height:120px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px">
+                <table style="width:100%;border-collapse:collapse">
+                    <thead><tr>
+                        <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:left">이름</th>
+                        <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:left">전화번호</th>
+                        <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:left">출처</th>
+                    </tr></thead>
+                    <tbody>${workers.map(w => `<tr>
+                        <td style="padding:3px 8px;border:1px solid var(--border)">${w.name}</td>
+                        <td style="padding:3px 8px;border:1px solid var(--border)">${w.phone}</td>
+                        <td style="padding:3px 8px;border:1px solid var(--border)">${w.source}</td>
+                    </tr>`).join('')}</tbody>
+                </table>
+            </div>
+        `;
+    } else if (workerSection) {
+        workerSection.style.display = 'none';
+    }
 }
 
 function toggleAllRows(master) {
@@ -849,9 +880,26 @@ async function importSelectedSites() {
             body: JSON.stringify({ sites }),
         });
 
-        let msg = `등록 완료!\n성공: ${result.created}건`;
-        if (result.geocoded > 0) msg += `\n주소→좌표 변환: ${result.geocoded}건`;
-        if (result.errors > 0) msg += `\n실패: ${result.errors}건`;
+        let msg = `[현장] ${result.created}건 등록`;
+        if (result.geocoded > 0) msg += ` (좌표 자동변환 ${result.geocoded}건)`;
+        if (result.errors > 0) msg += `\n현장 실패: ${result.errors}건`;
+
+        // 작업자도 함께 등록
+        const importWorkers = document.getElementById('import-workers-check')?.checked;
+        if (importWorkers && excelData.extracted_workers?.length > 0) {
+            try {
+                const wResult = await api('/api/upload/import-workers', {
+                    method: 'POST',
+                    body: JSON.stringify({ workers: excelData.extracted_workers }),
+                });
+                msg += `\n[작업자] ${wResult.created}명 등록`;
+                if (wResult.skipped > 0) msg += ` (중복 ${wResult.skipped}명)`;
+                if (wResult.errors > 0) msg += ` (실패 ${wResult.errors}건)`;
+            } catch (we) {
+                msg += `\n[작업자] 등록 실패: ${we.message}`;
+            }
+        }
+
         if (result.error_details?.length > 0) {
             const first3 = result.error_details.slice(0, 3).map(e => `  - ${e.name}: ${e.error}`).join('\n');
             msg += `\n\n실패 상세:\n${first3}`;
