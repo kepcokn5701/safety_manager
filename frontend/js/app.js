@@ -391,6 +391,7 @@ function renderAllSitesOverview(sites) {
                 <div style="flex:1;min-width:0">
                     <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.site_name}</div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
+                    ${s.worker_count > 0 ? `<div style="font-size:11px;color:var(--kepco, #0066cc);margin-top:1px">작업자 ${s.worker_count}명${s.workers?.some(w=>w.is_vulnerable) ? ' (취약 포함)' : ''}</div>` : ''}
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:12px">
                     <div style="text-align:right">
@@ -865,14 +866,23 @@ async function importSelectedSites() {
         return;
     }
 
+    // 각 현장에 해당하는 작업자 매칭 (row_index 기준)
+    const extractedWorkers = excelData.extracted_workers || [];
+
     const sites = checked.map(i => {
         const row = excelData.rows[i];
+        const siteName = row[nameCol] || `현장 ${i + 1}`;
+        // 이 행에서 추출된 작업자들
+        const siteWorkers = extractedWorkers
+            .filter(w => w.row_index === i)
+            .map(w => ({ name: w.name, phone: w.phone }));
         return {
-            name: row[nameCol] || `현장 ${i + 1}`,
+            name: siteName,
             address: addrCol ? (row[addrCol] || '') : '',
             latitude: lat,
             longitude: lng,
             work_intensity: intensity,
+            workers: siteWorkers,
         };
     }).filter(s => s.name.trim());
 
@@ -894,32 +904,9 @@ async function importSelectedSites() {
         });
 
         let msg = `[현장] ${result.created}건 등록`;
-        if (result.geocoded > 0) msg += ` (좌표 자동변환 ${result.geocoded}건)`;
-        if (result.errors > 0) msg += `\n현장 실패: ${result.errors}건`;
-
-        // 작업자도 함께 등록
-        const importWorkers = document.getElementById('import-workers-check')?.checked;
-        if (importWorkers && excelData.extracted_workers?.length > 0) {
-            try {
-                // API에 필요한 필드만 전송
-                const cleanWorkers = excelData.extracted_workers.map(w => ({
-                    name: w.name,
-                    phone: w.phone,
-                    department: '',
-                    team: '',
-                    is_vulnerable: false,
-                }));
-                const wResult = await api('/api/upload/import-workers', {
-                    method: 'POST',
-                    body: JSON.stringify({ workers: cleanWorkers }),
-                });
-                msg += `\n[작업자] ${wResult.created}명 등록`;
-                if (wResult.skipped > 0) msg += ` (중복 ${wResult.skipped}명)`;
-                if (wResult.errors > 0) msg += ` (실패 ${wResult.errors}건)`;
-            } catch (we) {
-                msg += `\n[작업자] 등록 실패: ${we.message}`;
-            }
-        }
+        if (result.geocoded > 0) msg += ` (좌표 변환 ${result.geocoded}건)`;
+        if (result.workers_assigned > 0) msg += `\n[작업자] ${result.workers_created}명 신규등록, ${result.workers_assigned}명 현장 배정`;
+        if (result.errors > 0) msg += `\n[실패] ${result.errors}건`;
 
         if (result.error_details?.length > 0) {
             const first3 = result.error_details.slice(0, 3).map(e => `  - ${e.name}: ${e.error}`).join('\n');

@@ -121,6 +121,13 @@ async def get_all_weather_status(
             )
             wbgt_rec = threshold_mgr.get_wbgt_recommendation(wbgt, intensity)
 
+            # 현장에 배정된 작업자 조회
+            workers = await site_repo.get_workers(site.id)
+            worker_list = [
+                {"id": w.id, "name": w.name, "phone": w.phone, "is_vulnerable": w.is_vulnerable}
+                for w in workers
+            ]
+
             results.append({
                 "site_id": site.id,
                 "site_name": site.name,
@@ -128,6 +135,8 @@ async def get_all_weather_status(
                 "latitude": site.latitude,
                 "longitude": site.longitude,
                 "work_intensity": intensity,
+                "workers": worker_list,
+                "worker_count": len(worker_list),
                 "weather": {
                     "temperature": weather.temperature,
                     "humidity": weather.humidity,

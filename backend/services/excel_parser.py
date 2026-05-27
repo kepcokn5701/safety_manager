@@ -297,11 +297,11 @@ def extract_workers_from_site_data(rows: list[dict], columns: list[str]) -> list
             site_name_col = col
             break
 
-    # 모든 행에서 작업자 추출
+    # 모든 행에서 작업자 추출 (현장별 그룹핑)
     all_workers = []
     seen_phones = set()
 
-    for row in rows:
+    for row_idx, row in enumerate(rows):
         site_name = row.get(site_name_col, "") if site_name_col else ""
 
         for col in worker_cols:
@@ -310,13 +310,15 @@ def extract_workers_from_site_data(rows: list[dict], columns: list[str]) -> list
                 continue
             pairs = _extract_name_phone_pairs(text)
             for p in pairs:
+                worker_entry = {
+                    "name": p["name"],
+                    "phone": p["phone"],
+                    "source": col,
+                    "site_name": site_name,
+                    "row_index": row_idx,
+                }
                 if p["phone"] not in seen_phones:
                     seen_phones.add(p["phone"])
-                    all_workers.append({
-                        "name": p["name"],
-                        "phone": p["phone"],
-                        "source": col,
-                        "site_name": site_name,
-                    })
+                    all_workers.append(worker_entry)
 
     return all_workers

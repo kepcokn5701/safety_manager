@@ -21,12 +21,18 @@ router = APIRouter(prefix="/api/upload", tags=["파일 업로드"])
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 
 
+class WorkerRef(BaseModel):
+    name: str
+    phone: str
+
+
 class SiteImportItem(BaseModel):
     name: str
     address: str = ""
     latitude: float = 0.0
     longitude: float = 0.0
     work_intensity: str = "moderate"
+    workers: list[WorkerRef] = []  # 해당 현장에 배정할 작업자
 
 
 class BulkImportRequest(BaseModel):
@@ -92,10 +98,13 @@ async def import_sites(
     """파싱된 데이터에서 선택한 항목들을 작업현장으로 일괄 등록.
     좌표가 0이고 주소가 있으면 자동 지오코딩.
     """
-    repo = WorkSiteRepository(db)
+    site_repo = WorkSiteRepository(db)
+    worker_repo = WorkerRepository(db)
     created = []
     errors = []
     geocoded_count = 0
+    workers_created = 0
+    workers_assigned = 0
 
     for item in data.sites:
         lat, lng = item.latitude, item.longitude
@@ -121,7 +130,7 @@ async def import_sites(
             continue
 
         try:
-            site = await repo.create(
+            site = await site_repo.create(
                 name=item.name,
                 address=item.address,
                 latitude=lat,
@@ -130,12 +139,32 @@ async def import_sites(
                 is_outdoor=True,
             )
             created.append({"id": site.id, "name": site.name})
+
+            # 작업자 등록 + 현장 배정
+            for w in item.workers:
+                phone = _normalize_phone(w.phone)
+                if not re.match(r"^01[0-9]-?\d{3,4}-?\d{4}$", phone):
+                    continue
+                try:
+                    existing = await worker_repo.get_by_phone(phone)
+                    if not existing:
+                        existing = await worker_repo.create(
+                            name=w.name, phone=phone,
+                        )
+                        workers_created += 1
+                    await site_repo.assign_worker(site.id, existing.id)
+                    workers_assigned += 1
+                except Exception:
+                    pass  # 중복 배정 등 무시
+
         except Exception as e:
             errors.append({"name": item.name, "error": str(e)})
 
     return {
         "created": len(created),
         "geocoded": geocoded_count,
+        "workers_created": workers_created,
+        "workers_assigned": workers_assigned,
         "errors": len(errors),
         "sites": created,
         "error_details": errors,
