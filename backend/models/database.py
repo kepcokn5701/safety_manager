@@ -15,12 +15,16 @@ _engine_kwargs = {}
 if "asyncpg" in settings.database_url:
     _engine_kwargs.update(
         poolclass=NullPool,
-        connect_args={"statement_cache_size": 0},
+        connect_args={
+            "statement_cache_size": 0,
+            "command_timeout": 30,
+        },
     )
 
 engine = create_async_engine(
     settings.database_url,
     echo=False,
+    pool_pre_ping=True,
     **_engine_kwargs,
 )
 

@@ -583,12 +583,19 @@ async function selectSite(siteId) {
 
 // ── 전체 현장 날씨 일괄 조회 ──
 async function loadAllSitesWeather() {
+    const progressEl = document.getElementById('send-progress');
     try {
-        showProgress('all-sites-overview', `${state.sites.length}개 현장 날씨 조회 중...`);
-        updateProgress('all-sites-overview', 30);
+        // 프로그레스를 별도 영역에 표시 (현장 목록 유지)
+        if (progressEl) {
+            progressEl.style.display = 'block';
+            progressEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
+                <div class="progress-spinner"></div>
+                <span style="font-size:13px;color:var(--text-mid)">${state.sites.length}개 현장 날씨 조회 중...</span>
+            </div>`;
+        }
 
         const data = await api('/api/weather/status-all');
-        updateProgress('all-sites-overview', 90, '화면 렌더링 중...');
+        if (progressEl) progressEl.style.display = 'none';
         state.allSitesWeather = data.sites;
         filterSites(currentFilter);
 
@@ -642,6 +649,10 @@ async function loadAllSitesWeather() {
         });
     } catch (e) {
         console.error('전체 현장 날씨 조회 실패:', e);
+        if (progressEl) {
+            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:4px">날씨 조회 실패: ${e.message}</div>`;
+            setTimeout(() => { progressEl.style.display = 'none'; }, 8000);
+        }
         // 날씨 실패해도 기본 현장 목록은 유지
         const container = document.getElementById('all-sites-overview');
         if (container && state.sites.length > 0) {

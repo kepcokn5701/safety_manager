@@ -83,7 +83,6 @@
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm" onclick="loadAllSitesWeather()">새로고침</button>
-                <button class="btn btn-ghost btn-sm" style="color:var(--caution)" onclick="openNoticeModal()">공지 발송</button>
                 <button class="btn btn-ghost btn-sm" style="color:var(--text-faint)" onclick="resetAllData()">초기화</button>
                 <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
             </div>
@@ -125,7 +124,7 @@
     <div class="modal-overlay" id="notice-modal">
         <div class="modal">
             <div class="modal-header">
-                <h3>공지사항 발송</h3>
+                <h3>공지사항 작성</h3>
                 <button class="modal-close" onclick="closeModal('notice-modal')">&times;</button>
             </div>
             <div class="modal-body">
@@ -155,6 +154,7 @@
         <div class="card-header">
             <h3>알림 발송</h3>
             <div style="display:flex;gap:6px">
+                <button class="btn btn-ghost btn-sm" style="color:var(--caution)" onclick="openNoticeModal()">공지사항 작성</button>
                 <button class="btn btn-ghost btn-sm" onclick="showSelectBar()">선택 발송</button>
                 <button class="btn btn-sm" style="background:var(--warning);color:white" onclick="triggerMonitoring()">전체 발송</button>
             </div>

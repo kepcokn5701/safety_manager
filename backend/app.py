@@ -45,24 +45,30 @@ IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 async def lifespan(app: FastAPI):
     """앱 생명주기 관리"""
     logger.info("Safety Manager 시작")
-    try:
-        await init_db()
-        logger.info(f"데이터베이스 초기화 완료 (URL: {settings.database_url[:30]}...)")
-    except Exception as e:
-        logger.error(f"DB 연결 실패: {e}")
-        # PostgreSQL 실패 시 SQLite 폴백
-        if "asyncpg" in settings.database_url:
-            logger.warning("PostgreSQL 연결 실패 → SQLite 폴백")
-            from backend.models.database import engine, Base
-            import sqlalchemy
-            fallback_url = "sqlite+aiosqlite:////tmp/safety_manager.db" if IS_VERCEL else "sqlite+aiosqlite:///./safety_manager.db"
-            from sqlalchemy.ext.asyncio import create_async_engine
-            from backend.models import database
-            database.engine = create_async_engine(fallback_url, echo=False)
-            database.async_session = async_sessionmaker(database.engine, class_=AsyncSession, expire_on_commit=False)
-            async with database.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            logger.info("SQLite 폴백 완료")
+    # PostgreSQL 연결 시도 (최대 3회 재시도)
+    import asyncio
+    db_ok = False
+    for attempt in range(3):
+        try:
+            await init_db()
+            logger.info(f"DB 연결 성공 (시도 {attempt+1}): {settings.database_url[:40]}...")
+            db_ok = True
+            break
+        except Exception as e:
+            logger.warning(f"DB 연결 실패 (시도 {attempt+1}/3): {e}")
+            if attempt < 2:
+                await asyncio.sleep(2)
+
+    if not db_ok and "asyncpg" in settings.database_url:
+        logger.error("PostgreSQL 3회 실패 → SQLite 폴백")
+        from backend.models.database import Base
+        from sqlalchemy.ext.asyncio import create_async_engine
+        from backend.models import database
+        fallback_url = "sqlite+aiosqlite:////tmp/safety_manager.db" if IS_VERCEL else "sqlite+aiosqlite:///./safety_manager.db"
+        database.engine = create_async_engine(fallback_url, echo=False)
+        database.async_session = async_sessionmaker(database.engine, class_=AsyncSession, expire_on_commit=False)
+        async with database.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     try:
         from backend.services.vapid_manager import init_vapid_keys_from_db
