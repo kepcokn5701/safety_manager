@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.config import settings
 from backend.models.database import init_db, async_session
 from backend.routers import weather, alerts, workers, push, upload
@@ -43,12 +44,30 @@ IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 async def lifespan(app: FastAPI):
     """앱 생명주기 관리"""
     logger.info("Safety Manager 시작")
-    await init_db()
-    logger.info("데이터베이스 초기화 완료")
+    try:
+        await init_db()
+        logger.info(f"데이터베이스 초기화 완료 (URL: {settings.database_url[:30]}...)")
+    except Exception as e:
+        logger.error(f"DB 연결 실패: {e}")
+        # PostgreSQL 실패 시 SQLite 폴백
+        if "asyncpg" in settings.database_url:
+            logger.warning("PostgreSQL 연결 실패 → SQLite 폴백")
+            from backend.models.database import engine, Base
+            import sqlalchemy
+            fallback_url = "sqlite+aiosqlite:////tmp/safety_manager.db" if IS_VERCEL else "sqlite+aiosqlite:///./safety_manager.db"
+            from sqlalchemy.ext.asyncio import create_async_engine
+            from backend.models import database
+            database.engine = create_async_engine(fallback_url, echo=False)
+            database.async_session = async_sessionmaker(database.engine, class_=AsyncSession, expire_on_commit=False)
+            async with database.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logger.info("SQLite 폴백 완료")
 
-    # VAPID 키 DB 초기화 (Vercel 배포 시에도 키 유지)
-    from backend.services.vapid_manager import init_vapid_keys_from_db
-    await init_vapid_keys_from_db()
+    try:
+        from backend.services.vapid_manager import init_vapid_keys_from_db
+        await init_vapid_keys_from_db()
+    except Exception as e:
+        logger.error(f"VAPID 키 초기화 실패: {e}")
 
     # 스케줄러는 Vercel(서버리스)에서는 실행하지 않음
     scheduler = None
@@ -156,14 +175,16 @@ async def user_guide():
 
 @app.get("/health")
 async def health_check():
-    db_type = "postgresql" if "asyncpg" in settings.database_url else "sqlite"
-    db_location = "/tmp/" if "/tmp/" in settings.database_url else "persistent"
+    from backend.models import database
+    actual_url = str(database.engine.url)
+    db_type = "postgresql" if "asyncpg" in actual_url else "sqlite"
     return {
         "status": "healthy",
         "environment": settings.app_env,
         "is_vercel": IS_VERCEL,
         "db_type": db_type,
-        "db_persistent": db_location == "persistent",
+        "db_persistent": "tmp" not in actual_url,
+        "db_url_prefix": actual_url[:50],
     }
 
 
