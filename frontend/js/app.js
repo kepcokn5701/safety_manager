@@ -513,7 +513,8 @@ async function loadAllSitesWeather() {
         const data = await api('/api/weather/status-all');
         updateProgress('all-sites-overview', 90, '화면 렌더링 중...');
         state.allSitesWeather = data.sites;
-        renderAllSitesOverview(data.sites);
+        // 현재 필터 유지하면서 렌더링
+        filterSites(currentFilter);
 
         // 헤더에 조회 시간 표시
         const firstWithTime = data.sites.find(s => s.checked_at);
@@ -1554,6 +1555,33 @@ function getCurrentLocation() {
 }
 
 // ── 현장 선택 발송 ──
+// ── 단계별 필터 ──
+let currentFilter = 'all';
+
+function filterSites(stage) {
+    currentFilter = stage;
+    // 필터 버튼 활성 상태
+    document.querySelectorAll('.stage-filter').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.stage === stage);
+    });
+    // 현장 카드 필터링
+    const stageKeyMap = {
+        'danger': 'stage_4_danger', 'warning': 'stage_3_warning',
+        'caution': 'stage_2_caution', 'interest': 'stage_1_interest',
+    };
+    const sites = state.allSitesWeather || [];
+    let filtered;
+    if (stage === 'all') {
+        filtered = sites;
+    } else if (stage === 'safe') {
+        filtered = sites.filter(s => !s.stage);
+    } else {
+        filtered = sites.filter(s => s.stage?.key === stageKeyMap[stage]);
+    }
+    renderAllSitesOverview(filtered);
+    document.getElementById('filter-count').textContent = `${filtered.length}/${sites.length}개`;
+}
+
 function showSelectBar() {
     document.getElementById('site-select-bar').style.display = 'flex';
     document.querySelectorAll('.site-check').forEach(cb => cb.style.display = 'inline');

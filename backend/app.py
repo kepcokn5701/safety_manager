@@ -173,47 +173,6 @@ async def user_guide():
     return _file("user-guide.html")
 
 
-@app.get("/debug/vapid")
-async def debug_vapid():
-    """VAPID 키 확인 (설정용)"""
-    from backend.services.vapid_manager import get_vapid_keys
-    keys = get_vapid_keys()
-    return {
-        "public_key": keys.get("public_key", "")[:20] + "...",
-        "private_key_prefix": keys.get("private_key", "")[:10] + "...",
-        "full_private_key": keys.get("private_key", ""),
-        "full_public_key": keys.get("public_key", ""),
-    }
-
-
-@app.get("/debug/db")
-async def debug_db():
-    """DB 연결 디버깅"""
-    import os
-    pg_url = os.environ.get("POSTGRES_URL", "(not set)")
-    resolved = settings.database_url
-    # 비밀번호 마스킹
-    import re
-    pg_masked = re.sub(r':([^@]+)@', ':***@', pg_url)
-    resolved_masked = re.sub(r':([^@]+)@', ':***@', resolved)
-
-    # 실제 연결 테스트
-    from backend.models import database
-    try:
-        async with database.engine.begin() as conn:
-            from sqlalchemy import text
-            result = await conn.execute(text("SELECT 1"))
-            db_ok = True
-    except Exception as e:
-        db_ok = str(e)[:200]
-
-    return {
-        "env_POSTGRES_URL": pg_masked[:80],
-        "resolved_url": resolved_masked[:80],
-        "connection_test": db_ok,
-    }
-
-
 @app.get("/health")
 async def health_check():
     from backend.models import database

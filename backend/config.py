@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     # 알림 채널 선택: "web_push" | "kakao" | "console"
     notification_channel: str = "web_push"
 
+    # SMS 설정 (추후 연동)
+    sms_api_key: str = ""
+    sms_sender_phone: str = ""       # 발신번호
+    sms_provider: str = ""           # "nhn_cloud" | "coolsms" | ""
+
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"
 

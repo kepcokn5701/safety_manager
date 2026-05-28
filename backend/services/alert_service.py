@@ -138,6 +138,71 @@ class KakaoAlimTalkSender(NotificationSender):
         await self._client.aclose()
 
 
+class SmsSender(NotificationSender):
+    """
+    SMS 발송 구현체
+    - API 키가 설정되면 실제 발송, 없으면 로그만 남김
+    - 지원 예정: NHN Cloud, CoolSMS 등
+    """
+
+    def __init__(self):
+        self._api_key = settings.sms_api_key if hasattr(settings, 'sms_api_key') else ""
+        self._sender_phone = settings.sms_sender_phone if hasattr(settings, 'sms_sender_phone') else ""
+
+    async def send(
+        self,
+        recipient_phone: str,
+        recipient_name: str,
+        stage_name: str,
+        temperature: float,
+        work_site_name: str,
+        actions: list[str],
+        site_id: int | None = None,
+    ) -> NotificationResult:
+        message = (
+            f"[KEPCO 안전관리] 폭염 {stage_name}\n"
+            f"현장: {work_site_name}\n"
+            f"체감온도: {temperature}°C\n"
+            f"{actions[0] if actions else '안전에 유의하세요.'}"
+        )
+
+        if not self._api_key:
+            logger.info(f"[SMS 미설정] {recipient_name}({recipient_phone}): {message[:50]}")
+            return NotificationResult(
+                success=False,
+                channel="sms",
+                recipient=recipient_phone,
+                error_message="SMS API 키 미설정",
+            )
+
+        # TODO: 실제 SMS API 호출 (NHN Cloud / CoolSMS 등)
+        # 여기에 API 호출 코드 추가
+        try:
+            # API 호출 예시 (NHN Cloud):
+            # response = await self._client.post(
+            #     "https://api-sms.cloud.toast.com/sms/v3.0/appKeys/{appKey}/sender/sms",
+            #     json={"body": message, "sendNo": self._sender_phone,
+            #           "recipientList": [{"recipientNo": recipient_phone.replace("-","")}]}
+            # )
+            logger.info(f"[SMS] {recipient_name}({recipient_phone}): 발송 시도")
+            return NotificationResult(
+                success=False,
+                channel="sms",
+                recipient=recipient_phone,
+                error_message="SMS API 연동 준비 중",
+            )
+        except Exception as e:
+            return NotificationResult(
+                success=False,
+                channel="sms",
+                recipient=recipient_phone,
+                error_message=str(e)[:100],
+            )
+
+    async def close(self) -> None:
+        pass
+
+
 class ConsoleSender(NotificationSender):
     """
     콘솔 출력용 알림 발송자 (개발/테스트용)

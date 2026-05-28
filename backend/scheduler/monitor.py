@@ -149,9 +149,34 @@ class HeatWaveMonitor:
             site_id=site.id,
         )
 
-        # 각 작업자별 알림 이력 기록 (푸시 성공/실패와 무관하게 처리)
+        # 각 작업자별 알림 이력 기록 + SMS 발송
         push_ok = notif_result.success
+        sms_sender = None
+        try:
+            from backend.services.alert_service import SmsSender
+            from backend.config import settings as app_settings
+            if app_settings.sms_api_key:
+                sms_sender = SmsSender()
+        except Exception:
+            pass
+
         for worker in workers_to_alert:
+            channels = [notif_result.channel]
+
+            # SMS 발송 (API 키 설정된 경우)
+            if sms_sender and worker.phone:
+                sms_result = await sms_sender.send(
+                    recipient_phone=worker.phone,
+                    recipient_name=worker.name,
+                    stage_name=stage_info["name"],
+                    temperature=apparent_temp,
+                    work_site_name=site.name,
+                    actions=stage_info["actions"],
+                    site_id=site.id,
+                )
+                if sms_result.success:
+                    channels.append("sms")
+
             await alert_repo.create(
                 worker_id=worker.id,
                 work_site_id=site.id,
@@ -159,7 +184,7 @@ class HeatWaveMonitor:
                 apparent_temperature=apparent_temp,
                 wbgt_estimated=wbgt,
                 message=f"폭염 {stage_info['name']} 단계 - 체감온도 {apparent_temp}°C",
-                channel=notif_result.channel,
+                channel=",".join(channels),
                 status=AlertStatus.SENT if push_ok else AlertStatus.FAILED,
                 error_message=notif_result.error_message,
             )

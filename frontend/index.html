@@ -82,6 +82,17 @@
                 <button class="btn btn-primary btn-sm" onclick="openModal('site-modal')">+ 현장 등록</button>
             </div>
         </div>
+        <!-- 단계별 필터 -->
+        <div style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:11px;color:var(--text-faint);margin-right:4px">필터:</span>
+            <button class="stage-filter active" data-stage="all" onclick="filterSites('all')">전체</button>
+            <button class="stage-filter" data-stage="danger" onclick="filterSites('danger')" style="--fc:#D32F2F">위험</button>
+            <button class="stage-filter" data-stage="warning" onclick="filterSites('warning')" style="--fc:#FF5722">경고</button>
+            <button class="stage-filter" data-stage="caution" onclick="filterSites('caution')" style="--fc:#FF9800">주의</button>
+            <button class="stage-filter" data-stage="interest" onclick="filterSites('interest')" style="--fc:#FFC107">관심</button>
+            <button class="stage-filter" data-stage="safe" onclick="filterSites('safe')" style="--fc:#10b981">정상</button>
+            <span id="filter-count" style="font-size:11px;color:var(--text-dim);margin-left:auto"></span>
+        </div>
         <!-- 현장 선택 발송 바 -->
         <div id="site-select-bar" style="display:none;padding:10px 16px;background:var(--kepco-lighter,#f4f8ff);border-bottom:1px solid var(--border);justify-content:space-between;align-items:center">
             <div style="display:flex;align-items:center;gap:8px">
