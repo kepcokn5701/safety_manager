@@ -670,9 +670,11 @@ function renderAllSitesOverview(sites) {
                         const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
                         const failed = s.workers?.filter(w => w.last_alert?.status === 'failed').length || 0;
                         const hasAlerts = (sent + failed) > 0;
+                        const ackCount = s.ack_count || 0;
                         return `<div style="font-size:11px;margin-top:2px">
                             <span style="color:var(--kepco,#0066cc)">작업자 ${total}명</span>${s.workers?.some(w=>w.is_vulnerable) ? ' <span style="color:#e74c3c;font-size:10px">(취약 포함)</span>' : ''}
-                            ${hasAlerts ? ` <span style="color:var(--text-dim,#8896a6)">|</span> 알림 <span style="color:${sent > 0 ? 'var(--safe,#10b981)' : 'var(--text-faint)'};font-weight:600">${sent}</span><span style="color:var(--text-faint)">/${total}건 성공</span>${failed > 0 ? ` <span style="color:var(--danger,#dc2626);font-weight:600">${failed}건 실패</span>` : ''}` : ''}
+                            ${hasAlerts ? ` <span style="color:var(--text-dim)">|</span> 알림 <span style="color:${sent > 0 ? 'var(--safe)' : 'var(--text-faint)'};font-weight:600">${sent}</span><span style="color:var(--text-faint)">/${total}건</span>` : ''}
+                            ${ackCount > 0 ? ` <span style="color:var(--text-dim)">|</span> <span style="color:var(--safe);font-weight:600">응답 ${ackCount}건</span>` : ''}
                         </div>`;
                     })() : ''}
                 </div>

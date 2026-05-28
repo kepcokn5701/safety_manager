@@ -177,6 +177,17 @@ async def get_all_weather_status(
                     wdata["last_alert"] = None
                 worker_list.append(wdata)
 
+            # 응답 현황
+            from backend.models.models import AlertAck
+            from sqlalchemy import func, and_ as sql_and
+            ack_result = await db.execute(
+                select(func.count(AlertAck.id)).where(
+                    sql_and(AlertAck.site_id == site.id,
+                            AlertAck.acked_at >= datetime.now(KST).replace(hour=0, minute=0, second=0))
+                )
+            )
+            ack_count = ack_result.scalar() or 0
+
             results.append({
                 "site_id": site.id,
                 "site_name": site.name,
@@ -187,6 +198,7 @@ async def get_all_weather_status(
                 "work_intensity": intensity,
                 "workers": worker_list,
                 "worker_count": len(worker_list),
+                "ack_count": ack_count,
                 "weather": {
                     "temperature": weather.temperature,
                     "humidity": weather.humidity,

@@ -5,6 +5,7 @@ Safety Manager - FastAPI 메인 애플리케이션
 
 import os
 import logging
+from datetime import datetime
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -205,6 +206,82 @@ async def get_branch_offices():
         )
         offices = [row[0] for row in result.all()]
     return {"offices": sorted(offices), "total": len(offices)}
+
+
+class AckRequest(BaseModel):
+    site_id: int
+    ack_type: str = "confirmed"  # "confirmed" | "work_stopped" | "evacuated"
+    worker_name: str = ""
+    alert_tag: str = ""
+    message: str = ""
+
+
+@app.post("/api/alert/ack")
+async def ack_alert(data: AckRequest):
+    """작업자 알림 응답 (확인/작업중지/대피 완료)"""
+    from backend.models.models import AlertAck
+    async with async_session() as session:
+        session.add(AlertAck(
+            site_id=data.site_id,
+            ack_type=data.ack_type,
+            worker_name=data.worker_name or None,
+            alert_tag=data.alert_tag or None,
+            message=data.message or None,
+        ))
+        await session.commit()
+    return {"success": True}
+
+
+@app.get("/api/alert/acks/{site_id}")
+async def get_site_acks(site_id: int, hours: int = 24):
+    """현장별 알림 응답 현황 조회"""
+    from backend.models.models import AlertAck
+    from sqlalchemy import select, and_
+    from datetime import timedelta
+
+    since = datetime.utcnow() - timedelta(hours=hours)
+    async with async_session() as session:
+        result = await session.execute(
+            select(AlertAck).where(
+                and_(AlertAck.site_id == site_id, AlertAck.acked_at >= since)
+            ).order_by(AlertAck.acked_at.desc())
+        )
+        acks = result.scalars().all()
+    return [
+        {
+            "id": a.id, "ack_type": a.ack_type, "worker_name": a.worker_name,
+            "alert_tag": a.alert_tag, "message": a.message,
+            "acked_at": a.acked_at.isoformat(),
+        }
+        for a in acks
+    ]
+
+
+@app.get("/api/alert/ack-summary")
+async def get_ack_summary(hours: int = 24):
+    """전체 현장 응답 요약 (관리자용)"""
+    from backend.models.models import AlertAck
+    from sqlalchemy import select, func, and_
+    from datetime import timedelta
+
+    since = datetime.utcnow() - timedelta(hours=hours)
+    async with async_session() as session:
+        result = await session.execute(
+            select(
+                AlertAck.site_id,
+                AlertAck.ack_type,
+                func.count(AlertAck.id).label("count"),
+            ).where(AlertAck.acked_at >= since)
+            .group_by(AlertAck.site_id, AlertAck.ack_type)
+        )
+        rows = result.all()
+
+    summary = {}
+    for site_id, ack_type, count in rows:
+        if site_id not in summary:
+            summary[site_id] = {}
+        summary[site_id][ack_type] = count
+    return summary
 
 
 @app.post("/api/reset")

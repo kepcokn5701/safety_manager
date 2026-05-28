@@ -335,17 +335,52 @@ function showWorkerAlert(data) {
     const popup = document.createElement('div');
     popup.id = 'worker-alert-popup';
     popup.style.cssText = `position:fixed;top:60px;left:12px;right:12px;z-index:10000;`;
+    const isDanger = data.stage === '위험' || data.stage === '경고';
     popup.innerHTML = `
         <div style="padding:16px;background:${c.bg};border:2px solid ${c.border};border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.15)">
             <div style="font-size:18px;font-weight:800;color:${c.text};margin-bottom:4px">${data.title}</div>
             <div style="font-size:14px;color:#333;line-height:1.5;white-space:pre-line">${data.body}</div>
             ${data.actions?.length ? `<div style="font-size:13px;color:${c.text};margin-top:8px">${data.actions[0]}</div>` : ''}
-            <button onclick="this.closest('#worker-alert-popup').remove()" style="margin-top:10px;width:100%;padding:10px;background:${c.border};color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">확인</button>
+            <div style="margin-top:12px;display:flex;gap:8px">
+                ${isDanger ? `
+                    <button onclick="sendAck('work_stopped','${data.stage}')" style="flex:1;padding:12px;background:#D32F2F;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">작업 중지 완료</button>
+                    <button onclick="sendAck('evacuated','${data.stage}')" style="flex:1;padding:12px;background:#FF5722;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">대피 완료</button>
+                ` : `
+                    <button onclick="sendAck('confirmed','${data.stage}')" style="flex:1;padding:12px;background:${c.border};color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">확인 완료</button>
+                `}
+            </div>
         </div>`;
     document.body.appendChild(popup);
 
-    // 데이터 갱신
     loadWeather();
+}
+
+async function sendAck(ackType, stage) {
+    try {
+        await api('/api/alert/ack', {
+            method: 'POST',
+            body: JSON.stringify({
+                site_id: siteId,
+                ack_type: ackType,
+                alert_tag: `heat-${stage}`,
+            }),
+        });
+        // 팝업을 응답 완료로 교체
+        const popup = document.getElementById('worker-alert-popup');
+        if (popup) {
+            const labels = { confirmed: '확인 완료', work_stopped: '작업 중지 완료', evacuated: '대피 완료' };
+            popup.innerHTML = `
+                <div style="padding:16px;background:#ecfdf5;border:2px solid #10b981;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,0.15);text-align:center">
+                    <div style="font-size:32px;margin-bottom:8px">V</div>
+                    <div style="font-size:16px;font-weight:700;color:#065f46">${labels[ackType] || '응답 완료'}</div>
+                    <div style="font-size:13px;color:#4a5568;margin-top:4px">관리자에게 전달되었습니다</div>
+                    <button onclick="this.closest('#worker-alert-popup').remove()" style="margin-top:12px;padding:10px 24px;background:#10b981;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer">닫기</button>
+                </div>`;
+            setTimeout(() => { if (popup.parentNode) popup.remove(); }, 5000);
+        }
+    } catch (e) {
+        showGuideModal('응답 전송 실패', '네트워크를 확인하고 다시 시도해주세요.');
+    }
 }
 
 function showNoticePopup(data) {
@@ -362,7 +397,7 @@ function showNoticePopup(data) {
             <div style="font-size:11px;color:#3b82f6;font-weight:600;margin-bottom:4px">공지사항</div>
             <div style="font-size:17px;font-weight:800;color:#1e40af;margin-bottom:6px">${data.title}</div>
             <div style="font-size:14px;color:#333;line-height:1.6;white-space:pre-line">${data.body}</div>
-            <button onclick="this.closest('#worker-alert-popup').remove()" style="margin-top:12px;width:100%;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">확인</button>
+            <button onclick="sendAck('confirmed','notice')" style="margin-top:12px;width:100%;padding:12px;background:#3b82f6;color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">확인 완료</button>
         </div>`;
     document.body.appendChild(popup);
 }
