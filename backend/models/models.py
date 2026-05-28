@@ -59,6 +59,7 @@ class WorkSite(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), nullable=False)         # 현장명
     address = Column(String(500))                       # 주소
+    branch_office = Column(String(100))                 # 담당 사업소 (ex: 통영전력지사)
     latitude = Column(Float, nullable=False)
     longitude = Column(Float, nullable=False)
     work_intensity = Column(

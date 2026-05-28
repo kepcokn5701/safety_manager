@@ -32,6 +32,7 @@ class SiteImportItem(BaseModel):
     latitude: float = 0.0
     longitude: float = 0.0
     work_intensity: str = "moderate"
+    branch_office: str = ""  # 담당 사업소
     workers: list[WorkerRef] = []  # 해당 현장에 배정할 작업자
 
 
@@ -136,6 +137,7 @@ async def import_sites(
                 latitude=lat,
                 longitude=lng,
                 work_intensity=item.work_intensity,
+                branch_office=item.branch_office or None,
                 is_outdoor=True,
             )
             created.append({"id": site.id, "name": site.name})

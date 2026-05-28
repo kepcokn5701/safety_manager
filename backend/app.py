@@ -188,6 +188,25 @@ async def health_check():
     }
 
 
+@app.get("/api/branch-offices")
+async def get_branch_offices():
+    """등록된 사업소 목록 반환"""
+    from backend.models.database import async_session as get_session
+    from backend.models.models import WorkSite
+    from sqlalchemy import select, distinct
+
+    async with get_session() as session:
+        result = await session.execute(
+            select(distinct(WorkSite.branch_office)).where(
+                WorkSite.branch_office.isnot(None),
+                WorkSite.branch_office != "",
+                WorkSite.is_active == True,
+            )
+        )
+        offices = [row[0] for row in result.all()]
+    return {"offices": sorted(offices), "total": len(offices)}
+
+
 @app.post("/api/reset")
 async def reset_all_data():
     """모든 데이터 초기화 (작업현장, 작업자, 날씨기록, 알림이력)"""

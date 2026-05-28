@@ -17,6 +17,20 @@
 </head>
 <body>
 
+<!-- ── 사업소 선택 (로그인 대체) ── -->
+<div id="branch-select-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;justify-content:center;align-items:center">
+    <div style="max-width:400px;width:90%;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">K</div>
+        <h1 style="font-size:22px;margin-bottom:4px">KEPCO 안전관리</h1>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:24px">담당 사업소를 선택하세요</p>
+        <select id="branch-select" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin-bottom:12px;background:white">
+            <option value="all">전체 (경남본부)</option>
+        </select>
+        <button onclick="enterBranch()" style="width:100%;padding:14px;background:var(--kepco);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">접속</button>
+        <p style="color:var(--text-faint);font-size:11px;margin-top:16px">경남본부 안전재난부 | 폭염 안전관리 시스템</p>
+    </div>
+</div>
+
 <!-- ── 헤더 ── -->
 <header class="header">
     <div class="header-left">
@@ -24,6 +38,7 @@
         <h1>KEPCO 안전관리</h1>
     </div>
     <div class="header-right">
+        <button style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:11px;cursor:pointer" onclick="changeBranch()">사업소 변경</button>
         <button id="push-btn" class="btn-notify" onclick="togglePushSubscription()">알림 허용</button>
         <div class="live-dot"></div>
         <span id="current-time"></span>
@@ -310,14 +325,20 @@
                             </div>
                         </div>
                     </div>
-                    <div class="form-group" style="margin-top:10px">
-                        <label>작업강도 (일괄)</label>
-                        <select id="bulk-intensity" style="width:100%;padding:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px">
-                            <option value="moderate" selected>중등작업</option>
-                            <option value="light">경작업</option>
-                            <option value="heavy">중작업</option>
-                            <option value="very_heavy">초중작업</option>
-                        </select>
+                    <div style="display:flex;gap:8px;margin-top:10px">
+                        <div class="form-group" style="flex:1">
+                            <label>담당 사업소</label>
+                            <input type="text" id="bulk-branch" placeholder="예: 통영전력지사" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px">
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>작업강도</label>
+                            <select id="bulk-intensity" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px">
+                                <option value="moderate" selected>중등작업</option>
+                                <option value="light">경작업</option>
+                                <option value="heavy">중작업</option>
+                                <option value="very_heavy">초중작업</option>
+                            </select>
+                        </div>
                     </div>
                     <div id="extracted-workers" style="display:none;margin-top:10px;padding:10px;background:rgba(39,174,96,0.06);border:1px solid rgba(39,174,96,0.2);border-radius:var(--radius-sm)"></div>
                     <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:12px;font-size:15px" onclick="importSelectedSites()">일괄 등록</button>

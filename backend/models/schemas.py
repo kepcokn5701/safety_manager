@@ -36,6 +36,7 @@ class WorkSiteCreate(BaseModel):
     latitude: float = Field(..., ge=33.0, le=39.0, examples=[37.5665])
     longitude: float = Field(..., ge=124.0, le=132.0, examples=[126.9780])
     work_intensity: str = Field("moderate", examples=["heavy"])
+    branch_office: Optional[str] = Field(None, examples=["통영전력지사"])
     is_outdoor: bool = True
 
 
@@ -43,6 +44,7 @@ class WorkSiteResponse(BaseModel):
     id: int
     name: str
     address: Optional[str]
+    branch_office: Optional[str]
     latitude: float
     longitude: float
     work_intensity: str

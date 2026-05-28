@@ -97,37 +97,69 @@ async def get_all_weather_status(
     db: AsyncSession = Depends(get_db),
     weather_provider=Depends(get_weather_provider),
 ):
-    """모든 활성 옥외 작업현장의 날씨를 한 번에 조회"""
+    """모든 활성 옥외 작업현장의 날씨를 한 번에 조회 (격자 캐시로 최적화)"""
+    import asyncio
+    from backend.services.kma_provider import latlon_to_grid
+
     site_repo = WorkSiteRepository(db)
     sites = await site_repo.get_all_outdoor_active()
 
+    # 1단계: 격자별로 현장 묶기 (같은 격자 = 같은 날씨)
+    grid_sites = {}
+    for site in sites:
+        nx, ny = latlon_to_grid(site.latitude, site.longitude)
+        grid_key = f"{nx},{ny}"
+        if grid_key not in grid_sites:
+            grid_sites[grid_key] = {"lat": site.latitude, "lon": site.longitude, "sites": []}
+        grid_sites[grid_key]["sites"].append(site)
+
+    # 2단계: 격자별로 병렬 날씨 조회
+    async def fetch_grid_weather(grid_key, grid_info):
+        try:
+            weather = await weather_provider.get_current_weather(grid_info["lat"], grid_info["lon"])
+            return grid_key, weather, None
+        except Exception as e:
+            return grid_key, None, str(e)
+
+    grid_results = await asyncio.gather(
+        *[fetch_grid_weather(k, v) for k, v in grid_sites.items()]
+    )
+    weather_cache = {}
+    for grid_key, weather, error in grid_results:
+        if weather:
+            weather_cache[grid_key] = weather
+
+    # 3단계: 현장별 결과 조합
+    alert_repo = AlertLogRepository(db)
     results = []
     for site in sites:
         try:
-            weather = await weather_provider.get_current_weather(
-                site.latitude, site.longitude
-            )
-            apparent_temp = HeatIndexCalculator.calculate_heat_index(
-                weather.temperature, weather.humidity
-            )
-            wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(
-                weather.temperature, weather.humidity, weather.wind_speed
-            )
+            nx, ny = latlon_to_grid(site.latitude, site.longitude)
+            grid_key = f"{nx},{ny}"
+            weather = weather_cache.get(grid_key)
+            if not weather:
+                results.append({"site_id": site.id, "site_name": site.name, "address": site.address or "", "error": "날씨 조회 실패"})
+                continue
+
+            apparent_temp = HeatIndexCalculator.calculate_heat_index(weather.temperature, weather.humidity)
+            wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(weather.temperature, weather.humidity, weather.wind_speed)
             stage_info = threshold_mgr.determine_stage(apparent_temp)
-            intensity = (
-                site.work_intensity.value
-                if isinstance(site.work_intensity, WorkIntensity)
-                else site.work_intensity
-            )
+            intensity = site.work_intensity.value if isinstance(site.work_intensity, WorkIntensity) else site.work_intensity
             wbgt_rec = threshold_mgr.get_wbgt_recommendation(wbgt, intensity)
 
-            # 현장에 배정된 작업자 조회
+            # 날씨 로그 저장
+            log_repo = WeatherLogRepository(db)
+            await log_repo.create(
+                work_site_id=site.id, temperature=weather.temperature,
+                humidity=weather.humidity, wind_speed=weather.wind_speed,
+                apparent_temperature=apparent_temp, wbgt_estimated=wbgt,
+                stage=stage_info["key"] if stage_info else None,
+            )
+
+            # 작업자 + 알림 상태
             workers = await site_repo.get_workers(site.id)
             worker_ids = [w.id for w in workers]
-
-            # 작업자별 최근 알림 발송 상태 조회
-            alert_repo = AlertLogRepository(db)
-            latest_alerts = await alert_repo.get_latest_by_site_workers(site.id, worker_ids)
+            latest_alerts = await alert_repo.get_latest_by_site_workers(site.id, worker_ids) if worker_ids else {}
 
             worker_list = []
             for w in workers:
@@ -149,6 +181,7 @@ async def get_all_weather_status(
                 "site_id": site.id,
                 "site_name": site.name,
                 "address": site.address or "",
+                "branch_office": site.branch_office or "",
                 "latitude": site.latitude,
                 "longitude": site.longitude,
                 "work_intensity": intensity,

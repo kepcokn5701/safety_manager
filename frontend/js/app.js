@@ -12,6 +12,7 @@ const state = {
     alertHistory: [],
     refreshInterval: null,
     pushSubscription: null,
+    branchOffice: null,  // 선택된 사업소 (null = 전체)
 };
 
 // ── API 호출 ──
@@ -29,17 +30,56 @@ async function api(path, options = {}) {
 
 // ── 초기화 ──
 document.addEventListener('DOMContentLoaded', () => {
+    // 저장된 사업소가 있으면 바로 진입, 없으면 선택 화면
+    const saved = localStorage.getItem('branch_office');
+    if (saved !== null) {
+        state.branchOffice = saved === 'all' ? null : saved;
+        startApp();
+    } else {
+        showBranchSelect();
+    }
+});
+
+async function showBranchSelect() {
+    const screen = document.getElementById('branch-select-screen');
+    screen.style.display = 'flex';
+    try {
+        const data = await api('/api/branch-offices');
+        const sel = document.getElementById('branch-select');
+        data.offices.forEach(office => {
+            sel.innerHTML += `<option value="${office}">${office}</option>`;
+        });
+    } catch (e) {}
+}
+
+function enterBranch() {
+    const val = document.getElementById('branch-select').value;
+    state.branchOffice = val === 'all' ? null : val;
+    localStorage.setItem('branch_office', val);
+    document.getElementById('branch-select-screen').style.display = 'none';
+    startApp();
+}
+
+function changeBranch() {
+    localStorage.removeItem('branch_office');
+    location.reload();
+}
+
+function startApp() {
+    // 헤더에 사업소 표시
+    const h1 = document.querySelector('.header h1');
+    if (h1 && state.branchOffice) h1.textContent = `KEPCO 안전관리 - ${state.branchOffice}`;
+
     loadSites();
     loadAlertHistory();
     loadStats();
     initServiceWorker();
 
-    // 1분마다 알림 이력/통계만 갱신 (날씨는 새로고침 버튼으로만)
     state.refreshInterval = setInterval(() => {
         loadAlertHistory();
         loadStats();
     }, 60000);
-});
+}
 
 // ── Service Worker & 웹 푸시 ──
 async function initServiceWorker() {
@@ -623,7 +663,7 @@ function renderAllSitesOverview(sites) {
                         <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.site_name}</span>
                         <button onclick="event.stopPropagation();showQrModal(${s.site_id},'${s.site_name.replace(/'/g, "\\'")}')" style="flex-shrink:0;padding:2px 6px;background:var(--bg-hover,#f7f9fb);border:1px solid var(--border,#e2e8f0);border-radius:4px;font-size:10px;color:var(--text-dim,#8896a6);cursor:pointer" title="작업자용 QR 코드">QR</button>
                     </div>
-                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
+                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.branch_office ? `<span style="color:var(--kepco)">${s.branch_office}</span> | ` : ''}${s.address || ''}</div>
                     ${s.worker_count > 0 ? (() => {
                         const total = s.workers?.length || 0;
                         const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
@@ -1140,6 +1180,7 @@ async function importSelectedSites() {
 
     const locationMode = document.querySelector('input[name="location-mode"]:checked')?.value || 'auto';
     const intensity = document.getElementById('bulk-intensity').value;
+    const branchOffice = document.getElementById('bulk-branch')?.value?.trim() || '';
 
     let lat = 0, lng = 0;
     if (locationMode === 'manual') {
@@ -1170,6 +1211,7 @@ async function importSelectedSites() {
             latitude: lat,
             longitude: lng,
             work_intensity: intensity,
+            branch_office: branchOffice,
             workers: siteWorkers,
         };
     }).filter(s => s.name.trim());
@@ -1560,16 +1602,21 @@ let currentFilter = 'all';
 
 function filterSites(stage) {
     currentFilter = stage;
-    // 필터 버튼 활성 상태
     document.querySelectorAll('.stage-filter').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.stage === stage);
     });
-    // 현장 카드 필터링
     const stageKeyMap = {
         'danger': 'stage_4_danger', 'warning': 'stage_3_warning',
         'caution': 'stage_2_caution', 'interest': 'stage_1_interest',
     };
-    const sites = state.allSitesWeather || [];
+    let sites = state.allSitesWeather || [];
+
+    // 사업소 필터 (로그인한 사업소만)
+    if (state.branchOffice) {
+        sites = sites.filter(s => s.branch_office === state.branchOffice);
+    }
+
+    // 단계 필터
     let filtered;
     if (stage === 'all') {
         filtered = sites;
@@ -1579,6 +1626,23 @@ function filterSites(stage) {
         filtered = sites.filter(s => s.stage?.key === stageKeyMap[stage]);
     }
     renderAllSitesOverview(filtered);
+
+    // 단계별 카운트 표시
+    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0 };
+    sites.forEach(s => {
+        if (!s.stage) counts.safe++;
+        else if (s.stage.key === 'stage_4_danger') counts.danger++;
+        else if (s.stage.key === 'stage_3_warning') counts.warning++;
+        else if (s.stage.key === 'stage_2_caution') counts.caution++;
+        else counts.interest++;
+    });
+    document.querySelectorAll('.stage-filter').forEach(btn => {
+        const stg = btn.dataset.stage;
+        if (stg !== 'all') {
+            const cnt = counts[stg] || 0;
+            btn.textContent = cnt > 0 ? `${btn.textContent.split('(')[0].trim()}(${cnt})` : btn.textContent.split('(')[0].trim();
+        }
+    });
     document.getElementById('filter-count').textContent = `${filtered.length}/${sites.length}개`;
 }
 
