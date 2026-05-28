@@ -156,10 +156,14 @@ async def user_guide():
 
 @app.get("/health")
 async def health_check():
+    db_type = "postgresql" if "asyncpg" in settings.database_url else "sqlite"
+    db_location = "/tmp/" if "/tmp/" in settings.database_url else "persistent"
     return {
         "status": "healthy",
         "environment": settings.app_env,
         "is_vercel": IS_VERCEL,
+        "db_type": db_type,
+        "db_persistent": db_location == "persistent",
     }
 
 
