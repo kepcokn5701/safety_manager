@@ -43,6 +43,7 @@
 <div class="toc">
     <h3 style="margin-bottom:8px">목차</h3>
     <a href="#overview">1. 시스템 개요</a>
+    <a href="#tech">&nbsp;&nbsp;1-1. 좌표 변환 및 날씨 조회 구조 (카카오맵/기상청 API)</a>
     <a href="#workflow">2. 일일 업무 흐름 (워크플로우)</a>
     <a href="#admin">3. 관리자 앱 사용법</a>
     <a href="#worker">4. 작업자 앱 사용법</a>
@@ -60,6 +61,137 @@
     <tr><td>작업자 앱</td><td>현장 작업자가 QR 스캔으로 접속. 해당 현장 날씨 + 푸시 알림 수신</td></tr>
     <tr><td>알림 채널</td><td>웹 푸시 (SMS 추가 예정)</td></tr>
     <tr><td>날씨 데이터</td><td>기상청 단기예보 API (5km 격자, 15분 자동 갱신)</td></tr>
+</table>
+
+<h2 id="tech">1-1. 좌표 변환 및 날씨 조회 구조</h2>
+
+<p>이 시스템은 <strong>카카오맵 API</strong>와 <strong>기상청 API</strong> 두 가지 외부 서비스를 사용합니다. 각각의 역할과 좌표가 어떻게 연결되는지 설명합니다.</p>
+
+<h3>전체 흐름 (한눈에 보기)</h3>
+<div class="step" style="border-left-color:#4a5568">
+    <p style="margin-left:0;font-family:monospace;font-size:13px;line-height:2">
+        엑셀의 도로명주소 (예: "경상남도 통영시 중림2로 25")<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓ <strong>카카오맵 Geocoding API</strong><br>
+        WGS84 좌표 (위도: 34.8544, 경도: 128.4331)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓ <strong>Lambert 정각원추 변환 공식</strong><br>
+        기상청 격자좌표 (nx: 91, ny: 67)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓ <strong>기상청 단기예보 API</strong><br>
+        기온 28°C, 습도 75%, 풍속 2.1m/s<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;↓ <strong>체감온도 계산 (Heat Index)</strong><br>
+        체감온도 31.2°C → 정상 단계
+    </p>
+</div>
+
+<h3>Step 1: 카카오맵 Geocoding API (주소 → 좌표)</h3>
+
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>역할: 도로명주소를 GPS 좌표(위도/경도)로 변환</h4>
+    <p>엑셀에 있는 공사현장 주소는 사람이 읽는 텍스트입니다. 날씨를 조회하려면 숫자로 된 좌표가 필요합니다.</p>
+</div>
+
+<table>
+    <tr><th>항목</th><th>내용</th></tr>
+    <tr><td>API 제공자</td><td>카카오 (Kakao Developers)</td></tr>
+    <tr><td>사용 API</td><td>로컬 > 주소 검색 (Address Search)</td></tr>
+    <tr><td>입력</td><td>"경상남도 통영시 중림2로 25" (도로명주소)</td></tr>
+    <tr><td>출력</td><td>위도: 34.8544, 경도: 128.4331 (WGS84 좌표계)</td></tr>
+    <tr><td>좌표계</td><td><strong>WGS84 (EPSG:4326)</strong> - GPS, 구글맵, 네이버지도 등 전 세계 공통 좌표계</td></tr>
+    <tr><td>정밀도</td><td>건물 단위 (~1m 이내)</td></tr>
+    <tr><td>호출 시점</td><td>현장 등록 시 1회 (좌표는 DB에 저장되어 재사용)</td></tr>
+</table>
+
+<div class="step info">
+    <span class="step-num">i</span>
+    <h4>WGS84 좌표란?</h4>
+    <p>지구 위의 위치를 <strong>위도(latitude)</strong>와 <strong>경도(longitude)</strong> 두 숫자로 표현하는 방식입니다.</p>
+    <p>예: 서울시청 = 위도 37.5665, 경도 126.9780</p>
+    <p>GPS 내비게이션, 구글맵, 카카오맵 모두 이 좌표계를 사용합니다.</p>
+</div>
+
+<h3>Step 2: 좌표 변환 (WGS84 → 기상청 격자)</h3>
+
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>역할: GPS 좌표를 기상청이 사용하는 격자 좌표(nx, ny)로 변환</h4>
+    <p>기상청은 전국을 <strong>5km × 5km 격자</strong>로 나누어 날씨를 예보합니다. 각 격자에 (nx, ny) 번호가 부여되어 있으며, 같은 격자 안의 모든 지점은 동일한 날씨 데이터를 갖습니다.</p>
+</div>
+
+<table>
+    <tr><th>항목</th><th>내용</th></tr>
+    <tr><td>변환 방법</td><td><strong>Lambert 정각원추 도법</strong> (기상청 공식 변환 공식)</td></tr>
+    <tr><td>입력</td><td>위도 34.8544, 경도 128.4331 (WGS84)</td></tr>
+    <tr><td>출력</td><td>nx: 91, ny: 67 (기상청 격자좌표)</td></tr>
+    <tr><td>격자 크기</td><td><strong>약 5km × 5km</strong></td></tr>
+    <tr><td>전체 격자 수</td><td>약 253 × 149 = ~37,000개 (한반도 전체)</td></tr>
+    <tr><td>연산 위치</td><td>서버에서 자동 변환 (카카오맵·기상청 API 호출 불필요)</td></tr>
+</table>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>5km 격자의 의미</h4>
+    <p>같은 격자 안에 있는 공사현장은 <strong>모두 동일한 날씨 데이터</strong>를 받습니다.</p>
+    <p>예: 통영시 중림2로 25와 통영시 중림2로 100은 같은 격자 → 같은 날씨</p>
+    <p>이 시스템은 같은 격자의 현장을 자동으로 묶어 <strong>1회만 API를 호출</strong>합니다 (20개 현장이 3개 격자에 있으면 3회만 호출).</p>
+</div>
+
+<h3>Step 3: 기상청 단기예보 API (격자 → 날씨)</h3>
+
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>역할: 격자좌표(nx, ny)로 해당 지점의 현재 기온, 습도, 풍속 조회</h4>
+    <p>기상청 API허브(apihub.kma.go.kr)의 <strong>단기예보조회 서비스</strong>를 사용합니다.</p>
+</div>
+
+<table>
+    <tr><th>항목</th><th>내용</th></tr>
+    <tr><td>API 제공자</td><td>기상청 API허브 (apihub.kma.go.kr)</td></tr>
+    <tr><td>사용 API</td><td>단기예보조회 (getVilageFcst)</td></tr>
+    <tr><td>입력</td><td>nx: 91, ny: 67, 발표일시</td></tr>
+    <tr><td>출력 항목</td><td>TMP(기온°C), REH(습도%), WSD(풍속m/s)</td></tr>
+    <tr><td>발표 주기</td><td>하루 8회 (02, 05, 08, 11, 14, 17, 20, 23시)</td></tr>
+    <tr><td>예보 제공</td><td>발표 후 약 10분 뒤부터 제공</td></tr>
+    <tr><td>호출 시점</td><td>"새로고침" 버튼 클릭 시 + 15분 자동 갱신 (스케줄러)</td></tr>
+</table>
+
+<h3>Step 4: 체감온도 및 WBGT 계산</h3>
+
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>기상청 데이터를 받은 후 서버에서 추가 계산</h4>
+    <p>기상청은 기온/습도/풍속만 제공하므로, <strong>체감온도와 WBGT</strong>는 서버에서 계산합니다.</p>
+</div>
+
+<table>
+    <tr><th>지표</th><th>계산 방법</th><th>용도</th></tr>
+    <tr>
+        <td><strong>체감온도<br>(Heat Index)</strong></td>
+        <td>기온 + 습도 기반 회귀식<br>(미국 NWS 공식)</td>
+        <td>폭염 단계 판정 기준<br>33°/35°/38°/41°C</td>
+    </tr>
+    <tr>
+        <td><strong>WBGT<br>(습구흑구온도)</strong></td>
+        <td>기온 + 습도 + 풍속<br>기반 추정 공식</td>
+        <td>작업강도별 휴식 권고<br>(고용노동부 기준)</td>
+    </tr>
+</table>
+
+<div class="step info">
+    <span class="step-num">i</span>
+    <h4>체감온도 예시</h4>
+    <p>기온 33°C + 습도 70% → <strong>체감온도 약 40°C</strong> (경고 단계)</p>
+    <p>기온 33°C + 습도 40% → <strong>체감온도 약 33°C</strong> (관심 단계)</p>
+    <p>같은 기온이라도 습도에 따라 체감온도와 폭염 단계가 달라집니다.</p>
+</div>
+
+<h3>전체 데이터 흐름 요약</h3>
+<table>
+    <tr><th>단계</th><th>입력</th><th>처리</th><th>출력</th></tr>
+    <tr><td>1. 주소→좌표</td><td>도로명주소</td><td>카카오맵 API</td><td>위도, 경도 (WGS84)</td></tr>
+    <tr><td>2. 좌표→격자</td><td>위도, 경도</td><td>Lambert 변환 (서버)</td><td>nx, ny (기상청 격자)</td></tr>
+    <tr><td>3. 격자→날씨</td><td>nx, ny</td><td>기상청 API</td><td>기온, 습도, 풍속</td></tr>
+    <tr><td>4. 날씨→단계</td><td>기온, 습도</td><td>Heat Index (서버)</td><td>체감온도 → 폭염 단계</td></tr>
+    <tr><td>5. 단계→알림</td><td>폭염 단계</td><td>웹 푸시 / SMS</td><td>작업자에게 경보 전달</td></tr>
 </table>
 
 <h2 id="workflow">2. 일일 업무 흐름</h2>
