@@ -53,7 +53,8 @@ async function showBranchSelect() {
 }
 
 function enterBranch() {
-    const val = document.getElementById('branch-select').value;
+    const raw = document.getElementById('branch-select').value.trim();
+    const val = (!raw || raw === '전체 (경남본부)') ? 'all' : raw;
     state.branchOffice = val === 'all' ? null : val;
     localStorage.setItem('branch_office', val);
     document.getElementById('branch-select-screen').style.display = 'none';

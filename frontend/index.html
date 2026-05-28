@@ -23,9 +23,30 @@
         <div style="font-size:48px;margin-bottom:16px">K</div>
         <h1 style="font-size:22px;margin-bottom:4px">KEPCO 안전관리</h1>
         <p style="color:var(--text-dim);font-size:13px;margin-bottom:24px">담당 사업소를 선택하세요</p>
-        <select id="branch-select" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin-bottom:12px;background:white">
-            <option value="all">전체 (경남본부)</option>
-        </select>
+        <input list="branch-list" id="branch-select" placeholder="사업소명 입력 또는 선택" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin-bottom:12px;background:white">
+        <datalist id="branch-list">
+            <option value="전체 (경남본부)">
+            <option value="경남본부직할">
+            <option value="진주지사">
+            <option value="마산지사">
+            <option value="거제지사">
+            <option value="밀양지사">
+            <option value="사천지사">
+            <option value="통영지사">
+            <option value="함안의령지사">
+            <option value="거창지사">
+            <option value="창녕지사">
+            <option value="합천지사">
+            <option value="진해지사">
+            <option value="하동지사">
+            <option value="고성지사">
+            <option value="산청지사">
+            <option value="남해지사">
+            <option value="함양지사">
+            <option value="진주전력지사">
+            <option value="통영전력지사">
+            <option value="함안전력지사">
+        </datalist>
         <button onclick="enterBranch()" style="width:100%;padding:14px;background:var(--kepco);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">접속</button>
         <p style="color:var(--text-faint);font-size:11px;margin-top:16px">경남본부 안전재난부 | 폭염 안전관리 시스템</p>
     </div>
@@ -38,6 +59,7 @@
         <h1>KEPCO 안전관리</h1>
     </div>
     <div class="header-right">
+        <a href="/manual" style="color:rgba(255,255,255,0.7);font-size:11px;text-decoration:none">매뉴얼</a>
         <button style="background:none;border:none;color:rgba(255,255,255,0.7);font-size:11px;cursor:pointer" onclick="changeBranch()">사업소 변경</button>
         <button id="push-btn" class="btn-notify" onclick="togglePushSubscription()">알림 허용</button>
         <div class="live-dot"></div>
@@ -47,41 +69,6 @@
 
 <!-- ── 메인 ── -->
 <div class="main">
-
-    <!-- 경보 배너 -->
-    <div id="alert-banner" class="alert-banner safe">
-        <div class="alert-icon">V</div>
-        <div class="alert-content">
-            <h2>시스템 시작 중...</h2>
-            <p>작업현장을 등록하면 모니터링이 시작됩니다.</p>
-        </div>
-    </div>
-
-    <!-- 단계 바 -->
-    <div id="stage-indicator"></div>
-
-    <!-- 선택된 현장 날씨 -->
-    <div class="grid grid-2" style="margin-bottom:12px">
-        <div class="card">
-            <div class="card-header">
-                <h3 id="weather-title">현재 날씨</h3>
-                <button class="btn btn-ghost btn-sm" onclick="state.selectedSiteId && loadWeather(state.selectedSiteId)">새로고침</button>
-            </div>
-            <div class="card-body" id="weather-content">
-                <p style="color:var(--text-dim);text-align:center;padding:20px">현장을 등록하세요</p>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header">
-                <h3>조치사항</h3>
-                <span style="font-size:11px;color:var(--text-faint)">고용노동부 기준</span>
-            </div>
-            <div class="card-body" id="actions-content">
-                <p style="color:var(--text-dim);text-align:center;padding:20px">특별 조치사항 없음</p>
-            </div>
-        </div>
-    </div>
 
     <!-- 전체 현장 현황 -->
     <div class="card" style="margin-bottom:12px">
