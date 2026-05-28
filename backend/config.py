@@ -18,9 +18,9 @@ _is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 
 def _resolve_database_url() -> str:
     """데이터베이스 URL 결정 (POSTGRES_URL > DATABASE_URL > SQLite)"""
-    pg_url = os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL", "")
+    pg_url = (os.environ.get("POSTGRES_URL") or os.environ.get("DATABASE_URL") or "").strip()
 
-    if pg_url.startswith(("postgres://", "postgresql://")):
+    if pg_url and pg_url.startswith(("postgres://", "postgresql://")):
         from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
         parsed = urlparse(pg_url)
         # asyncpg 호환 파라미터만 유지
