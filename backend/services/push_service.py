@@ -105,11 +105,11 @@ class WebPushSender(NotificationSender):
                 )
                 sent += 1
             except Exception as e:
-                error_msg = str(e)
-                if "410" in error_msg or "404" in error_msg:
-                    await self._remove_subscription(sub["endpoint"])
                 failed += 1
-                logger.warning(f"푸시 발송 실패: {error_msg[:100]}")
+                error_msg = str(e)
+                logger.warning(f"푸시 발송 실패 (endpoint={sub['endpoint'][:50]}): {error_msg[:200]}")
+                # 구독 자동 삭제 안 함 - 일시적 오류일 수 있음
+                # 사용자가 직접 구독 해제할 때만 삭제
         return sent, failed
 
     async def send(

@@ -82,11 +82,30 @@ async def test_push():
 
 @router.get("/status")
 async def push_status():
-    """푸시 알림 상태"""
+    """푸시 알림 상태 (구독 상세 포함)"""
+    from backend.models.database import async_session
+    from backend.models.models import PushSubscription
+    from sqlalchemy import select
+
     keys = get_vapid_keys()
     count = await get_subscription_count()
+
+    # 구독 상세
+    subs_detail = []
+    async with async_session() as session:
+        result = await session.execute(select(PushSubscription))
+        for row in result.scalars().all():
+            subs_detail.append({
+                "id": row.id,
+                "type": row.subscriber_type,
+                "site_id": row.site_id,
+                "endpoint_short": row.endpoint[:60] + "..." if len(row.endpoint) > 60 else row.endpoint,
+                "created": row.created_at.isoformat() if row.created_at else None,
+            })
+
     return {
         "channel": settings.notification_channel,
         "vapid_configured": bool(keys.get("public_key")),
         "active_subscriptions": count,
+        "subscriptions": subs_detail,
     }
