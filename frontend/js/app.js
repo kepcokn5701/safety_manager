@@ -1496,65 +1496,46 @@ function updateSimTemp() {
     el.style.color = color;
 }
 
-async function runSimulation() {
-    const temp = document.getElementById('sim-temp').value;
-    const humidity = document.getElementById('sim-humidity').value;
+function runSimulation() {
+    // 미리보기 전용 - 실제 발송 없음, 클라이언트에서 단계 계산
+    const temp = parseFloat(document.getElementById('sim-temp').value);
+    const humidity = parseFloat(document.getElementById('sim-humidity').value);
     const resultEl = document.getElementById('sim-result');
-    const siteCount = state.sites?.length || 0;
-    resultEl.innerHTML = `<div style="padding:10px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-            <div class="progress-spinner"></div>
-            <span style="color:var(--text-dim)">시뮬레이션 실행 중... (${siteCount}개 현장 점검 + 알림 발송)</span>
-        </div>
-        <div style="height:4px;background:var(--border,#e2e8f0);border-radius:4px;overflow:hidden">
-            <div id="sim-progress-bar" style="height:100%;width:5%;background:var(--warning,#ef4444);border-radius:4px;transition:width 0.5s"></div>
-        </div>
-        <div id="sim-progress-text" style="font-size:11px;color:var(--text-faint);margin-top:4px">현장 날씨 확인 중...</div>
-    </div>`;
-    // 진행률 애니메이션
-    let progress = 5;
-    const progressInterval = setInterval(() => {
-        progress = Math.min(progress + Math.random() * 15, 90);
-        const bar = document.getElementById('sim-progress-bar');
-        const txt = document.getElementById('sim-progress-text');
-        if (bar) bar.style.width = `${progress}%`;
-        if (txt) {
-            if (progress < 30) txt.textContent = `${siteCount}개 현장 날씨 확인 중...`;
-            else if (progress < 60) txt.textContent = '폭염 단계 판정 + 알림 발송 중...';
-            else txt.textContent = '관리자 요약 알림 발송 중...';
-        }
-    }, 800);
 
-    try {
-        const result = await api(`/api/monitor/simulate?temperature=${temp}&humidity=${humidity}`, { method: 'POST' });
-        clearInterval(progressInterval);
-        const skipped = result.alerts_skipped || 0;
-        const errCount = result.errors?.length || 0;
-        let html = `<div style="padding:12px;background:rgba(231,76,60,0.08);border-radius:8px;margin-top:8px">`;
-        html += `<div style="font-weight:700;margin-bottom:6px">시뮬레이션 결과 (기온 ${temp}°C, 습도 ${humidity}%)</div>`;
-        html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:13px">`;
-        html += `<div>점검 현장: <strong>${result.sites_checked}개</strong></div>`;
-        html += `<div>알림 처리: <strong>${result.alerts_sent}건</strong></div>`;
-        if (skipped > 0) html += `<div>중복 스킵: ${skipped}건</div>`;
-        if (errCount > 0) html += `<div style="color:#e74c3c">오류: ${errCount}건</div>`;
-        html += `</div>`;
-        if (result.alerts_sent === 0 && skipped === 0) {
-            html += `<div style="margin-top:8px;padding:8px;background:rgba(245,158,11,0.1);border-radius:6px;font-size:12px;color:#92400e">작업자가 없거나 단계 미달 (주의 이상부터 발송)</div>`;
-        } else if (result.alerts_sent > 0) {
-            html += `<div style="margin-top:8px;padding:8px;background:rgba(16,185,129,0.1);border-radius:6px;font-size:12px;color:#065f46">관리자 푸시로 요약 알림이 발송됩니다. 작업자 앱 알림은 QR 등록 후 수신됩니다.</div>`;
-        }
-        if (skipped > 0) {
-            html += `<div style="margin-top:4px;font-size:11px;color:var(--text-faint)">1시간 내 동일 단계 알림은 중복 발송되지 않습니다.</div>`;
-        }
-        html += `</div>`;
-        resultEl.innerHTML = html;
-        loadAlertHistory();
-        loadStats();
-        loadAllSitesWeather();
-    } catch (e) {
-        clearInterval(progressInterval);
-        resultEl.innerHTML = `<span style="color:#e74c3c">시뮬레이션 실패: ${e.message}</span>`;
+    // 체감온도 근사 계산 (Heat Index)
+    let apparentTemp = temp;
+    if (temp >= 27 && humidity >= 40) {
+        const T = temp, R = humidity;
+        apparentTemp = -8.784 + 1.611*T + 2.339*R - 0.146*T*R
+            - 0.013*T*T - 0.016*R*R + 0.002*T*T*R + 0.001*T*R*R - 0.000004*T*T*R*R;
+        apparentTemp = Math.round(apparentTemp * 10) / 10;
     }
+
+    // 단계 판정
+    const stages = [
+        { min: 41, name: '위험', color: '#D32F2F', bg: 'rgba(211,47,47,0.1)', actions: ['즉시 작업 중지', '근로자 대피', '긴급 연락망 가동'] },
+        { min: 38, name: '경고', color: '#FF5722', bg: 'rgba(255,87,34,0.1)', actions: ['1시간 주기 휴식', '무거운 작업 금지', '음료 수시 섭취'] },
+        { min: 35, name: '주의', color: '#FF9800', bg: 'rgba(255,152,0,0.1)', actions: ['2시간 주기 휴식', '그늘 휴식공간 확보', '음료 비치'] },
+        { min: 33, name: '관심', color: '#FFC107', bg: 'rgba(255,193,7,0.1)', actions: ['건강 상태 확인', '충분한 수분 섭취 권고'] },
+    ];
+    const stage = stages.find(s => apparentTemp >= s.min);
+    const workerCount = (state.allSitesWeather || []).reduce((sum, s) => sum + (s.worker_count || 0), 0);
+
+    let html = `<div style="padding:12px;border-radius:8px;margin-top:4px;background:${stage ? stage.bg : 'rgba(16,185,129,0.1)'}">`;
+    html += `<div style="font-weight:700;font-size:14px;color:${stage ? stage.color : 'var(--safe)'};margin-bottom:6px">`;
+    html += stage ? `폭염 ${stage.name} 단계` : '정상 (발송 대상 아님)';
+    html += `</div>`;
+    html += `<div style="font-size:13px;margin-bottom:4px">기온 ${temp}°C, 습도 ${humidity}% → <strong>체감온도 ${apparentTemp}°C</strong></div>`;
+    if (stage) {
+        html += `<div style="font-size:12px;color:var(--text-mid);margin-bottom:4px">발송 대상: ${state.sites?.length || 0}개 현장, ${workerCount}명</div>`;
+        html += `<ul style="margin:6px 0 0;padding-left:18px;font-size:12px;color:var(--text-mid)">`;
+        stage.actions.forEach(a => html += `<li>${a}</li>`);
+        html += `</ul>`;
+    } else {
+        html += `<div style="font-size:12px;color:var(--text-dim)">체감온도 33°C 미만은 관심 단계에 해당하지 않아 알림이 발송되지 않습니다.</div>`;
+    }
+    html += `</div>`;
+    resultEl.innerHTML = html;
 }
 
 // ── 현재 위치 가져오기 ──
@@ -1590,7 +1571,9 @@ function toggleSelectAllSites(master) {
 function updateSelectedCount() {
     const checked = document.querySelectorAll('.site-check:checked').length;
     const total = document.querySelectorAll('.site-check').length;
-    document.getElementById('selected-count').textContent = checked > 0 ? `(${checked}/${total}개)` : '';
+    const el = document.getElementById('selected-count');
+    el.textContent = `${checked}/${total}개 선택`;
+    el.style.color = checked > 0 ? 'var(--kepco)' : 'var(--text-faint)';
 }
 async function triggerSelectedSites() {
     const siteIds = [...document.querySelectorAll('.site-check:checked')].map(cb => parseInt(cb.dataset.siteId));

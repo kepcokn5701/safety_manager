@@ -84,14 +84,16 @@
         </div>
         <!-- 현장 선택 발송 바 -->
         <div id="site-select-bar" style="display:none;padding:10px 16px;background:var(--kepco-lighter,#f4f8ff);border-bottom:1px solid var(--border);justify-content:space-between;align-items:center">
-            <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-                <input type="checkbox" id="select-all-sites" onchange="toggleSelectAllSites(this)" style="width:auto">
-                <span>전체 선택</span>
-                <span id="selected-count" style="color:var(--kepco);font-weight:600"></span>
-            </label>
+            <div style="display:flex;align-items:center;gap:8px">
+                <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                    <input type="checkbox" id="select-all-sites" onchange="toggleSelectAllSites(this)" style="width:auto">
+                    전체
+                </label>
+                <span id="selected-count" style="color:var(--kepco);font-weight:600;font-size:13px"></span>
+            </div>
             <div style="display:flex;gap:6px">
-                <button class="btn btn-sm" style="background:var(--warning);color:white;font-size:11px" onclick="triggerSelectedSites()">선택 현장 알림 발송</button>
-                <button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="hideSelectBar()">취소</button>
+                <button class="btn btn-sm" style="background:var(--warning);color:white;font-size:12px;padding:6px 14px" onclick="triggerSelectedSites()">선택 발송</button>
+                <button class="btn btn-ghost btn-sm" style="font-size:12px" onclick="hideSelectBar()">취소</button>
             </div>
         </div>
         <div id="all-sites-overview" style="max-height:400px;overflow-y:auto">
@@ -131,13 +133,13 @@
         </div>
     </div>
 
-    <!-- 알림 통계 -->
+    <!-- 알림 발송 -->
     <div class="card" style="margin-bottom:12px">
         <div class="card-header">
-            <h3>알림 통계</h3>
+            <h3>알림 발송</h3>
             <div style="display:flex;gap:6px">
                 <button class="btn btn-ghost btn-sm" onclick="showSelectBar()">선택 발송</button>
-                <button class="btn btn-ghost btn-sm" style="color:var(--warning)" onclick="triggerMonitoring()">전체 발송</button>
+                <button class="btn btn-sm" style="background:var(--warning);color:white" onclick="triggerMonitoring()">전체 발송</button>
             </div>
         </div>
         <div class="card-body" id="stats-content">
@@ -145,16 +147,13 @@
         </div>
     </div>
 
-    <!-- 폭염 테스트 모드 -->
+    <!-- 폭염 시뮬레이션 (미리보기) -->
     <div class="card" style="margin-top:12px" id="test-mode-card">
         <div class="card-header">
             <h3>폭염 시뮬레이션</h3>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px">
-                <input type="checkbox" id="test-mode-toggle" onchange="toggleTestMode()" style="width:auto">
-                테스트 모드
-            </label>
+            <span style="font-size:11px;color:var(--text-faint)">미리보기 전용 (발송 안 함)</span>
         </div>
-        <div id="test-mode-panel" style="display:none;padding:16px">
+        <div style="padding:16px">
             <div style="margin-bottom:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:4px">
                     <label style="font-size:13px;font-weight:600">가상 기온</label>
@@ -181,7 +180,7 @@
                     <input type="number" id="sim-humidity" value="70" min="30" max="100" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px">
                 </div>
                 <div style="flex:1;display:flex;align-items:flex-end">
-                    <button class="btn btn-primary btn-sm" style="width:100%;background:#e74c3c;border-color:#c0392b;padding:8px" onclick="runSimulation()">알림 테스트 발송</button>
+                    <button class="btn btn-sm" style="width:100%;background:var(--text-dim);color:white;padding:8px" onclick="runSimulation()">단계 확인</button>
                 </div>
             </div>
             <div id="sim-result" style="font-size:12px;color:var(--text-dim)"></div>
