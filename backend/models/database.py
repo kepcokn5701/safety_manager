@@ -17,7 +17,7 @@ if "asyncpg" in settings.database_url:
         poolclass=NullPool,
         connect_args={
             "statement_cache_size": 0,
-            "command_timeout": 30,
+            "command_timeout": 8,
         },
     )
 
