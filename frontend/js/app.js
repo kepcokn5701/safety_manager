@@ -76,10 +76,46 @@ function startApp() {
     loadStats();
     initServiceWorker();
 
-    state.refreshInterval = setInterval(() => {
-        loadAlertHistory();
-        loadStats();
-    }, 60000);
+    // 알림 이력/통계만 1분마다 갱신
+    setInterval(() => { loadAlertHistory(); loadStats(); }, 60000);
+
+    // 매시 정각 자동 날씨 조회 + 카운트다운
+    scheduleHourlyWeather();
+    setInterval(updateWeatherCountdown, 10000);  // 10초마다 카운트다운 갱신
+}
+
+// ── 매시 정각 날씨 자동 조회 ──
+let nextWeatherTime = null;
+
+function scheduleHourlyWeather() {
+    const now = new Date();
+    const next = new Date(now);
+    next.setMinutes(0, 0, 0);
+    next.setHours(next.getHours() + 1);
+    nextWeatherTime = next;
+
+    const msUntilNext = next.getTime() - now.getTime();
+    setTimeout(() => {
+        loadAllSitesWeather();
+        // 이후 1시간마다 반복
+        setInterval(loadAllSitesWeather, 60 * 60 * 1000);
+    }, msUntilNext);
+
+    updateWeatherCountdown();
+}
+
+function updateWeatherCountdown() {
+    const el = document.getElementById('weather-next-refresh');
+    if (!el || !nextWeatherTime) return;
+    const now = new Date();
+    const diff = nextWeatherTime.getTime() - now.getTime();
+    if (diff <= 0) {
+        nextWeatherTime.setHours(nextWeatherTime.getHours() + 1);
+        el.textContent = '조회 중...';
+    } else {
+        const min = Math.floor(diff / 60000);
+        el.textContent = `다음 자동 조회: ${nextWeatherTime.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})} (${min}분 후)`;
+    }
 }
 
 // ── Service Worker & 웹 푸시 ──
@@ -554,15 +590,23 @@ async function loadAllSitesWeather() {
         const data = await api('/api/weather/status-all');
         updateProgress('all-sites-overview', 90, '화면 렌더링 중...');
         state.allSitesWeather = data.sites;
-        // 현재 필터 유지하면서 렌더링
         filterSites(currentFilter);
 
-        // 헤더에 조회 시간 표시
+        // 조회 결과 표시
+        const timeEl = document.getElementById('weather-checked-time');
+        const statusEl = document.getElementById('weather-status');
         const firstWithTime = data.sites.find(s => s.checked_at);
-        if (firstWithTime) {
-            const timeEl = document.getElementById('weather-checked-time');
-            if (timeEl) {
-                timeEl.textContent = `기상청 ${new Date(firstWithTime.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 기준`;
+        if (timeEl && firstWithTime) {
+            timeEl.textContent = `${new Date(firstWithTime.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 기준`;
+        }
+        if (statusEl) {
+            const ok = data.weather_success || 0;
+            const fail = data.weather_error || 0;
+            const grids = data.grids_queried || 0;
+            if (fail > 0) {
+                statusEl.innerHTML = `<span style="color:var(--safe)">${ok}개 성공</span> <span style="color:var(--danger)">${fail}개 실패</span> (${grids}격자)`;
+            } else {
+                statusEl.innerHTML = `<span style="color:var(--safe)">${ok}개 조회 완료</span> (${grids}격자)`;
             }
         }
 

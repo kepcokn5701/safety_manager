@@ -75,7 +75,11 @@
         <div class="card-header">
             <div>
                 <h3 style="margin:0">전체 공사현장 현황</h3>
-                <span id="weather-checked-time" style="font-size:11px;color:var(--text-faint)"></span>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span id="weather-checked-time" style="font-size:11px;color:var(--text-faint)"></span>
+                    <span id="weather-next-refresh" style="font-size:10px;color:var(--text-faint)"></span>
+                    <span id="weather-status" style="font-size:10px"></span>
+                </div>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button class="btn btn-ghost btn-sm" onclick="loadAllSitesWeather()">새로고침</button>

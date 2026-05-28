@@ -234,7 +234,13 @@ async def get_all_weather_status(
         (r.get("stage") or {}).get("key", ""), 99
     ))
 
-    return {"sites": results, "total": len(results)}
+    success_count = sum(1 for r in results if "weather" in r)
+    error_count = sum(1 for r in results if "error" in r)
+    return {
+        "sites": results, "total": len(results),
+        "weather_success": success_count, "weather_error": error_count,
+        "grids_queried": len(grid_sites),
+    }
 
 
 @router.get("/cached/{site_id}")
