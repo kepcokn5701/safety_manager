@@ -173,6 +173,19 @@ async def user_guide():
     return _file("user-guide.html")
 
 
+@app.get("/debug/vapid")
+async def debug_vapid():
+    """VAPID 키 확인 (설정용)"""
+    from backend.services.vapid_manager import get_vapid_keys
+    keys = get_vapid_keys()
+    return {
+        "public_key": keys.get("public_key", "")[:20] + "...",
+        "private_key_prefix": keys.get("private_key", "")[:10] + "...",
+        "full_private_key": keys.get("private_key", ""),
+        "full_public_key": keys.get("public_key", ""),
+    }
+
+
 @app.get("/debug/db")
 async def debug_db():
     """DB 연결 디버깅"""
