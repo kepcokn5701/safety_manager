@@ -162,6 +162,13 @@
         <div class="card-body" id="stats-content">
             <p style="color:var(--text-dim);text-align:center">로딩 중...</p>
         </div>
+        <div style="padding:8px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+                <input type="checkbox" id="sms-enabled" style="width:auto" onchange="checkSmsStatus()">
+                <span>SMS 동시 발송</span>
+            </label>
+            <span id="sms-status" style="color:var(--text-faint);font-size:11px"></span>
+        </div>
     </div>
 
     <!-- 폭염 시뮬레이션 (미리보기) -->

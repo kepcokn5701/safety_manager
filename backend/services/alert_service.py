@@ -140,14 +140,21 @@ class KakaoAlimTalkSender(NotificationSender):
 
 class SmsSender(NotificationSender):
     """
-    SMS 발송 구현체
-    - API 키가 설정되면 실제 발송, 없으면 로그만 남김
-    - 지원 예정: NHN Cloud, CoolSMS 등
+    SMS 발송 - Android SMS Gateway 앱 연동
+    안드로이드 폰에 SMS Gateway 앱 설치 → 폰이 SMS 게이트웨이 역할
+    - 로컬 모드: 같은 네트워크에서 폰 IP로 직접 호출
+    - 클라우드 모드: sms.capcom.me 클라우드 릴레이
     """
 
     def __init__(self):
-        self._api_key = settings.sms_api_key if hasattr(settings, 'sms_api_key') else ""
-        self._sender_phone = settings.sms_sender_phone if hasattr(settings, 'sms_sender_phone') else ""
+        self._gateway_url = settings.sms_gateway_url  # 폰의 IP 또는 클라우드 URL
+        self._gateway_login = settings.sms_gateway_login
+        self._gateway_password = settings.sms_gateway_password
+        proxy_config = settings.get_proxy_dict()
+        self._client = httpx.AsyncClient(
+            timeout=15.0,
+            proxy=proxy_config.get("https://") or proxy_config.get("http://"),
+        )
 
     async def send(
         self,
@@ -166,41 +173,81 @@ class SmsSender(NotificationSender):
             f"{actions[0] if actions else '안전에 유의하세요.'}"
         )
 
-        if not self._api_key:
+        if not self._gateway_url:
             logger.info(f"[SMS 미설정] {recipient_name}({recipient_phone}): {message[:50]}")
             return NotificationResult(
-                success=False,
-                channel="sms",
-                recipient=recipient_phone,
-                error_message="SMS API 키 미설정",
+                success=False, channel="sms", recipient=recipient_phone,
+                error_message="SMS Gateway URL 미설정 (.env에 SMS_GATEWAY_URL 설정 필요)",
             )
 
-        # TODO: 실제 SMS API 호출 (NHN Cloud / CoolSMS 등)
-        # 여기에 API 호출 코드 추가
+        phone_number = recipient_phone.replace("-", "")
         try:
-            # API 호출 예시 (NHN Cloud):
-            # response = await self._client.post(
-            #     "https://api-sms.cloud.toast.com/sms/v3.0/appKeys/{appKey}/sender/sms",
-            #     json={"body": message, "sendNo": self._sender_phone,
-            #           "recipientList": [{"recipientNo": recipient_phone.replace("-","")}]}
-            # )
-            logger.info(f"[SMS] {recipient_name}({recipient_phone}): 발송 시도")
-            return NotificationResult(
-                success=False,
-                channel="sms",
-                recipient=recipient_phone,
-                error_message="SMS API 연동 준비 중",
+            # Android SMS Gateway API 호출
+            headers = {}
+            if self._gateway_login and self._gateway_password:
+                import base64
+                creds = base64.b64encode(f"{self._gateway_login}:{self._gateway_password}".encode()).decode()
+                headers["Authorization"] = f"Basic {creds}"
+
+            response = await self._client.post(
+                f"{self._gateway_url.rstrip('/')}/message",
+                json={
+                    "message": message,
+                    "phoneNumbers": [phone_number],
+                },
+                headers=headers,
             )
+
+            if response.status_code in (200, 201, 202):
+                logger.info(f"[SMS] {recipient_name}({recipient_phone}): 발송 성공")
+                return NotificationResult(
+                    success=True, channel="sms", recipient=recipient_phone,
+                    message_id=str(response.json().get("id", "")),
+                )
+            else:
+                error = f"HTTP {response.status_code}: {response.text[:100]}"
+                logger.warning(f"[SMS] {recipient_name}({recipient_phone}): 실패 - {error}")
+                return NotificationResult(
+                    success=False, channel="sms", recipient=recipient_phone,
+                    error_message=error,
+                )
         except Exception as e:
+            logger.error(f"[SMS] 발송 실패: {e}")
             return NotificationResult(
-                success=False,
-                channel="sms",
-                recipient=recipient_phone,
+                success=False, channel="sms", recipient=recipient_phone,
                 error_message=str(e)[:100],
             )
 
+    async def send_bulk(self, phone_numbers: list[str], message: str) -> dict:
+        """여러 번호에 동일 메시지 일괄 발송"""
+        if not self._gateway_url:
+            return {"sent": 0, "failed": len(phone_numbers), "error": "SMS Gateway 미설정"}
+
+        clean_numbers = [p.replace("-", "") for p in phone_numbers if p]
+        if not clean_numbers:
+            return {"sent": 0, "failed": 0}
+
+        try:
+            headers = {}
+            if self._gateway_login and self._gateway_password:
+                import base64
+                creds = base64.b64encode(f"{self._gateway_login}:{self._gateway_password}".encode()).decode()
+                headers["Authorization"] = f"Basic {creds}"
+
+            response = await self._client.post(
+                f"{self._gateway_url.rstrip('/')}/message",
+                json={"message": message, "phoneNumbers": clean_numbers},
+                headers=headers,
+            )
+            if response.status_code in (200, 201, 202):
+                return {"sent": len(clean_numbers), "failed": 0}
+            else:
+                return {"sent": 0, "failed": len(clean_numbers), "error": response.text[:100]}
+        except Exception as e:
+            return {"sent": 0, "failed": len(clean_numbers), "error": str(e)[:100]}
+
     async def close(self) -> None:
-        pass
+        await self._client.aclose()
 
 
 class ConsoleSender(NotificationSender):

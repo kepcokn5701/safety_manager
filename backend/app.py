@@ -356,6 +356,35 @@ async def simulate_heat_wave(
     }
 
 
+class SmsRequest(BaseModel):
+    message: str
+    phone_numbers: list[str]  # ["010-1234-5678", "010-2345-6789"]
+
+
+@app.post("/api/sms/send")
+async def send_sms(data: SmsRequest):
+    """SMS 일괄 발송 (Android SMS Gateway 경유)"""
+    from backend.services.alert_service import SmsSender
+    sender = SmsSender()
+    result = await sender.send_bulk(data.phone_numbers, data.message)
+    return result
+
+
+@app.get("/api/sms/status")
+async def sms_status():
+    """SMS Gateway 연결 상태 확인"""
+    url = settings.sms_gateway_url
+    if not url:
+        return {"configured": False, "message": "SMS_GATEWAY_URL 미설정"}
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.get(url.rstrip("/"))
+            return {"configured": True, "gateway_url": url, "reachable": r.status_code < 500}
+    except Exception as e:
+        return {"configured": True, "gateway_url": url, "reachable": False, "error": str(e)[:100]}
+
+
 class NoticeRequest(BaseModel):
     title: str
     message: str

@@ -15,6 +15,19 @@ from typing import Optional
 # Vercel 환경에서는 /tmp/ 에만 쓰기 가능
 _is_vercel = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 
+# .env 파일을 먼저 로드 (DB URL 결정에 필요)
+if not _is_vercel:
+    _env_path = Path(__file__).resolve().parent.parent / ".env"
+    if _env_path.exists():
+        with open(_env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, _, value = line.partition("=")
+                    key, value = key.strip(), value.strip()
+                    if key and value and key not in os.environ:
+                        os.environ[key] = value
+
 
 def _resolve_database_url() -> str:
     """데이터베이스 URL 결정 (POSTGRES_URL > DATABASE_URL > SQLite)"""
@@ -82,10 +95,10 @@ class Settings(BaseSettings):
     # 알림 채널 선택: "web_push" | "kakao" | "console"
     notification_channel: str = "web_push"
 
-    # SMS 설정 (추후 연동)
-    sms_api_key: str = ""
-    sms_sender_phone: str = ""       # 발신번호
-    sms_provider: str = ""           # "nhn_cloud" | "coolsms" | ""
+    # SMS Gateway (안드로이드 폰 SMS Gateway 앱)
+    sms_gateway_url: str = ""        # 예: http://192.168.0.10:8080 (폰 로컬 IP)
+    sms_gateway_login: str = ""      # Gateway 앱 로그인 (선택)
+    sms_gateway_password: str = ""   # Gateway 앱 비밀번호 (선택)
 
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"
@@ -97,6 +110,7 @@ class Settings(BaseSettings):
         "env_file": ".env" if not _is_vercel else None,
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
+        "extra": "ignore",  # .env에 추가 변수가 있어도 무시
     }
 
     def get_proxy_dict(self) -> dict[str, str]:

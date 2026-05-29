@@ -84,6 +84,48 @@ function startApp() {
     setInterval(updateWeatherCountdown, 10000);  // 10초마다 카운트다운 갱신
 }
 
+// ── SMS 상태 확인 ──
+async function checkSmsStatus() {
+    const el = document.getElementById('sms-status');
+    const cb = document.getElementById('sms-enabled');
+    if (!cb.checked) { el.textContent = ''; return; }
+    try {
+        const status = await api('/api/sms/status');
+        if (status.configured && status.reachable) {
+            el.innerHTML = '<span style="color:var(--safe)">Gateway 연결됨</span>';
+        } else if (status.configured) {
+            el.innerHTML = '<span style="color:var(--danger)">Gateway 연결 안됨 - 폰 앱 확인</span>';
+            cb.checked = false;
+        } else {
+            el.innerHTML = '<span style="color:var(--text-faint)">.env에 SMS_GATEWAY_URL 설정 필요</span>';
+            cb.checked = false;
+        }
+    } catch (e) {
+        el.innerHTML = '<span style="color:var(--danger)">확인 실패</span>';
+    }
+}
+
+async function sendSmsToSiteWorkers(siteIds, message) {
+    // 선택 현장 작업자에게 SMS 발송
+    if (!document.getElementById('sms-enabled')?.checked) return null;
+    // 현장 작업자 전화번호 수집
+    const phones = [];
+    const sites = state.allSitesWeather || [];
+    sites.filter(s => !siteIds || siteIds.includes(s.site_id)).forEach(s => {
+        (s.workers || []).forEach(w => { if (w.phone) phones.push(w.phone); });
+    });
+    if (phones.length === 0) return null;
+    try {
+        return await api('/api/sms/send', {
+            method: 'POST',
+            body: JSON.stringify({ message, phone_numbers: phones }),
+        });
+    } catch (e) {
+        console.error('SMS 발송 실패:', e);
+        return { sent: 0, failed: phones.length, error: e.message };
+    }
+}
+
 // ── 매시 정각 날씨 자동 조회 ──
 let nextWeatherTime = null;
 
@@ -1006,7 +1048,13 @@ async function triggerMonitoring(siteIds = null) {
             progressEl.innerHTML = `<div style="font-size:13px;color:var(--safe);padding:4px 0">발송 완료 - ${msg}</div>`;
             setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
         }
-        showToast(`발송 완료 - ${msg}`, 'success');
+        // SMS 동시 발송
+        let smsMsg = '';
+        if (document.getElementById('sms-enabled')?.checked) {
+            const smsResult = await sendSmsToSiteWorkers(siteIds, `[KEPCO 안전관리] 폭염 경보\n${result.sites_checked}개 현장 알림 발송됨. 앱에서 상세 확인하세요.`);
+            if (smsResult) smsMsg = ` | SMS ${smsResult.sent}건`;
+        }
+        showToast(`발송 완료 - ${msg}${smsMsg}`, 'success');
         loadAlertHistory();
         loadStats();
     } catch (e) {
