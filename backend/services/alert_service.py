@@ -140,26 +140,21 @@ class KakaoAlimTalkSender(NotificationSender):
 
 class SmsSender(NotificationSender):
     """
-    SMS 발송 - Traccar SMS Gateway 앱 연동
-    Play Store: "Traccar SMS Gateway" (anton tananaev)
-    폰에서 HTTP API를 노출 → 서버가 호출 → 폰이 문자 발송
+    SMS 발송 - NHN Cloud SMS API
+    https://docs.nhncloud.com/ko/Notification/SMS/ko/api-guide/
 
-    API: POST http://폰IP:8082/
-         Header: Authorization: API키
-         Body: {"to": "+821012345678", "message": "내용"}
+    API: POST https://sms.api.nhncloudservice.com/sms/v3.0/appKeys/{appKey}/sender/sms
+    Header: X-Secret-Key, Content-Type: application/json
+    Body: {"body":"메시지","sendNo":"발신번호","recipientList":[{"recipientNo":"수신번호"}]}
     """
 
-    def __init__(self):
-        self._gateway_url = settings.sms_gateway_url
-        self._api_key = settings.sms_gateway_api_key
-        self._client = httpx.AsyncClient(timeout=10.0)
+    BASE_URL = "https://sms.api.nhncloudservice.com/sms/v3.0/appKeys"
 
-    def _format_phone(self, phone: str) -> str:
-        """010-1234-5678 → +821012345678"""
-        digits = phone.replace("-", "").replace(" ", "")
-        if digits.startswith("0"):
-            return "+82" + digits[1:]
-        return digits if digits.startswith("+") else "+" + digits
+    def __init__(self):
+        self._app_key = settings.sms_app_key
+        self._secret_key = settings.sms_secret_key
+        self._sender_phone = settings.sms_sender_phone
+        self._client = httpx.AsyncClient(timeout=10.0)
 
     async def send(
         self,
@@ -178,26 +173,36 @@ class SmsSender(NotificationSender):
             f"{actions[0] if actions else '안전에 유의하세요.'}"
         )
 
-        if not self._gateway_url:
+        if not self._app_key or not self._secret_key:
             return NotificationResult(
                 success=False, channel="sms", recipient=recipient_phone,
-                error_message="SMS Gateway 미설정",
+                error_message="NHN Cloud SMS 미설정",
             )
 
+        phone = recipient_phone.replace("-", "")
         try:
             response = await self._client.post(
-                self._gateway_url.rstrip("/") + "/",
-                json={"to": self._format_phone(recipient_phone), "message": message},
-                headers={"Authorization": self._api_key} if self._api_key else {},
+                f"{self.BASE_URL}/{self._app_key}/sender/sms",
+                headers={
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "X-Secret-Key": self._secret_key,
+                },
+                json={
+                    "body": message,
+                    "sendNo": self._sender_phone.replace("-", ""),
+                    "recipientList": [{"recipientNo": phone}],
+                },
             )
-            ok = response.status_code in (200, 201, 202, 204)
+            data = response.json()
+            ok = data.get("header", {}).get("isSuccessful", False)
             if ok:
-                logger.info(f"[SMS] {recipient_name}({recipient_phone}): 발송 성공")
+                logger.info(f"[SMS] {recipient_name}({phone}): 발송 성공")
             else:
-                logger.warning(f"[SMS] {recipient_name}({recipient_phone}): HTTP {response.status_code}")
+                logger.warning(f"[SMS] {recipient_name}({phone}): {data.get('header',{}).get('resultMessage','')}")
             return NotificationResult(
                 success=ok, channel="sms", recipient=recipient_phone,
-                error_message=None if ok else f"HTTP {response.status_code}",
+                message_id=str(data.get("body", {}).get("data", {}).get("requestId", "")),
+                error_message=None if ok else data.get("header", {}).get("resultMessage", "발송 실패"),
             )
         except Exception as e:
             logger.error(f"[SMS] 발송 실패: {e}")
@@ -207,28 +212,36 @@ class SmsSender(NotificationSender):
             )
 
     async def send_bulk(self, phone_numbers: list[str], message: str) -> dict:
-        """여러 번호에 순차 발송 (Traccar는 1건씩)"""
-        if not self._gateway_url:
-            return {"sent": 0, "failed": len(phone_numbers), "error": "SMS Gateway 미설정"}
+        """여러 번호에 일괄 발송 (NHN Cloud는 1000명까지 한번에 가능)"""
+        if not self._app_key or not self._secret_key:
+            return {"sent": 0, "failed": len(phone_numbers), "error": "NHN Cloud SMS 미설정"}
 
-        sent = 0
-        failed = 0
-        for phone in phone_numbers:
-            if not phone:
-                continue
-            try:
-                response = await self._client.post(
-                    self._gateway_url.rstrip("/") + "/",
-                    json={"to": self._format_phone(phone), "message": message},
-                    headers={"Authorization": self._api_key} if self._api_key else {},
-                )
-                if response.status_code in (200, 201, 202, 204):
-                    sent += 1
-                else:
-                    failed += 1
-            except Exception:
-                failed += 1
-        return {"sent": sent, "failed": failed}
+        recipients = [{"recipientNo": p.replace("-", "")} for p in phone_numbers if p]
+        if not recipients:
+            return {"sent": 0, "failed": 0}
+
+        try:
+            response = await self._client.post(
+                f"{self.BASE_URL}/{self._app_key}/sender/sms",
+                headers={
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "X-Secret-Key": self._secret_key,
+                },
+                json={
+                    "body": message,
+                    "sendNo": self._sender_phone.replace("-", ""),
+                    "recipientList": recipients,
+                },
+            )
+            data = response.json()
+            ok = data.get("header", {}).get("isSuccessful", False)
+            if ok:
+                return {"sent": len(recipients), "failed": 0}
+            else:
+                return {"sent": 0, "failed": len(recipients),
+                        "error": data.get("header", {}).get("resultMessage", "")}
+        except Exception as e:
+            return {"sent": 0, "failed": len(recipients), "error": str(e)[:100]}
 
     async def close(self) -> None:
         await self._client.aclose()

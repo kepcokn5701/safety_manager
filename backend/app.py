@@ -372,17 +372,13 @@ async def send_sms(data: SmsRequest):
 
 @app.get("/api/sms/status")
 async def sms_status():
-    """SMS Gateway 연결 상태 확인"""
-    url = settings.sms_gateway_url
-    if not url:
-        return {"configured": False, "message": "SMS_GATEWAY_URL 미설정"}
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(url.rstrip("/"))
-            return {"configured": True, "gateway_url": url, "reachable": r.status_code < 500}
-    except Exception as e:
-        return {"configured": True, "gateway_url": url, "reachable": False, "error": str(e)[:100]}
+    """NHN Cloud SMS 설정 상태 확인"""
+    configured = bool(settings.sms_app_key and settings.sms_secret_key and settings.sms_sender_phone)
+    return {
+        "configured": configured,
+        "sender_phone": settings.sms_sender_phone[-4:] if settings.sms_sender_phone else "",
+        "message": "NHN Cloud SMS 설정 완료" if configured else "SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요",
+    }
 
 
 class NoticeRequest(BaseModel):

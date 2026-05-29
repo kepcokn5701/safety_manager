@@ -95,9 +95,10 @@ class Settings(BaseSettings):
     # 알림 채널 선택: "web_push" | "kakao" | "console"
     notification_channel: str = "web_push"
 
-    # SMS Gateway (Traccar SMS Gateway 앱)
-    sms_gateway_url: str = ""        # 예: http://192.168.0.10:8082 (폰 로컬 IP)
-    sms_gateway_api_key: str = ""    # 앱에서 생성한 API 키
+    # NHN Cloud SMS
+    sms_app_key: str = ""            # NHN Cloud 콘솔 > SMS > AppKey
+    sms_secret_key: str = ""         # NHN Cloud 콘솔 > SMS > SecretKey
+    sms_sender_phone: str = ""       # 등록된 발신번호 (예: 01012345678)
 
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"
