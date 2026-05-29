@@ -372,12 +372,12 @@ async def send_sms(data: SmsRequest):
 
 @app.get("/api/sms/status")
 async def sms_status():
-    """NHN Cloud SMS 설정 상태 확인"""
-    configured = bool(settings.sms_app_key and settings.sms_secret_key and settings.sms_sender_phone)
+    """알리고 SMS 설정 상태 확인"""
+    configured = bool(settings.sms_api_key and settings.sms_user_id and settings.sms_sender_phone)
     return {
         "configured": configured,
         "sender_phone": settings.sms_sender_phone[-4:] if settings.sms_sender_phone else "",
-        "message": "NHN Cloud SMS 설정 완료" if configured else "SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요",
+        "message": "알리고 SMS 설정 완료" if configured else "SMS_API_KEY, SMS_USER_ID, SMS_SENDER_PHONE 설정 필요",
     }
 
 

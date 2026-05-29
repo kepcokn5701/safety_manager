@@ -140,20 +140,20 @@ class KakaoAlimTalkSender(NotificationSender):
 
 class SmsSender(NotificationSender):
     """
-    SMS 발송 - NHN Cloud SMS API
-    https://docs.nhncloud.com/ko/Notification/SMS/ko/api-guide/
+    SMS 발송 - 알리고(Aligo) SMS API
+    https://smartsms.aligo.in/smsapi.html
+    가입 시 무료 300건 제공, 신용카드 불필요
 
-    API: POST https://sms.api.nhncloudservice.com/sms/v3.0/appKeys/{appKey}/sender/sms
-    Header: X-Secret-Key, Content-Type: application/json
-    Body: {"body":"메시지","sendNo":"발신번호","recipientList":[{"recipientNo":"수신번호"}]}
+    API: POST https://apis.aligo.in/send/
+    Params: key, user_id, sender, receiver, msg
     """
 
-    BASE_URL = "https://sms.api.nhncloudservice.com/sms/v3.0/appKeys"
+    API_URL = "https://apis.aligo.in/send/"
 
     def __init__(self):
-        self._app_key = settings.sms_app_key
-        self._secret_key = settings.sms_secret_key
-        self._sender_phone = settings.sms_sender_phone
+        self._api_key = settings.sms_api_key
+        self._user_id = settings.sms_user_id
+        self._sender = settings.sms_sender_phone
         self._client = httpx.AsyncClient(timeout=10.0)
 
     async def send(
@@ -173,36 +173,31 @@ class SmsSender(NotificationSender):
             f"{actions[0] if actions else '안전에 유의하세요.'}"
         )
 
-        if not self._app_key or not self._secret_key:
+        if not self._api_key or not self._user_id:
             return NotificationResult(
                 success=False, channel="sms", recipient=recipient_phone,
-                error_message="NHN Cloud SMS 미설정",
+                error_message="알리고 SMS 미설정",
             )
 
         phone = recipient_phone.replace("-", "")
         try:
-            response = await self._client.post(
-                f"{self.BASE_URL}/{self._app_key}/sender/sms",
-                headers={
-                    "Content-Type": "application/json;charset=UTF-8",
-                    "X-Secret-Key": self._secret_key,
-                },
-                json={
-                    "body": message,
-                    "sendNo": self._sender_phone.replace("-", ""),
-                    "recipientList": [{"recipientNo": phone}],
-                },
-            )
+            response = await self._client.post(self.API_URL, data={
+                "key": self._api_key,
+                "user_id": self._user_id,
+                "sender": self._sender.replace("-", ""),
+                "receiver": phone,
+                "msg": message,
+            })
             data = response.json()
-            ok = data.get("header", {}).get("isSuccessful", False)
+            ok = int(data.get("result_code", -1)) == 1
             if ok:
-                logger.info(f"[SMS] {recipient_name}({phone}): 발송 성공")
+                logger.info(f"[SMS] {recipient_name}({phone}): 성공 (msg_id={data.get('msg_id')})")
             else:
-                logger.warning(f"[SMS] {recipient_name}({phone}): {data.get('header',{}).get('resultMessage','')}")
+                logger.warning(f"[SMS] {recipient_name}({phone}): {data.get('message','')}")
             return NotificationResult(
                 success=ok, channel="sms", recipient=recipient_phone,
-                message_id=str(data.get("body", {}).get("data", {}).get("requestId", "")),
-                error_message=None if ok else data.get("header", {}).get("resultMessage", "발송 실패"),
+                message_id=str(data.get("msg_id", "")),
+                error_message=None if ok else data.get("message", "발송 실패"),
             )
         except Exception as e:
             logger.error(f"[SMS] 발송 실패: {e}")
@@ -212,36 +207,30 @@ class SmsSender(NotificationSender):
             )
 
     async def send_bulk(self, phone_numbers: list[str], message: str) -> dict:
-        """여러 번호에 일괄 발송 (NHN Cloud는 1000명까지 한번에 가능)"""
-        if not self._app_key or not self._secret_key:
-            return {"sent": 0, "failed": len(phone_numbers), "error": "NHN Cloud SMS 미설정"}
+        """여러 번호에 일괄 발송 (알리고: 쉼표로 최대 1000명)"""
+        if not self._api_key or not self._user_id:
+            return {"sent": 0, "failed": len(phone_numbers), "error": "알리고 SMS 미설정"}
 
-        recipients = [{"recipientNo": p.replace("-", "")} for p in phone_numbers if p]
-        if not recipients:
+        phones = [p.replace("-", "") for p in phone_numbers if p]
+        if not phones:
             return {"sent": 0, "failed": 0}
 
         try:
-            response = await self._client.post(
-                f"{self.BASE_URL}/{self._app_key}/sender/sms",
-                headers={
-                    "Content-Type": "application/json;charset=UTF-8",
-                    "X-Secret-Key": self._secret_key,
-                },
-                json={
-                    "body": message,
-                    "sendNo": self._sender_phone.replace("-", ""),
-                    "recipientList": recipients,
-                },
-            )
+            response = await self._client.post(self.API_URL, data={
+                "key": self._api_key,
+                "user_id": self._user_id,
+                "sender": self._sender.replace("-", ""),
+                "receiver": ",".join(phones),
+                "msg": message,
+            })
             data = response.json()
-            ok = data.get("header", {}).get("isSuccessful", False)
-            if ok:
-                return {"sent": len(recipients), "failed": 0}
-            else:
-                return {"sent": 0, "failed": len(recipients),
-                        "error": data.get("header", {}).get("resultMessage", "")}
+            ok = int(data.get("result_code", -1)) == 1
+            cnt = int(data.get("success_cnt", 0))
+            err = int(data.get("error_cnt", 0))
+            return {"sent": cnt, "failed": err,
+                    "error": None if ok else data.get("message", "")}
         except Exception as e:
-            return {"sent": 0, "failed": len(recipients), "error": str(e)[:100]}
+            return {"sent": 0, "failed": len(phones), "error": str(e)[:100]}
 
     async def close(self) -> None:
         await self._client.aclose()
