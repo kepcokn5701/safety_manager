@@ -95,10 +95,10 @@ class Settings(BaseSettings):
     # 알림 채널 선택: "web_push" | "kakao" | "console"
     notification_channel: str = "web_push"
 
-    # 알리고 SMS (https://smartsms.aligo.in)
-    sms_api_key: str = ""            # 알리고 API 키
-    sms_user_id: str = ""            # 알리고 사용자 ID
-    sms_sender_phone: str = ""       # 발신번호 (본인 인증 필요)
+    # NHN Cloud SMS (https://www.nhncloud.com)
+    sms_app_key: str = ""            # NHN Cloud 콘솔 > SMS > AppKey
+    sms_secret_key: str = ""         # NHN Cloud 콘솔 > SMS > SecretKey
+    sms_sender_phone: str = ""       # 등록된 발신번호
 
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"
