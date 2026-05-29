@@ -95,10 +95,9 @@ class Settings(BaseSettings):
     # 알림 채널 선택: "web_push" | "kakao" | "console"
     notification_channel: str = "web_push"
 
-    # SMS Gateway (안드로이드 폰 SMS Gateway 앱)
-    sms_gateway_url: str = ""        # 예: http://192.168.0.10:8080 (폰 로컬 IP)
-    sms_gateway_login: str = ""      # Gateway 앱 로그인 (선택)
-    sms_gateway_password: str = ""   # Gateway 앱 비밀번호 (선택)
+    # SMS Gateway (Traccar SMS Gateway 앱)
+    sms_gateway_url: str = ""        # 예: http://192.168.0.10:8082 (폰 로컬 IP)
+    sms_gateway_api_key: str = ""    # 앱에서 생성한 API 키
 
     # 기준값 설정 파일 경로
     thresholds_config_path: str = "config/thresholds.json"
