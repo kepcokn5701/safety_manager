@@ -179,9 +179,9 @@ async def get_all_weather_status(
 
             # 응답 현황
             from backend.models.models import AlertAck
-            from sqlalchemy import func, and_ as sql_and
+            from sqlalchemy import select as sa_select, func, and_ as sql_and
             ack_result = await db.execute(
-                select(func.count(AlertAck.id)).where(
+                sa_select(func.count(AlertAck.id)).where(
                     sql_and(AlertAck.site_id == site.id,
                             AlertAck.acked_at >= datetime.now(KST).replace(hour=0, minute=0, second=0))
                 )
