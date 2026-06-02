@@ -49,7 +49,8 @@
     <a href="#worker">4. 작업자 앱 사용법</a>
     <a href="#stages">5. 폭염 단계 기준</a>
     <a href="#server">6. 서버 실행 및 운영</a>
-    <a href="#trouble">7. 문제 해결</a>
+    <a href="#install">7. 다른 PC에 설치하기</a>
+    <a href="#trouble">8. 문제 해결</a>
 </div>
 
 <h2 id="overview">1. 시스템 개요</h2>
@@ -424,7 +425,82 @@
     <p>데이터는 로컬 DB 파일(safety_mgr.db)에 영구 저장되므로 서버 꺼도 유실 없음</p>
 </div>
 
-<h2 id="trouble">7. 문제 해결</h2>
+<h2 id="install">7. 다른 PC에 설치하기</h2>
+
+<h3>7-1. 사전 준비</h3>
+<table>
+    <tr><th>필요 프로그램</th><th>다운로드</th><th>비고</th></tr>
+    <tr><td><strong>Python 3.11+</strong></td><td>https://www.python.org/downloads/</td><td>설치 시 "Add to PATH" 반드시 체크</td></tr>
+    <tr><td><strong>Git</strong></td><td>https://git-scm.com/download/win</td><td>기본 설정으로 설치</td></tr>
+    <tr><td><strong>ngrok</strong></td><td>https://ngrok.com/download</td><td>무료 계정 가입 + authtoken 필요</td></tr>
+</table>
+
+<h3>7-2. 설치 순서</h3>
+
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>소스코드 다운로드</h4>
+    <p>명령 프롬프트(cmd)를 열고 아래 명령어 실행:</p>
+    <p><code>git clone https://github.com/kepcokn5701/safety_manager.git</code></p>
+    <p><code>cd safety_manager</code></p>
+</div>
+
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>INSTALL.bat 실행</h4>
+    <p>탐색기에서 safety_manager 폴더를 열고 <strong>INSTALL.bat</strong>을 더블클릭</p>
+    <p>자동으로 실행되는 작업:</p>
+    <p>① Python 가상환경(venv) 생성</p>
+    <p>② 필요한 패키지 설치 (1~2분 소요)</p>
+    <p>③ .env.example → .env 파일 자동 복사 (API 키 포함)</p>
+</div>
+
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>ngrok 설정</h4>
+    <p>① ngrok.com에서 다운로드한 <strong>ngrok.exe</strong>를 safety_manager 폴더에 복사</p>
+    <p>② cmd에서 ngrok 인증:</p>
+    <p><code>ngrok.exe config add-authtoken YOUR_AUTH_TOKEN</code></p>
+    <p>(authtoken은 https://dashboard.ngrok.com/get-started/your-authtoken 에서 확인)</p>
+</div>
+
+<div class="step">
+    <span class="step-num">4</span>
+    <h4>서버 시작</h4>
+    <p><strong>START.bat</strong>을 더블클릭하면 서버 + ngrok이 자동 시작됩니다.</p>
+    <p>접속 URL:</p>
+    <p>• 같은 PC: <strong>http://localhost:8081</strong></p>
+    <p>• 외부/모바일: ngrok 창의 <strong>Forwarding</strong> URL</p>
+    <p>• 같은 네트워크 다른 PC: <strong>http://이PC의IP:8081</strong> (방화벽 허용 필요)</p>
+</div>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>방화벽 설정 (같은 네트워크 접속 시)</h4>
+    <p>다른 PC에서 내부 IP로 접속이 안 되면, <strong>관리자 권한 cmd</strong>에서:</p>
+    <p><code>netsh advfirewall firewall add rule name="SafetyManager" dir=in action=allow protocol=TCP localport=8081</code></p>
+</div>
+
+<h3>7-3. 업데이트</h3>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>최신 코드 받기</h4>
+    <p>safety_manager 폴더에서 cmd 열고:</p>
+    <p><code>git pull origin main</code></p>
+    <p>서버 재시작: STOP.bat → START.bat</p>
+</div>
+
+<h3>7-4. 전체 명령어 요약</h3>
+<table>
+    <tr><th>작업</th><th>방법</th></tr>
+    <tr><td>최초 설치</td><td>git clone → INSTALL.bat → START.bat</td></tr>
+    <tr><td>서버 시작</td><td>START.bat 더블클릭</td></tr>
+    <tr><td>서버 종료</td><td>STOP.bat 더블클릭</td></tr>
+    <tr><td>코드 업데이트</td><td>git pull → 서버 재시작</td></tr>
+    <tr><td>설정 변경</td><td>.env 파일 수정 → 서버 재시작</td></tr>
+</table>
+
+<h2 id="trouble">8. 문제 해결</h2>
 <table>
     <tr><th>증상</th><th>해결</th></tr>
     <tr><td>현장 목록 안 보임</td><td>"새로고침" 클릭 (날씨 조회에 수 초 소요)</td></tr>
