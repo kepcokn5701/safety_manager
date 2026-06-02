@@ -48,7 +48,8 @@
     <a href="#admin">3. 관리자 앱 사용법</a>
     <a href="#worker">4. 작업자 앱 사용법</a>
     <a href="#stages">5. 폭염 단계 기준</a>
-    <a href="#trouble">6. 문제 해결</a>
+    <a href="#server">6. 서버 실행 및 운영</a>
+    <a href="#trouble">7. 문제 해결</a>
 </div>
 
 <h2 id="overview">1. 시스템 개요</h2>
@@ -337,7 +338,93 @@
     <tr><td style="color:#D32F2F;font-weight:700">위험</td><td>41°C 이상</td><td>즉시 작업 중지, 근로자 대피</td></tr>
 </table>
 
-<h2 id="trouble">6. 문제 해결</h2>
+<h2 id="server">6. 서버 실행 및 운영</h2>
+
+<h3>6-1. 서버 시작 (간편)</h3>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>START.bat 더블클릭</h4>
+    <p>프로젝트 폴더의 <strong>START.bat</strong> 파일을 더블클릭하면 자동으로:</p>
+    <p>① 백엔드 서버 시작 (포트 8081)</p>
+    <p>② ngrok 터널 시작 (외부 접속용 HTTPS URL 생성)</p>
+    <p>검은 창 2개가 열리면 정상입니다.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>접속 URL 확인</h4>
+    <p><strong>로컬 (같은 PC)</strong>: http://localhost:8081</p>
+    <p><strong>외부 (모바일/다른 PC)</strong>: ngrok 창에서 <strong>Forwarding</strong> 줄의 https://xxxxx.ngrok-free.dev 확인</p>
+    <p>이 URL을 브라우저에 입력하면 관리자 앱에 접속됩니다.</p>
+</div>
+
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>ngrok 무료 플랜 참고사항</h4>
+    <p>• 외부 접속 시 "Visit Site" 버튼을 한번 클릭해야 합니다 (첫 접속만)</p>
+    <p>• URL은 ngrok을 재시작할 때마다 변경됩니다</p>
+    <p>• PC를 끄면 서버도 종료됩니다 → 다시 START.bat 실행</p>
+</div>
+
+<h3>6-2. 서버 종료</h3>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>STOP.bat 더블클릭</h4>
+    <p>또는 열려있는 검은 창 2개를 직접 닫아도 됩니다.</p>
+</div>
+
+<h3>6-3. 수동 실행 (고급)</h3>
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>명령 프롬프트에서 직접 실행</h4>
+    <p>프로젝트 폴더에서 명령 프롬프트(cmd) 열기:</p>
+    <p><code>cd C:\Users\KEPCO\Desktop\project\safety_manager</code></p>
+    <p><strong>서버 시작:</strong></p>
+    <p><code>venv\Scripts\python -m uvicorn backend.app:app --host 0.0.0.0 --port 8081</code></p>
+    <p><strong>ngrok 시작 (다른 cmd 창에서):</strong></p>
+    <p><code>ngrok.exe http 8081</code></p>
+</div>
+
+<h3>6-4. 환경 설정 (.env 파일)</h3>
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>프로젝트 폴더의 .env 파일에서 설정 변경</h4>
+    <p>메모장으로 열어서 수정 후 서버 재시작하면 적용됩니다.</p>
+</div>
+<table>
+    <tr><th>설정</th><th>설명</th><th>예시</th></tr>
+    <tr><td>DATABASE_URL</td><td>데이터베이스 경로</td><td>sqlite+aiosqlite:///./safety_mgr.db</td></tr>
+    <tr><td>KMA_API_KEY</td><td>기상청 API 인증키</td><td>REDACTED_KMA_KEY</td></tr>
+    <tr><td>KAKAO_REST_API_KEY</td><td>카카오맵 API (주소→좌표)</td><td>4e7ddb81470d...</td></tr>
+    <tr><td>VAPID_PUBLIC_KEY</td><td>웹 푸시 공개키</td><td>BMEayGZyqy...</td></tr>
+    <tr><td>VAPID_PRIVATE_KEY</td><td>웹 푸시 비밀키</td><td>1QaYzSvQf-...</td></tr>
+    <tr><td>SMS_APP_KEY</td><td>NHN Cloud SMS (추후)</td><td>설정 시 SMS 발송 활성화</td></tr>
+    <tr><td>WEATHER_CHECK_INTERVAL_MINUTES</td><td>자동 모니터링 간격</td><td>15 (분)</td></tr>
+</table>
+
+<h3>6-5. 매일 운영 절차</h3>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>출근 시: START.bat 실행</h4>
+    <p>서버 + ngrok 자동 시작. ngrok URL을 확인하여 필요 시 공유</p>
+</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>사전신고 엑셀 업로드</h4>
+    <p>금일 작업 현장 등록 (기존 현장이 있으면 초기화 후 재등록)</p>
+</div>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>새로고침 → 날씨 확인 → 필터링 → 발송</h4>
+    <p>15분 자동 스케줄러도 동작하지만, 수동 새로고침으로 즉시 확인 가능</p>
+</div>
+<div class="step">
+    <span class="step-num">4</span>
+    <h4>퇴근 시: STOP.bat 또는 창 닫기</h4>
+    <p>데이터는 로컬 DB 파일(safety_mgr.db)에 영구 저장되므로 서버 꺼도 유실 없음</p>
+</div>
+
+<h2 id="trouble">7. 문제 해결</h2>
 <table>
     <tr><th>증상</th><th>해결</th></tr>
     <tr><td>현장 목록 안 보임</td><td>"새로고침" 클릭 (날씨 조회에 수 초 소요)</td></tr>
