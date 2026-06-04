@@ -232,7 +232,7 @@
     <tr><td>SMS 전체 실패</td><td>SMS API 설정 문제. 서버 운영자에게 문의</td></tr>
     <tr><td>SMS 일부 실패</td><td>결과 상세에서 실패 사유 확인 (미등록 번호, 한도 초과 등)</td></tr>
     <tr><td>체감온도가 네이버와 다름</td><td>정상 (예보 vs 관측 차이). "검증" 버튼으로 확인</td></tr>
-    <tr><td>페이지가 안 열림</td><td>서버 운영자에게 서버 상태 확인 요청</td></tr>
+    <tr><td>페이지가 안 열림 (html 삭제)</td><td>서버 운영자에게 REPAIR.bat 실행 요청</td></tr>
     <tr><td>엑셀 업로드 안 됨</td><td>.xls/.xlsx/.csv 형식 확인. 파일이 열려있으면 닫고 재시도</td></tr>
 </table>
 
@@ -279,9 +279,12 @@
 
 <div class="step warn">
     <span class="step-num">!</span>
-    <h4>사내 보안 주의</h4>
-    <p>보안 소프트웨어가 <strong>.html 파일을 삭제</strong>할 수 있음</p>
-    <p>START.bat 실행 시 <strong>.dat 백업에서 자동 복원</strong>됨. <strong>.dat 파일은 절대 삭제 금지</strong></p>
+    <h4>사내 보안 주의 (.html 삭제 대응)</h4>
+    <p>보안 소프트웨어가 <strong>.html 파일을 삭제</strong>할 수 있습니다. 복구 방법 3가지:</p>
+    <p>1. <strong>REPAIR.bat 더블클릭</strong> &mdash; .dat 백업에서 즉시 복원 (가장 간편)</p>
+    <p>2. <strong>START.bat 실행</strong> &mdash; 서버 시작 시 자동 복원</p>
+    <p>3. <strong><code>git pull origin main</code></strong> &mdash; .dat까지 삭제된 경우 GitHub에서 복구</p>
+    <p style="color:#dc2626;font-weight:600">.dat 파일은 절대 삭제하지 마세요.</p>
 </div>
 
 <h2 id="env" class="dev-title">10. 환경 설정 (.env)</h2>
