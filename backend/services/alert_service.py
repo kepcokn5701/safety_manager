@@ -219,6 +219,32 @@ class SmsSender(NotificationSender):
         workers: [{"name": "홍길동", "phone": "010-1234-5678", "site": "현장A"}, ...]
         workers가 주어지면 phone_numbers 대신 workers 기준으로 발송
         """
+        # NHN Cloud 에러 메시지 → 안전담당자가 이해할 수 있는 한글 변환
+        def _friendly(msg: str, code: int = 0) -> str:
+            """영문 에러 메시지를 한글로 변환"""
+            if not msg:
+                return f"알 수 없는 오류 (코드: {code})" if code else "알 수 없는 오류"
+            m = msg.lower().strip().rstrip(".")
+            mapping = {
+                "not regist sendno": "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 발신번호 등록을 요청하세요.",
+                "not registered sendno": "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 발신번호 등록을 요청하세요.",
+                "invalid phonenumber": "전화번호 형식이 올바르지 않습니다.\n→ 작업자 전화번호를 확인하세요 (예: 010-1234-5678)",
+                "invalid phone number": "전화번호 형식이 올바르지 않습니다.\n→ 작업자 전화번호를 확인하세요 (예: 010-1234-5678)",
+                "recipient number is empty": "수신번호가 비어있습니다.\n→ 작업자에게 전화번호가 등록되어 있는지 확인하세요.",
+                "blocked number": "차단된 전화번호입니다.\n→ 수신자가 SMS 수신을 거부했거나 차단 목록에 있습니다.",
+                "exceed daily limit": "일일 발송 한도를 초과했습니다.\n→ 내일 다시 시도하거나 NHN Cloud에서 한도를 늘려주세요.",
+                "exceed monthly limit": "월간 발송 한도를 초과했습니다.\n→ NHN Cloud 콘솔에서 한도를 확인하세요.",
+                "insufficient balance": "NHN Cloud 잔액이 부족합니다.\n→ NHN Cloud 콘솔에서 잔액을 충전하세요.",
+                "sms service is not activated": "SMS 서비스가 비활성화 상태입니다.\n→ NHN Cloud 콘솔에서 SMS 서비스를 활성화하세요.",
+                "authentication failed": "인증 실패.\n→ .env 파일의 SMS_APP_KEY, SMS_SECRET_KEY를 확인하세요.",
+                "duplicate message": "동일한 메시지가 중복 발송되었습니다.\n→ 잠시 후 다시 시도하세요.",
+                "message is empty": "SMS 메시지 내용이 비어있습니다.\n→ 발송할 메시지를 입력하세요.",
+            }
+            for eng, kor in mapping.items():
+                if eng in m:
+                    return kor
+            return msg
+
         # workers 목록이 있으면 그걸 기준으로 사용
         if workers:
             phone_list = [w.get("phone", "") for w in workers if w.get("phone")]
@@ -308,7 +334,7 @@ class SmsSender(NotificationSender):
                             "name": info.get("name", ""),
                             "site": info.get("site", ""),
                             "status": "failed",
-                            "error": recipient_msg or f"오류코드: {recipient_seq}",
+                            "error": _friendly(recipient_msg, recipient_seq),
                         })
 
                 # sendResultList가 비어있으면 전체 성공으로 간주
@@ -332,16 +358,17 @@ class SmsSender(NotificationSender):
                 # API 자체 실패 — 전체 실패
                 # 주요 에러코드 한글 매핑
                 error_reasons = {
-                    -1000: "필수 파라미터 누락 (appKey, body, sendNo 등)",
-                    -1001: "유효하지 않은 파라미터 값",
-                    -2000: "인증 실패 — SMS_SECRET_KEY가 올바른지 확인하세요",
-                    -2001: "권한 없음 — NHN Cloud 콘솔에서 SMS 서비스가 활성화되었는지 확인하세요",
-                    -3000: "등록되지 않은 발신번호 — SMS_SENDER_PHONE이 NHN Cloud에 등록되어 있는지 확인하세요",
-                    -3001: "비활성화된 발신번호",
-                    -4000: "발송 잔여 건수 초과 — NHN Cloud 콘솔에서 발송 한도를 확인하세요",
-                    -5000: "내부 서버 오류 — 잠시 후 재시도해 주세요",
+                    -1000: "필수 설정값이 누락되었습니다.\n→ 서버 운영자에게 .env 파일의 SMS 설정을 확인 요청하세요.",
+                    -1001: "잘못된 설정값이 있습니다.\n→ 서버 운영자에게 .env 파일 점검을 요청하세요.",
+                    -2000: "SMS 인증에 실패했습니다.\n→ 서버 운영자에게 SMS_SECRET_KEY 확인을 요청하세요.",
+                    -2001: "SMS 서비스 권한이 없습니다.\n→ NHN Cloud 콘솔에서 SMS 서비스가 활성화되어 있는지 확인하세요.",
+                    -2312: "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 발신번호 등록을 요청하세요.",
+                    -3000: "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 SMS_SENDER_PHONE 등록 확인을 요청하세요.",
+                    -3001: "발신번호가 비활성화되었습니다.\n→ NHN Cloud 콘솔에서 발신번호 상태를 확인하세요.",
+                    -4000: "일일 발송 한도를 초과했습니다.\n→ 내일 다시 시도하거나, NHN Cloud에서 한도를 늘려주세요.",
+                    -5000: "NHN Cloud 서버에 일시적 오류가 발생했습니다.\n→ 5분 후 다시 시도해 주세요.",
                 }
-                friendly_msg = error_reasons.get(result_code, result_message)
+                friendly_msg = error_reasons.get(result_code, _friendly(result_message, result_code))
                 error_detail = f"[코드: {result_code}] {friendly_msg}"
 
                 for rec in recipients:
@@ -352,7 +379,7 @@ class SmsSender(NotificationSender):
                         "name": info.get("name", ""),
                         "site": info.get("site", ""),
                         "status": "failed",
-                        "error": friendly_msg,
+                        "error": _friendly(friendly_msg),
                     })
 
                 logger.error(f"[SMS] 일괄 발송 실패: {error_detail}")
