@@ -130,23 +130,9 @@ class PushSubscription(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     endpoint = Column(String(500), nullable=False, unique=True)
     subscription_json = Column(Text, nullable=False)  # 전체 subscription 객체
-    subscriber_type = Column(String(20), default="admin")  # "admin" | "worker"
-    site_id = Column(Integer, ForeignKey("work_sites.id"), nullable=True)  # worker 전용
+    subscriber_type = Column(String(20), default="admin")
+    site_id = Column(Integer, nullable=True)  # 하위 호환
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-# ── 알림 응답 (작업자 확인) ──
-class AlertAck(Base):
-    __tablename__ = "alert_acks"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    site_id = Column(Integer, ForeignKey("work_sites.id"), nullable=False)
-    subscription_endpoint = Column(String(500))  # 어떤 기기에서 응답했는지
-    worker_name = Column(String(100))             # 작업자 입력 이름 (선택)
-    ack_type = Column(String(50), nullable=False)  # "confirmed" | "work_stopped" | "evacuated"
-    alert_tag = Column(String(100))                # 어떤 알림에 대한 응답인지 (tag)
-    message = Column(Text)                         # 추가 메시지
-    acked_at = Column(DateTime, default=datetime.utcnow)
 
 
 # ── 시스템 설정 (VAPID 키 등 영구 보관) ──

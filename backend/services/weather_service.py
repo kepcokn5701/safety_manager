@@ -30,6 +30,7 @@ class OpenMeteoProvider(WeatherProvider):
         self._client = httpx.AsyncClient(
             timeout=10.0,
             proxy=proxy_config.get("https://") or proxy_config.get("http://"),
+            verify=False,
         )
 
     async def get_current_weather(

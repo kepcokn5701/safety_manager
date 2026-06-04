@@ -44,6 +44,18 @@ IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 생명주기 관리"""
+    # .html 파일 자동 복원 (사내 보안 소프트웨어가 .html 삭제 시 .dat 백업에서 복원)
+    import shutil
+    restored = 0
+    for dat_file in FRONTEND_DIR.glob("*.dat"):
+        html_file = dat_file.with_suffix(".html")
+        if not html_file.exists():
+            shutil.copy2(dat_file, html_file)
+            restored += 1
+            logger.info(f"HTML 복원: {dat_file.name} -> {html_file.name}")
+    if restored:
+        logger.info(f"보안 삭제된 HTML 파일 {restored}개 자동 복원 완료")
+
     logger.info("Safety Manager 시작")
     try:
         await init_db()
@@ -140,17 +152,6 @@ async def root():
     return _file("index.html")
 
 
-@app.get("/worker")
-async def worker_index():
-    """작업자 앱 - site_id 없이 접속 시 안내 페이지"""
-    return _file("worker.html")
-
-
-@app.get("/worker/{site_id}")
-async def worker_page(site_id: int):
-    return _file("worker.html")
-
-
 @app.get("/sw.js")
 async def service_worker():
     return FileResponse(str(FRONTEND_DIR / "sw.js"), media_type="application/javascript")
@@ -203,82 +204,6 @@ async def get_branch_offices():
         )
         offices = [row[0] for row in result.all()]
     return {"offices": sorted(offices), "total": len(offices)}
-
-
-class AckRequest(BaseModel):
-    site_id: int
-    ack_type: str = "confirmed"  # "confirmed" | "work_stopped" | "evacuated"
-    worker_name: str = ""
-    alert_tag: str = ""
-    message: str = ""
-
-
-@app.post("/api/alert/ack")
-async def ack_alert(data: AckRequest):
-    """작업자 알림 응답 (확인/작업중지/대피 완료)"""
-    from backend.models.models import AlertAck
-    async with async_session() as session:
-        session.add(AlertAck(
-            site_id=data.site_id,
-            ack_type=data.ack_type,
-            worker_name=data.worker_name or None,
-            alert_tag=data.alert_tag or None,
-            message=data.message or None,
-        ))
-        await session.commit()
-    return {"success": True}
-
-
-@app.get("/api/alert/acks/{site_id}")
-async def get_site_acks(site_id: int, hours: int = 24):
-    """현장별 알림 응답 현황 조회"""
-    from backend.models.models import AlertAck
-    from sqlalchemy import select, and_
-    from datetime import timedelta
-
-    since = datetime.utcnow() - timedelta(hours=hours)
-    async with async_session() as session:
-        result = await session.execute(
-            select(AlertAck).where(
-                and_(AlertAck.site_id == site_id, AlertAck.acked_at >= since)
-            ).order_by(AlertAck.acked_at.desc())
-        )
-        acks = result.scalars().all()
-    return [
-        {
-            "id": a.id, "ack_type": a.ack_type, "worker_name": a.worker_name,
-            "alert_tag": a.alert_tag, "message": a.message,
-            "acked_at": a.acked_at.isoformat(),
-        }
-        for a in acks
-    ]
-
-
-@app.get("/api/alert/ack-summary")
-async def get_ack_summary(hours: int = 24):
-    """전체 현장 응답 요약 (관리자용)"""
-    from backend.models.models import AlertAck
-    from sqlalchemy import select, func, and_
-    from datetime import timedelta
-
-    since = datetime.utcnow() - timedelta(hours=hours)
-    async with async_session() as session:
-        result = await session.execute(
-            select(
-                AlertAck.site_id,
-                AlertAck.ack_type,
-                func.count(AlertAck.id).label("count"),
-            ).where(AlertAck.acked_at >= since)
-            .group_by(AlertAck.site_id, AlertAck.ack_type)
-        )
-        rows = result.all()
-
-    summary = {}
-    for site_id, ack_type, count in rows:
-        if site_id not in summary:
-            summary[site_id] = {}
-        summary[site_id][ack_type] = count
-    return summary
 
 
 @app.post("/api/reset")
@@ -356,17 +281,25 @@ async def simulate_heat_wave(
     }
 
 
+class SmsWorker(BaseModel):
+    name: str = ""
+    phone: str
+    site: str = ""
+
+
 class SmsRequest(BaseModel):
     message: str
-    phone_numbers: list[str]  # ["010-1234-5678", "010-2345-6789"]
+    phone_numbers: list[str] = []  # ["010-1234-5678"] (하위 호환)
+    workers: list[SmsWorker] = []  # [{name, phone, site}] (상세 결과용)
 
 
 @app.post("/api/sms/send")
 async def send_sms(data: SmsRequest):
-    """SMS 일괄 발송 (Android SMS Gateway 경유)"""
+    """SMS 일괄 발송 (NHN Cloud SMS API)"""
     from backend.services.alert_service import SmsSender
     sender = SmsSender()
-    result = await sender.send_bulk(data.phone_numbers, data.message)
+    workers_dicts = [w.model_dump() for w in data.workers] if data.workers else None
+    result = await sender.send_bulk(data.phone_numbers, data.message, workers=workers_dicts)
     return result
 
 
@@ -381,76 +314,3 @@ async def sms_status():
     }
 
 
-class NoticeRequest(BaseModel):
-    title: str
-    message: str
-    site_ids: list[int] | None = None  # None이면 전체 현장
-
-
-@app.post("/api/notice/send")
-async def send_notice(data: NoticeRequest):
-    """관리자 → 작업자 공지사항 푸시 발송"""
-    from backend.services.push_service import WebPushSender
-    sender = get_notification_sender()
-    if not isinstance(sender, WebPushSender):
-        return {"success": False, "error": "웹 푸시 채널만 지원"}
-
-    total_sent = 0
-    total_failed = 0
-    sites_targeted = 0
-
-    if data.site_ids:
-        # 선택 현장만
-        for sid in data.site_ids:
-            subs = await sender._get_worker_subscriptions(sid)
-            if subs:
-                sites_targeted += 1
-                payload = {
-                    "title": data.title,
-                    "body": data.message,
-                    "icon": "/static/icons/icon-192.svg",
-                    "badge": "/static/icons/badge-72.svg",
-                    "tag": "notice",
-                    "data": {
-                        "type": "notice",
-                        "url": f"/worker/{sid}",
-                    },
-                }
-                s, f = await sender._send_to_subscriptions(subs, payload)
-                total_sent += s
-                total_failed += f
-    else:
-        # 전체 worker 구독자
-        from backend.models.database import async_session as get_session
-        from backend.models.models import PushSubscription
-        from sqlalchemy import select
-
-        async with get_session() as session:
-            result = await session.execute(
-                select(PushSubscription).where(PushSubscription.subscriber_type == "worker")
-            )
-            all_subs = sender._parse_subscriptions(result.scalars().all())
-
-        if all_subs:
-            sites_targeted = -1  # 전체
-            payload = {
-                "title": data.title,
-                "body": data.message,
-                "icon": "/static/icons/icon-192.svg",
-                "badge": "/static/icons/badge-72.svg",
-                "tag": "notice",
-                "data": {
-                    "type": "notice",
-                    "url": "/",
-                },
-            }
-            s, f = await sender._send_to_subscriptions(all_subs, payload)
-            total_sent = s
-            total_failed = f
-
-    return {
-        "success": total_sent > 0,
-        "sent": total_sent,
-        "failed": total_failed,
-        "sites_targeted": sites_targeted,
-    }

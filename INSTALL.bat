@@ -1,48 +1,44 @@
 @echo off
-chcp 65001 >nul
+chcp 65001 >nul 2>&1
 echo ========================================
-echo   KEPCO 안전관리 시스템 - 초기 설치
+echo   KEPCO Safety Manager - Install
 echo ========================================
 echo.
 
 cd /d "%~dp0"
 
-echo [1/4] Python 가상환경 생성...
+echo [1/3] Creating virtual environment...
 if not exist venv (
     python -m venv venv
-    echo     가상환경 생성 완료
+    echo     Created
 ) else (
-    echo     가상환경 이미 존재
+    echo     Already exists
 )
 
 echo.
-echo [2/4] 패키지 설치 중... (1~2분 소요)
+echo [2/3] Installing packages... (1-2 min)
 set PYTHONUTF8=1
 venv\Scripts\pip install fastapi uvicorn sqlalchemy asyncpg aiosqlite pydantic-settings httpx pywebpush cryptography apscheduler openpyxl xlrd pandas python-multipart --quiet
-echo     패키지 설치 완료
+echo     Done
 
 echo.
-echo [3/4] .env 설정 파일 확인...
+echo [3/3] Checking .env file...
 if not exist .env (
-    copy .env.example .env
-    echo     .env 파일 생성 완료 (.env.example 복사)
+    if exist .env.example (
+        copy .env.example .env
+        echo     .env created from .env.example
+    ) else (
+        echo     [WARNING] .env.example not found. Create .env manually.
+    )
 ) else (
-    echo     .env 파일 이미 존재
-)
-
-echo.
-echo [4/4] ngrok 확인...
-if exist ngrok.exe (
-    echo     ngrok.exe 존재
-) else (
-    echo     [주의] ngrok.exe가 없습니다.
-    echo     https://ngrok.com/download 에서 다운로드하여 이 폴더에 넣으세요.
+    echo     .env already exists
 )
 
 echo.
 echo ========================================
-echo   설치 완료!
+echo   Install complete!
 echo.
-echo   서버 시작: START.bat 더블클릭
+echo   Start server: START.bat
+echo   URL: http://localhost:8081
 echo ========================================
 pause

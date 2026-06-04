@@ -317,12 +317,12 @@ body {
 
 /* 단계 필터 버튼 */
 .stage-filter {
-    padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
-    border: 1px solid var(--border); background: white; color: var(--text-dim);
+    padding: 5px 12px; border-radius: 14px; font-size: 12px; font-weight: 600;
+    border: 1.5px solid var(--fc, var(--border)); background: white; color: var(--fc, var(--text-dim));
     cursor: pointer; transition: all 0.15s;
 }
-.stage-filter:hover { border-color: var(--fc, var(--kepco)); color: var(--fc, var(--kepco)); }
-.stage-filter.active { background: var(--fc, var(--kepco)); color: white; border-color: var(--fc, var(--kepco)); }
+.stage-filter:hover { background: var(--fc, var(--kepco)); color: white; border-color: var(--fc, var(--kepco)); opacity: 0.85; }
+.stage-filter.active { background: var(--fc, var(--kepco)); color: white; border-color: var(--fc, var(--kepco)); box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
 
 /* 프로그레스 스피너 */
 .progress-spinner {

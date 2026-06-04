@@ -35,7 +35,7 @@ async def geocode_address(address: str) -> GeoResult | None:
 
     headers = {"Authorization": f"KakaoAK {settings.kakao_rest_api_key}"}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
         # 1차: 주소 검색
         result = await _search_address(client, headers, address)
         if result:
@@ -46,9 +46,37 @@ async def geocode_address(address: str) -> GeoResult | None:
         if result:
             return result
 
-        # 3차: 시/군까지만으로 재시도 (도로명 제거)
+        # 3차: 주소 정제 후 재시도
         import re
-        # "경상남도 창원시 성산구" 또는 "경상남도 통영시" 등
+        cleaned = re.sub(r"\s*등\s*$", "", address)            # 끝의 "등" 제거
+        cleaned = re.sub(r"\s*번지\s*$", "", cleaned)          # 끝의 "번지" 제거
+        if cleaned != address:
+            result = await _search_address(client, headers, cleaned)
+            if result:
+                result.address = address
+                return result
+
+        # 4차: 도로명에서 건물번호 제거 후 재시도 (예: "남일로 276-16" → "남일로")
+        road_stripped = re.sub(r"(\S+로)\s+[\d-]+.*$", r"\1", cleaned)
+        if road_stripped != cleaned:
+            result = await _search_address(client, headers, road_stripped)
+            if result:
+                result.address = address
+                return result
+            result = await _search_keyword(client, headers, road_stripped)
+            if result:
+                result.address = address
+                return result
+
+        # 5차: 지번에서 번지 제거 후 재시도 (예: "향촌동 산 11-22" → "향촌동")
+        jibun_stripped = re.sub(r"(\S+[동리가])\s+산?\s*[\d-]+.*$", r"\1", cleaned)
+        if jibun_stripped != cleaned and jibun_stripped != road_stripped:
+            result = await _search_keyword(client, headers, jibun_stripped)
+            if result:
+                result.address = address
+                return result
+
+        # 6차: 시/군까지만으로 재시도
         for pattern in [
             r"(경상[남북]도\s+\S+[시군]\s+\S+[구읍면])",
             r"(경상[남북]도\s+\S+[시군])",

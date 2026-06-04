@@ -71,10 +71,16 @@ function startApp() {
     const h1 = document.querySelector('.header h1');
     if (h1 && state.branchOffice) h1.textContent = `KEPCO 안전관리 - ${state.branchOffice}`;
 
+    // 본부(전체)만 엑셀 등록/초기화 가능
+    const isHQ = !state.branchOffice;
+    const excelBtn = document.getElementById('btn-excel-upload');
+    const resetBtn = document.getElementById('btn-reset');
+    if (excelBtn) excelBtn.style.display = isHQ ? '' : 'none';
+    if (resetBtn) resetBtn.style.display = isHQ ? '' : 'none';
+
     loadSites();
     loadAlertHistory();
     loadStats();
-    initServiceWorker();
 
     // 알림 이력/통계만 1분마다 갱신
     setInterval(() => { loadAlertHistory(); loadStats(); }, 60000);
@@ -106,23 +112,23 @@ async function checkSmsStatus() {
 }
 
 async function sendSmsToSiteWorkers(siteIds, message) {
-    // 선택 현장 작업자에게 SMS 발송
-    if (!document.getElementById('sms-enabled')?.checked) return null;
-    // 현장 작업자 전화번호 수집
-    const phones = [];
+    // 선택 현장 작업자에게 SMS 발송 (이름/현장 포함)
+    const workers = [];
     const sites = state.allSitesWeather || [];
     sites.filter(s => !siteIds || siteIds.includes(s.site_id)).forEach(s => {
-        (s.workers || []).forEach(w => { if (w.phone) phones.push(w.phone); });
+        (s.workers || []).forEach(w => {
+            if (w.phone) workers.push({ name: w.name || '', phone: w.phone, site: s.site_name || '' });
+        });
     });
-    if (phones.length === 0) return null;
+    if (workers.length === 0) throw new Error('발송 대상 작업자가 없습니다 (전화번호 없음)');
     try {
         return await api('/api/sms/send', {
             method: 'POST',
-            body: JSON.stringify({ message, phone_numbers: phones }),
+            body: JSON.stringify({ message, workers, phone_numbers: workers.map(w => w.phone) }),
         });
     } catch (e) {
         console.error('SMS 발송 실패:', e);
-        return { sent: 0, failed: phones.length, error: e.message };
+        return { sent: 0, failed: workers.length, error: e.message };
     }
 }
 
@@ -314,43 +320,6 @@ function showAdminSummary(data) {
     loadAllSitesWeather();
     loadAlertHistory();
     loadStats();
-}
-
-// ── QR 코드 모달 ──
-function showQrModal(siteId, siteName) {
-    const old = document.getElementById('qr-modal');
-    if (old) old.remove();
-
-    const workerUrl = `${window.location.origin}/worker/${siteId}`;
-
-    const modal = document.createElement('div');
-    modal.id = 'qr-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
-    modal.innerHTML = `
-        <div style="background:white;border-radius:16px;max-width:380px;width:100%;padding:28px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
-            <div style="font-size:16px;font-weight:700;margin-bottom:4px">${siteName}</div>
-            <div style="font-size:12px;color:#8896a6;margin-bottom:16px">현장 작업자용 QR 코드</div>
-            <div id="qr-canvas" style="display:inline-block;padding:16px;background:white;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px"></div>
-            <div style="font-size:11px;color:#8896a6;word-break:break-all;margin-bottom:16px;padding:8px;background:#f8fafc;border-radius:6px">${workerUrl}</div>
-            <div style="display:flex;gap:8px">
-                <button onclick="navigator.clipboard?.writeText('${workerUrl}');showToast('URL 복사됨','success',2000)" style="flex:1;padding:10px;background:#f0f2f5;border:none;border-radius:8px;font-size:13px;cursor:pointer">URL 복사</button>
-                <button onclick="document.getElementById('qr-modal').remove()" style="flex:1;padding:10px;background:#0066cc;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">닫기</button>
-            </div>
-        </div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-
-    // QR 코드 생성 (qrcode.min.js CDN)
-    if (typeof QRCode !== 'undefined') {
-        new QRCode(document.getElementById('qr-canvas'), { text: workerUrl, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
-    } else {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
-        script.onload = () => {
-            new QRCode(document.getElementById('qr-canvas'), { text: workerUrl, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
-        };
-        document.head.appendChild(script);
-    }
 }
 
 async function togglePushSubscription() {
@@ -625,6 +594,8 @@ async function selectSite(siteId) {
 
 // ── 전체 현장 날씨 일괄 조회 ──
 async function loadAllSitesWeather() {
+    // 모의 테스트 모드에서는 실제 날씨 조회 안 함
+    if (mockMode) return;
     const progressEl = document.getElementById('send-progress');
     try {
         // 프로그레스를 별도 영역에 표시 (현장 목록 유지)
@@ -639,7 +610,6 @@ async function loadAllSitesWeather() {
         const data = await api('/api/weather/status-all');
         if (progressEl) progressEl.style.display = 'none';
         state.allSitesWeather = data.sites;
-        filterSites(currentFilter);
 
         // 조회 결과 표시
         const timeEl = document.getElementById('weather-checked-time');
@@ -661,10 +631,9 @@ async function loadAllSitesWeather() {
 
         // 첫 번째 현장 또는 가장 위험한 현장을 상세 표시
         if (data.sites.length > 0) {
-            const top = data.sites[0];
-            if (top.weather) {
+            const top = data.sites.find(s => s.weather) || data.sites[0];
+            if (top && top.weather) {
                 state.selectedSiteId = top.site_id;
-                renderSiteList();
                 renderWeatherDashboard({
                     work_site_name: top.site_name,
                     weather: top.weather,
@@ -689,6 +658,10 @@ async function loadAllSitesWeather() {
                     </div>`;
             }
         });
+
+        // 필터 적용 및 전체 목록 렌더링 (마지막에 실행하여 최종 상태 반영)
+        renderSiteList();
+        filterSites(currentFilter);
     } catch (e) {
         console.error('전체 현장 날씨 조회 실패:', e);
         if (progressEl) {
@@ -715,22 +688,24 @@ function renderAllSitesOverview(sites) {
     const container = document.getElementById('all-sites-overview');
     if (!container) return;
 
-    // 날씨 데이터가 비어있으면 state.sites 기반으로 기본 목록 표시
-    if (sites.length === 0 && state.sites.length > 0) {
-        container.innerHTML = state.sites.map(site => `
-            <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="selectSiteFromOverview(${site.id})">
-                <div style="flex:1;min-width:0">
-                    <div style="font-weight:600;font-size:14px">${site.name}</div>
-                    <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+    if (sites.length === 0) {
+        if (state.allSitesWeather && state.allSitesWeather.length > 0) {
+            // 날씨는 로드됐지만 필터/사업소 조건에 맞는 현장이 없음
+            container.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">해당 조건에 맞는 현장이 없습니다.</p>';
+        } else if (state.sites.length > 0) {
+            // 아직 날씨 로딩 중
+            container.innerHTML = state.sites.map(site => `
+                <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="selectSiteFromOverview(${site.id})">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px">${site.name}</div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim)">날씨 조회 중...</div>
                 </div>
-                <div style="font-size:12px;color:var(--text-dim)">날씨 조회 중...</div>
-            </div>
-        `).join('');
-        return;
-    }
-
-    if (sites.length === 0 && state.sites.length === 0) {
-        container.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">현장을 등록하면 날씨가 표시됩니다.</p>';
+            `).join('');
+        } else {
+            container.innerHTML = '<p style="padding:20px;text-align:center;color:var(--text-secondary)">현장을 등록하면 날씨가 표시됩니다.</p>';
+        }
         return;
     }
 
@@ -743,8 +718,27 @@ function renderAllSitesOverview(sites) {
         const stg = s.stage;
         const color = stg ? stg.color : '#27ae60';
         const label = stg ? stg.name : '정상';
-        const w = s.weather;
+        const w = s.weather || {};
         const isSelected = state.selectedSiteId === s.site_id;
+
+        // 날씨 데이터가 없는 경우 (좌표 없음 등)
+        if (!s.weather) {
+            return `
+            <div onclick="selectSiteFromOverview(${s.site_id})" style="
+                padding:14px 16px;
+                border-bottom:1px solid var(--border-light, #edf2f7);
+                cursor:pointer;
+                ${isSelected ? 'background:var(--kepco-light, #e8f2ff);border-left:3px solid var(--kepco, #0066cc)' : 'border-left:3px solid transparent'}
+            ">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e)">${s.site_name}</div>
+                        <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
+                    </div>
+                    <div style="font-size:12px;color:var(--text-dim)">날씨 정보 없음</div>
+                </div>
+            </div>`;
+        }
 
         return `
         <div onclick="selectSiteFromOverview(${s.site_id})" style="
@@ -759,7 +753,6 @@ function renderAllSitesOverview(sites) {
                     <div style="display:flex;align-items:center;gap:6px">
                         <input type="checkbox" class="site-check" data-site-id="${s.site_id}" onclick="event.stopPropagation();updateSelectedCount()" style="width:auto;display:none">
                         <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.site_name}</span>
-                        <button onclick="event.stopPropagation();showQrModal(${s.site_id},'${s.site_name.replace(/'/g, "\\'")}')" style="flex-shrink:0;padding:2px 6px;background:var(--bg-hover,#f7f9fb);border:1px solid var(--border,#e2e8f0);border-radius:4px;font-size:10px;color:var(--text-dim,#8896a6);cursor:pointer" title="작업자용 QR 코드">QR</button>
                     </div>
                     <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.branch_office ? `<span style="color:var(--kepco)">${s.branch_office}</span> | ` : ''}${s.address || ''}</div>
                     ${s.worker_count > 0 ? (() => {
@@ -767,11 +760,9 @@ function renderAllSitesOverview(sites) {
                         const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
                         const failed = s.workers?.filter(w => w.last_alert?.status === 'failed').length || 0;
                         const hasAlerts = (sent + failed) > 0;
-                        const ackCount = s.ack_count || 0;
                         return `<div style="font-size:11px;margin-top:2px">
                             <span style="color:var(--kepco,#0066cc)">작업자 ${total}명</span>${s.workers?.some(w=>w.is_vulnerable) ? ' <span style="color:#e74c3c;font-size:10px">(취약 포함)</span>' : ''}
                             ${hasAlerts ? ` <span style="color:var(--text-dim)">|</span> 알림 <span style="color:${sent > 0 ? 'var(--safe)' : 'var(--text-faint)'};font-weight:600">${sent}</span><span style="color:var(--text-faint)">/${total}건</span>` : ''}
-                            ${ackCount > 0 ? ` <span style="color:var(--text-dim)">|</span> <span style="color:var(--safe);font-weight:600">응답 ${ackCount}건</span>` : ''}
                         </div>`;
                     })() : ''}
                 </div>
@@ -785,6 +776,7 @@ function renderAllSitesOverview(sites) {
                         <div style="text-align:center"><div style="font-size:10px;color:var(--text-dim)">습도</div><div style="font-weight:600;font-size:13px">${w.humidity}%</div></div>
                     </div>
                     <span class="badge" style="background:${color}">${label}</span>
+                    <button onclick="event.stopPropagation();verifyWeather(${s.site_id})" style="flex-shrink:0;padding:2px 6px;background:var(--bg-hover,#f7f9fb);border:1px solid var(--border,#e2e8f0);border-radius:4px;font-size:10px;color:var(--text-dim,#8896a6);cursor:pointer" title="날씨 데이터 검증">검증</button>
                 </div>
             </div>
             ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color}">${stg.work_restriction}</div>` : ''}
@@ -851,6 +843,7 @@ async function loadWeather(siteId) {
 }
 
 function renderWeatherDashboard(data) {
+    if (!data || !data.weather) return;
     const { weather, stage, wbgt_work_recommendation, work_site_name, checked_at } = data;
 
     renderAlertBanner(stage, weather, work_site_name);
@@ -891,11 +884,293 @@ function renderWeatherDashboard(data) {
                     <div class="value" style="font-size:18px">${weather.wbgt_estimated}<span class="unit">°C</span></div>
                     <div style="font-size:11px;color:var(--kepco-light);margin-top:2px">${wbgt_work_recommendation || ''}</div>
                 </div>
-            </div>`;
+            </div>
+            ${state.selectedSiteId ? `<button onclick="verifyWeather(${state.selectedSiteId})" style="margin-top:8px;width:100%;padding:8px;background:none;border:1px dashed var(--border);border-radius:var(--radius-sm);font-size:11px;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px" title="기상청 API 원시 데이터와 계산 과정을 상세 검증합니다"><span style="font-size:13px">&#128269;</span> 날씨 데이터 검증</button>` : ''}`;
     }
 
     renderStageIndicator(stage);
     renderActions(stage);
+}
+
+async function verifyAllWeather() {
+    const btn = event?.target?.closest('button');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>전체 검증 중...'; }
+    try {
+        const v = await api('/api/weather/verify-all');
+        if (v.error) { showToast(v.error, 'error'); return; }
+
+        const results = v.results || [];
+        const matchCount = results.filter(r => r.comparison?.temperature_match && r.comparison?.humidity_match).length;
+        const mismatchCount = results.filter(r => r.comparison && (!r.comparison.temperature_match || !r.comparison.humidity_match)).length;
+        const noDataCount = results.filter(r => !r.comparison).length;
+        const errorCount = results.filter(r => r.error).length;
+
+        let rowsHtml = results.map(r => {
+            if (r.error) {
+                return `<tr style="background:#fef2f2">
+                    <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${r.site_name}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:10px;color:#64748b">${r.grid}</td>
+                    <td colspan="6" style="padding:6px 8px;border-bottom:1px solid #f1f5f9;color:#dc2626">${r.error}</td>
+                </tr>`;
+            }
+            const kma = r.kma_raw || {};
+            const sys = r.system_cached || {};
+            const cmp = r.comparison || {};
+            const tempOk = cmp.temperature_match;
+            const humOk = cmp.humidity_match;
+            const appOk = cmp.apparent_match;
+            const rowBg = (tempOk === false || humOk === false) ? '#fffbeb' : '';
+
+            return `<tr style="background:${rowBg}">
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.site_name}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:10px;color:#64748b;text-align:center">${r.grid}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${kma.temperature}°</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${sys?.temperature != null ? sys.temperature + '°' : '<span style="color:#94a3b8">-</span>'}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center;color:${tempOk === false ? '#dc2626' : tempOk === true ? '#16a34a' : '#94a3b8'};font-weight:600">${tempOk === true ? '&#10003;' : tempOk === false ? '&#10005; ' + (cmp.temp_diff || '') + '°' : '-'}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${kma.apparent_temperature}°</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${kma.humidity}%</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${kma.stage}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">
+                    <button onclick="event.stopPropagation();verifyWeather(${r.site_id})" style="padding:2px 8px;background:none;border:1px solid #e2e8f0;border-radius:4px;font-size:10px;color:#64748b;cursor:pointer">상세</button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:flex-start;padding:20px;overflow-y:auto';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        modal.innerHTML = `
+        <div style="background:white;border-radius:12px;max-width:900px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);margin:20px auto;max-height:90vh;overflow-y:auto">
+            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:white;border-radius:12px 12px 0 0;z-index:1">
+                <div>
+                    <div style="font-size:15px;font-weight:700">&#128269; 전체 현장 날씨 데이터 검증</div>
+                    <div style="font-size:11px;color:#64748b">${new Date(v.timestamp).toLocaleString('ko-KR')} | 발표 ${v.base_date} ${v.base_time} | 예보 ${v.target_fcst_time} | ${v.grids_queried}개 격자 조회</div>
+                </div>
+                <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;padding:4px 8px">&times;</button>
+            </div>
+
+            <div style="padding:12px 20px;display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid #e2e8f0">
+                <div style="padding:8px 16px;background:${v.all_match ? '#f0fdf4' : '#fffbeb'};border-radius:8px;text-align:center">
+                    <div style="font-size:20px;font-weight:700;color:${v.all_match ? '#16a34a' : '#d97706'}">${v.all_match ? '&#10003; 일치' : '&#9888; 불일치'}</div>
+                    <div style="font-size:10px;color:#64748b">전체 결과</div>
+                </div>
+                <div style="padding:8px 16px;background:#f0fdf4;border-radius:8px;text-align:center">
+                    <div style="font-size:20px;font-weight:700;color:#16a34a">${matchCount}</div>
+                    <div style="font-size:10px;color:#64748b">일치</div>
+                </div>
+                ${mismatchCount > 0 ? `<div style="padding:8px 16px;background:#fffbeb;border-radius:8px;text-align:center">
+                    <div style="font-size:20px;font-weight:700;color:#d97706">${mismatchCount}</div>
+                    <div style="font-size:10px;color:#64748b">불일치</div>
+                </div>` : ''}
+                ${noDataCount > 0 ? `<div style="padding:8px 16px;background:#f8fafc;border-radius:8px;text-align:center">
+                    <div style="font-size:20px;font-weight:700;color:#94a3b8">${noDataCount}</div>
+                    <div style="font-size:10px;color:#64748b">캐시없음</div>
+                </div>` : ''}
+                ${errorCount > 0 ? `<div style="padding:8px 16px;background:#fef2f2;border-radius:8px;text-align:center">
+                    <div style="font-size:20px;font-weight:700;color:#dc2626">${errorCount}</div>
+                    <div style="font-size:10px;color:#64748b">오류</div>
+                </div>` : ''}
+            </div>
+
+            <div style="padding:0 20px 16px;overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:12px">
+                    <thead><tr style="background:#f8fafc;position:sticky;top:56px">
+                        <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #e2e8f0;font-weight:600">현장명</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600">격자</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;color:#0066cc">KMA 기온</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600;color:#7c3aed">시스템 기온</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600">일치</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600">체감</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600">습도</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600">단계</th>
+                        <th style="padding:6px 8px;text-align:center;border-bottom:2px solid #e2e8f0;font-weight:600"></th>
+                    </tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            </div>
+
+            <div style="padding:12px 20px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;line-height:1.6">
+                * <b>KMA 기온</b>: 기상청 API에서 실시간으로 가져온 원시 값 | <b>시스템 기온</b>: 마지막 새로고침 시 저장된 캐시 값<br>
+                * 새로고침 후 "전체 검증"하면 두 값이 일치해야 정상입니다. 불일치 시 새로고침 후 재확인하세요.<br>
+                * 각 현장의 [상세] 버튼으로 계산 과정(체감온도 공식, WBGT 등)을 세부 검증할 수 있습니다.
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+    } catch (e) {
+        showToast('전체 검증 실패: ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '전체 검증'; }
+    }
+}
+
+async function verifyWeather(siteId) {
+    const btn = event?.target?.closest('button');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>검증 중...'; }
+    try {
+        const v = await api(`/api/weather/verify/${siteId}`);
+        if (v.error) { showToast(v.error, 'error'); return; }
+
+        const s = v.summary || {};
+        const grid = v.grid || {};
+        const req = v.api_request || {};
+        const raw = v.raw_kma_data || {};
+        const hi = v.heat_index_calculation || {};
+        const wb = v.wbgt_calculation || {};
+        const st = v.stage_determination || {};
+        const links = v.external_links || {};
+        const hourly = v.hourly_forecast || [];
+
+        // 시간대별 기온 테이블
+        let hourlyHtml = '';
+        if (hourly.length > 0) {
+            hourlyHtml = `<div style="margin-top:12px"><div style="font-weight:600;font-size:12px;margin-bottom:4px">오늘 시간대별 예보 (KMA 원시)</div>
+                <div style="max-height:140px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:6px">
+                <table style="width:100%;border-collapse:collapse;font-size:11px">
+                    <thead><tr style="background:#f8fafc;position:sticky;top:0">
+                        <th style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center">시각</th>
+                        <th style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center">기온(°C)</th>
+                        <th style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center">습도(%)</th>
+                        <th style="padding:4px 6px;border-bottom:1px solid #e2e8f0;text-align:center">풍속(m/s)</th>
+                    </tr></thead><tbody>`;
+            hourly.forEach(h => {
+                const isCurrent = h.time === (raw.used_forecast_time || '').replace(/(\d{2})(\d{2})/, '$1:$2');
+                hourlyHtml += `<tr style="${isCurrent ? 'background:#e8f2ff;font-weight:600' : ''}">
+                    <td style="padding:3px 6px;text-align:center;border-bottom:1px solid #f1f5f9">${h.time}${isCurrent ? ' *' : ''}</td>
+                    <td style="padding:3px 6px;text-align:center;border-bottom:1px solid #f1f5f9">${h.temperature ?? '-'}</td>
+                    <td style="padding:3px 6px;text-align:center;border-bottom:1px solid #f1f5f9">${h.humidity ?? '-'}</td>
+                    <td style="padding:3px 6px;text-align:center;border-bottom:1px solid #f1f5f9">${h.wind_speed ?? '-'}</td>
+                </tr>`;
+            });
+            hourlyHtml += '</tbody></table></div></div>';
+        }
+
+        // 단계 판정 테이블
+        let stageHtml = '';
+        if (st.thresholds) {
+            stageHtml = st.thresholds.map(t =>
+                `<span style="display:inline-block;padding:2px 8px;margin:2px;border-radius:4px;font-size:11px;${t.matched ? 'background:#fee2e2;color:#991b1b;font-weight:600' : 'background:#f1f5f9;color:#64748b'}">${t.name} ${t.min_temp}°C ${t.matched ? '&#10003;' : ''}</span>`
+            ).join('');
+        }
+
+        // 카테고리 데이터
+        let catHtml = '';
+        if (raw.categories) {
+            catHtml = Object.entries(raw.categories).map(([k, c]) =>
+                `<tr><td style="padding:3px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${k}</td>
+                 <td style="padding:3px 8px;border-bottom:1px solid #f1f5f9">${c.label}</td>
+                 <td style="padding:3px 8px;border-bottom:1px solid #f1f5f9;font-weight:600">${c.value}</td></tr>`
+            ).join('');
+        }
+
+        // 체감온도 계산 과정
+        let hiDetail = '';
+        if (hi.coefficients) {
+            hiDetail = Object.entries(hi.coefficients).map(([k, v]) =>
+                `<span style="display:inline-block;padding:1px 6px;margin:1px;background:#f8fafc;border-radius:3px;font-size:10px;font-family:monospace">${k}=${v}</span>`
+            ).join(' ');
+        }
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:flex-start;padding:20px;overflow-y:auto';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        modal.innerHTML = `
+        <div style="background:white;border-radius:12px;max-width:600px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);margin:20px auto;max-height:90vh;overflow-y:auto">
+            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:white;border-radius:12px 12px 0 0;z-index:1">
+                <div>
+                    <div style="font-size:15px;font-weight:700">&#128269; 날씨 데이터 검증</div>
+                    <div style="font-size:11px;color:#64748b">${v.site?.name || ''} | ${v.timestamp ? new Date(v.timestamp).toLocaleString('ko-KR') : ''}</div>
+                </div>
+                <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;padding:4px 8px">&times;</button>
+            </div>
+            <div style="padding:16px 20px;font-size:12px;line-height:1.7">
+
+                <!-- 1. 최종 요약 -->
+                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:14px">
+                    <div style="font-weight:700;font-size:13px;margin-bottom:6px">&#9989; 최종 결과</div>
+                    <div style="display:flex;gap:12px;flex-wrap:wrap">
+                        <div><span style="color:#64748b">기온</span> <b>${s.temperature}°C</b></div>
+                        <div><span style="color:#64748b">습도</span> <b>${s.humidity}%</b></div>
+                        <div><span style="color:#64748b">풍속</span> <b>${s.wind_speed}m/s</b></div>
+                        <div><span style="color:#64748b">체감</span> <b style="color:#dc2626">${s.apparent_temperature}°C</b></div>
+                        <div><span style="color:#64748b">WBGT</span> <b>${s.wbgt}°C</b></div>
+                        <div><span style="color:#64748b">단계</span> <b>${s.stage}</b></div>
+                    </div>
+                </div>
+
+                <!-- 2. 좌표 & API 요청 -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;margin-bottom:4px">&#128205; 좌표 변환 & API 요청</div>
+                    <div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.8">
+                        <div>위경도: <b>${v.site?.latitude}, ${v.site?.longitude}</b> → 기상청 격자: <b>nx=${grid.nx}, ny=${grid.ny}</b></div>
+                        <div>발표시각: <b>${req.base_date} ${req.base_time}</b> | 예보시각: <b>${raw.used_forecast_time || req.target_fcst_time}</b>${raw.is_fallback ? ' <span style="color:#d97706">(폴백)</span>' : ''}</div>
+                    </div>
+                </div>
+
+                <!-- 3. KMA 원시 데이터 -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;margin-bottom:4px">&#128225; 기상청 API 원시 데이터</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;border:1px solid #e2e8f0;border-radius:6px">
+                        <thead><tr style="background:#f8fafc"><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0">코드</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0">항목</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #e2e8f0">값</th></tr></thead>
+                        <tbody>${catHtml}</tbody>
+                    </table>
+                </div>
+
+                <!-- 4. 체감온도 계산 -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;margin-bottom:4px">&#127777; 체감온도 계산 과정</div>
+                    <div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.8">
+                        <div>공식: <b>${hi.formula || '-'}</b></div>
+                        <div>입력: 기온=<b>${hi.input_temperature}°C</b>, 습도=<b>${hi.input_humidity}%</b></div>
+                        ${hi.note ? `<div style="color:#d97706">${hi.note}</div>` : ''}
+                        ${hiDetail ? `<div style="margin-top:4px">계수별 값: ${hiDetail}</div>` : ''}
+                        <div style="margin-top:4px;font-weight:600;color:#0066cc">결과: ${hi.result}°C${hi.raw_result ? ` (반올림 전: ${hi.raw_result})` : ''}</div>
+                    </div>
+                </div>
+
+                <!-- 5. WBGT 계산 -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;margin-bottom:4px">&#127777; WBGT 계산 과정</div>
+                    <div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:11px;line-height:1.8">
+                        <div>공식: <b>${wb.formula || '-'}</b></div>
+                        <div>건구(Ta): <b>${wb.Ta_dry_bulb}°C</b> | 습구(Tw): <b>${wb.Tw_wet_bulb}°C</b> <span style="color:#64748b">(${wb.Tw_formula})</span></div>
+                        <div>흑구(Tg): <b>${wb.Tg_globe}°C</b> <span style="color:#64748b">${wb.Tg_note || ''}</span></div>
+                        <div style="font-weight:600;color:#0066cc">${wb.breakdown || ''} = ${wb.result}°C</div>
+                    </div>
+                </div>
+
+                <!-- 6. 폭염 단계 판정 -->
+                <div style="margin-bottom:14px">
+                    <div style="font-weight:700;margin-bottom:4px">&#9888; 폭염 단계 판정</div>
+                    <div style="background:#f8fafc;border-radius:6px;padding:8px 10px;font-size:11px">
+                        <div>체감온도 <b>${st.apparent_temperature}°C</b> → <b style="font-size:13px">${st.determined_stage}</b></div>
+                        <div style="margin-top:4px">${stageHtml}</div>
+                    </div>
+                </div>
+
+                <!-- 7. 시간대별 예보 -->
+                ${hourlyHtml}
+
+                <!-- 8. 외부 비교 -->
+                <div style="margin-top:14px;padding-top:12px;border-top:1px solid #e2e8f0">
+                    <div style="font-weight:700;margin-bottom:6px">&#128279; 외부 비교 (직접 확인)</div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <a href="${links.naver_weather || '#'}" target="_blank" style="padding:6px 12px;background:#03c75a;color:white;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600">네이버 날씨</a>
+                        <a href="${links.kma_weather || '#'}" target="_blank" style="padding:6px 12px;background:#0066cc;color:white;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600">기상청 관측</a>
+                    </div>
+                    <div style="margin-top:6px;font-size:10px;color:#94a3b8;line-height:1.6">
+                        * 네이버/기상청 웹 표시값은 <b>관측값(실황)</b>이며, 본 시스템은 <b>단기예보 데이터</b>를 사용합니다.<br>
+                        * 관측값과 예보값은 통상 1~3°C 차이가 발생할 수 있으며, 이는 정상적인 오차 범위입니다.<br>
+                        * 격자(5km) 단위 예보이므로 정확한 지점 온도와 다를 수 있습니다.
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+    } catch (e) {
+        showToast('검증 실패: ' + e.message, 'error');
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span style="font-size:13px">&#128269;</span> 날씨 데이터 검증'; }
+    }
 }
 
 function renderAlertBanner(stage, weather, siteName) {
@@ -1285,8 +1560,8 @@ async function importSelectedSites() {
     }
 
     const locationMode = document.querySelector('input[name="location-mode"]:checked')?.value || 'auto';
-    const intensity = document.getElementById('bulk-intensity').value;
-    const branchOffice = document.getElementById('bulk-branch')?.value?.trim() || '';
+    const intensity = 'moderate';
+    const branchOffice = state.branchOffice || '';
 
     let lat = 0, lng = 0;
     if (locationMode === 'manual') {
@@ -1621,11 +1896,89 @@ async function resetAllData() {
     try {
         await api('/api/reset', { method: 'POST' });
         showToast('초기화 완료', 'success');
-        loadSites();
+        state.allSitesWeather = [];
+        state.selectedSiteId = null;
+        state.currentWeather = null;
+        await loadSites();
         loadStats();
         loadAlertHistory();
+        filterSites('all');
     } catch (e) {
         showToast('초기화 실패: ' + e.message, 'error');
+    }
+}
+
+// ── 모의 날씨 테스트 ──
+let mockMode = false;
+
+function toggleMockWeather() {
+    mockMode = !mockMode;
+    const btn = document.getElementById('mock-toggle-btn');
+    if (mockMode) {
+        btn.style.background = '#e74c3c';
+        btn.style.color = 'white';
+        btn.textContent = '모의 테스트 ON';
+        loadMockWeather();
+    } else {
+        btn.style.background = '';
+        btn.style.color = '#e74c3c';
+        btn.textContent = '모의 테스트';
+        const mockBanner = document.getElementById('mock-data-banner');
+        if (mockBanner) mockBanner.style.display = 'none';
+        loadAllSitesWeather();
+    }
+}
+
+async function loadMockWeather() {
+    const progressEl = document.getElementById('send-progress');
+    try {
+        if (progressEl) {
+            progressEl.style.display = 'block';
+            progressEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px"><div class="progress-spinner"></div><span style="font-size:13px;color:#e74c3c">모의 테스트 데이터 생성 중...</span></div>';
+        }
+        const data = await api('/api/weather/status-all/mock');
+        if (progressEl) progressEl.style.display = 'none';
+        state.allSitesWeather = data.sites;
+
+        const statusEl = document.getElementById('weather-status');
+        if (statusEl) {
+            statusEl.innerHTML = '<span style="color:#e74c3c;font-weight:700">모의 테스트 모드</span>';
+        }
+        const timeEl = document.getElementById('weather-checked-time');
+        if (timeEl) timeEl.textContent = '가상 데이터 (실제 날씨 아님)';
+
+        // 모의 데이터 배너 표시
+        let mockBanner = document.getElementById('mock-data-banner');
+        if (!mockBanner) {
+            mockBanner = document.createElement('div');
+            mockBanner.id = 'mock-data-banner';
+            mockBanner.style.cssText = 'background:repeating-linear-gradient(45deg,#fff3cd,#fff3cd 10px,#fff8e1 10px,#fff8e1 20px);border:2px solid #e74c3c;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:12px;color:#991b1b;text-align:center;font-weight:600;line-height:1.6';
+            mockBanner.innerHTML = '&#9888; 현재 <span style="color:#e74c3c;text-decoration:underline">모의 테스트 모드</span>입니다<br><span style="font-weight:400;font-size:11px;color:#7c2d12">아래 모든 현장/작업자/날씨 데이터는 <b>가상 데이터</b>이며 실제와 무관합니다.<br>이름, 전화번호, 공사명은 모두 허구입니다. SMS 발송 시 실제 발송되지 않습니다.</span>';
+            const statsEl = document.getElementById('stats-content');
+            if (statsEl) statsEl.parentElement.insertBefore(mockBanner, statsEl);
+        }
+        mockBanner.style.display = 'block';
+
+        if (data.sites.length > 0) {
+            const top = data.sites.find(s => s.weather) || data.sites[0];
+            if (top && top.weather) {
+                state.selectedSiteId = top.site_id;
+                renderWeatherDashboard({
+                    work_site_name: top.site_name,
+                    weather: top.weather,
+                    stage: top.stage,
+                    wbgt_work_recommendation: top.wbgt_recommendation,
+                });
+            }
+        }
+        renderSiteList();
+        filterSites(currentFilter);
+    } catch (e) {
+        console.error('모의 테스트 실패:', e);
+        if (progressEl) {
+            progressEl.innerHTML = '<div style="color:var(--danger);font-size:13px">모의 테스트 실패: ' + e.message + '</div>';
+            setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
+        }
     }
 }
 
@@ -1707,49 +2060,18 @@ function getCurrentLocation() {
 let currentFilter = 'all';
 
 function filterSites(stage) {
-    currentFilter = stage;
-    document.querySelectorAll('.stage-filter').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.stage === stage);
-    });
-    const stageKeyMap = {
-        'danger': 'stage_4_danger', 'warning': 'stage_3_warning',
-        'caution': 'stage_2_caution', 'interest': 'stage_1_interest',
-    };
+    currentFilter = 'all'; // 공사현황은 항상 전체 표시
     let sites = state.allSitesWeather || [];
 
-    // 사업소 필터 (로그인한 사업소만)
+    // 사업소 필터 (로그인한 사업소 및 사업소 미지정 현장 포함)
     if (state.branchOffice) {
-        sites = sites.filter(s => s.branch_office === state.branchOffice);
+        sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
     }
 
-    // 단계 필터
-    let filtered;
-    if (stage === 'all') {
-        filtered = sites;
-    } else if (stage === 'safe') {
-        filtered = sites.filter(s => !s.stage);
-    } else {
-        filtered = sites.filter(s => s.stage?.key === stageKeyMap[stage]);
-    }
-    renderAllSitesOverview(filtered);
+    renderAllSitesOverview(sites);
 
-    // 단계별 카운트 표시
-    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0 };
-    sites.forEach(s => {
-        if (!s.stage) counts.safe++;
-        else if (s.stage.key === 'stage_4_danger') counts.danger++;
-        else if (s.stage.key === 'stage_3_warning') counts.warning++;
-        else if (s.stage.key === 'stage_2_caution') counts.caution++;
-        else counts.interest++;
-    });
-    document.querySelectorAll('.stage-filter').forEach(btn => {
-        const stg = btn.dataset.stage;
-        if (stg !== 'all') {
-            const cnt = counts[stg] || 0;
-            btn.textContent = cnt > 0 ? `${btn.textContent.split('(')[0].trim()}(${cnt})` : btn.textContent.split('(')[0].trim();
-        }
-    });
-    document.getElementById('filter-count').textContent = `${filtered.length}/${sites.length}개`;
+    // 알림 발송 목록도 갱신
+    renderAlertSendList();
 }
 
 function showSelectBar() {
@@ -1780,87 +2102,312 @@ async function triggerSelectedSites() {
         return;
     }
     hideSelectBar();
+    showAlertPreview(siteIds);
+}
+
+// ── 알림 발송 목록 필터 ──
+let alertFilter = 'all';
+
+function filterAlertList(stage) {
+    alertFilter = stage;
+    document.querySelectorAll('[data-filter-group="alert"]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.stage === stage);
+    });
+    renderAlertSendList();
+}
+
+function getAlertFilteredSites() {
+    const stageKeyMap = {
+        'danger': 'stage_4_danger', 'warning': 'stage_3_warning',
+        'caution': 'stage_2_caution', 'interest': 'stage_1_interest',
+    };
+    let sites = state.allSitesWeather || [];
+    if (state.branchOffice) {
+        sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
+    }
+    if (alertFilter === 'all') return sites;
+    if (alertFilter === 'safe') return sites.filter(s => !s.stage);
+    return sites.filter(s => s.stage?.key === stageKeyMap[alertFilter]);
+}
+
+function renderAlertSendList() {
+    const listEl = document.getElementById('alert-send-list');
+    if (!listEl) return;
+
+    const filtered = getAlertFilteredSites();
+    const allSites = state.allSitesWeather || [];
+
+    // 카운트 업데이트
+    const countEl = document.getElementById('alert-filter-count');
+    if (countEl) countEl.textContent = `${filtered.length}/${allSites.length}개`;
+
+    // 알림 필터 버튼 카운트
+    let sites = allSites;
+    if (state.branchOffice) {
+        sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
+    }
+    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0 };
+    sites.forEach(s => {
+        if (!s.stage) counts.safe++;
+        else if (s.stage.key === 'stage_4_danger') counts.danger++;
+        else if (s.stage.key === 'stage_3_warning') counts.warning++;
+        else if (s.stage.key === 'stage_2_caution') counts.caution++;
+        else counts.interest++;
+    });
+    document.querySelectorAll('[data-filter-group="alert"]').forEach(btn => {
+        const stg = btn.dataset.stage;
+        if (stg !== 'all') {
+            const cnt = counts[stg] || 0;
+            const label = btn.dataset.label || stg;
+            const temp = btn.dataset.temp ? ` ${btn.dataset.temp}°` : '';
+            btn.textContent = cnt > 0 ? `${label}${temp}(${cnt})` : `${label}${temp}`;
+        }
+    });
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:16px">해당 단계의 현장이 없습니다</p>';
+        updateAlertSelectedCount();
+        return;
+    }
+
+    listEl.innerHTML = filtered.map(s => {
+        const stg = s.stage;
+        const color = stg ? stg.color : '#27ae60';
+        const label = stg ? stg.name : '정상';
+        const temp = s.weather ? s.weather.apparent_temperature : '-';
+        const workers = s.workers || [];
+
+        return `<div style="border-bottom:1px solid var(--border-light,#edf2f7);padding:10px 16px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <input type="checkbox" class="alert-site-check" data-site-id="${s.site_id}" onchange="updateAlertSelectedCount()" style="width:auto" checked>
+                <span class="badge" style="background:${color};font-size:10px">${label}</span>
+                <span style="font-weight:600;font-size:13px;flex:1">${s.site_name}</span>
+                <span style="font-size:13px;font-weight:700;color:${color}">체감 ${temp}°</span>
+            </div>
+            ${workers.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:2px 10px;padding-left:28px">
+                ${workers.map(w => {
+                    const vulnTag = w.is_vulnerable ? '<span style="font-size:9px;padding:0 3px;background:rgba(231,76,60,0.12);color:#e74c3c;border-radius:3px">취약</span>' : '';
+                    return `<span style="font-size:11px"><span style="font-weight:500">${w.name}</span> <span style="color:var(--text-faint)">${w.phone}</span>${vulnTag}</span>`;
+                }).join('')}
+            </div>` : '<div style="font-size:11px;color:var(--text-faint);padding-left:28px">작업자 없음</div>'}
+            ${stg && stg.work_restriction && stg.work_restriction !== '없음' ? `<div style="margin-top:3px;font-size:11px;color:${color};padding-left:28px">${stg.work_restriction}</div>` : ''}
+        </div>`;
+    }).join('');
+
+    updateAlertSelectedCount();
+}
+
+function toggleAlertSelectAll(master) {
+    document.querySelectorAll('.alert-site-check').forEach(cb => cb.checked = master.checked);
+    updateAlertSelectedCount();
+}
+
+function updateAlertSelectedCount() {
+    const checked = document.querySelectorAll('.alert-site-check:checked').length;
+    const total = document.querySelectorAll('.alert-site-check').length;
+    const el = document.getElementById('alert-selected-count');
+    if (el) {
+        const workerCount = getAlertSelectedWorkerCount();
+        el.textContent = checked > 0 ? `${checked}개 현장 / ${workerCount}명` : '';
+    }
+    const el2 = document.getElementById('alert-selected-count-bottom');
+    if (el2) {
+        const workerCount2 = checked > 0 ? getAlertSelectedWorkerCount() : 0;
+        el2.textContent = checked > 0 ? `${checked}개 현장 / ${workerCount2}명 선택됨` : '';
+    }
+    const selectAll = document.getElementById('alert-select-all');
+    if (selectAll) selectAll.checked = total > 0 && checked === total;
+}
+
+function getAlertSelectedWorkerCount() {
+    const siteIds = [...document.querySelectorAll('.alert-site-check:checked')].map(cb => parseInt(cb.dataset.siteId));
+    const sites = state.allSitesWeather || [];
+    return siteIds.reduce((sum, id) => {
+        const s = sites.find(x => x.site_id === id);
+        return sum + (s?.workers?.length || 0);
+    }, 0);
+}
+
+async function sendSelectedAlerts() {
+    const siteIds = [...document.querySelectorAll('.alert-site-check:checked')].map(cb => parseInt(cb.dataset.siteId));
+    if (siteIds.length === 0) {
+        showToast('발송할 현장을 선택하세요.', 'warning');
+        return;
+    }
+    const workerCount = getAlertSelectedWorkerCount();
+    if (!confirm(`${siteIds.length}개 현장, ${workerCount}명 작업자에게 푸시 알림을 발송합니다.\n계속하시겠습니까?`)) return;
     await triggerMonitoring(siteIds);
 }
 
-// ── 공지사항 ──
-function openNoticeModal() {
-    // 현장 목록을 select에 추가
-    const sel = document.getElementById('notice-target');
-    sel.innerHTML = '<option value="all">전체 현장</option>';
-    (state.sites || []).forEach(s => {
-        sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-    });
-    openModal('notice-modal');
-}
-
-async function sendNotice() {
-    const title = document.getElementById('notice-title').value.trim();
-    const message = document.getElementById('notice-message').value.trim();
-    const target = document.getElementById('notice-target').value;
-    const resultEl = document.getElementById('notice-result');
-
-    if (!title || !message) {
-        showToast('제목과 내용을 입력하세요.', 'warning');
+async function sendSelectedSms() {
+    const siteIds = [...document.querySelectorAll('.alert-site-check:checked')].map(cb => parseInt(cb.dataset.siteId));
+    if (siteIds.length === 0) {
+        showToast('발송할 현장을 선택하세요.', 'warning');
         return;
     }
+    const workerCount = getAlertSelectedWorkerCount();
+    const customMsg = document.getElementById('sms-message')?.value?.trim();
+    const msg = customMsg || `[KEPCO 안전관리] 폭염 알림\n선택된 ${siteIds.length}개 현장에 폭염 주의 알림이 발송되었습니다. 안전수칙을 준수해주세요.`;
 
-    resultEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px"><div class="progress-spinner" style="width:14px;height:14px"></div> 발송 중...</div>';
+    if (!confirm(`${siteIds.length}개 현장, ${workerCount}명 작업자에게 SMS를 발송합니다.\n\n내용: ${msg}\n\n계속하시겠습니까?`)) return;
+
+    // 발송 버튼 비활성화 + 로딩
+    const btn = document.querySelector('#sms-message').parentElement.querySelector('button');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>발송 중...';
 
     try {
-        const body = {
-            title,
-            message,
-            site_ids: target === 'all' ? null : [parseInt(target)],
-        };
-        const result = await api('/api/notice/send', {
-            method: 'POST',
-            body: JSON.stringify(body),
-        });
+        const result = await sendSmsToSiteWorkers(siteIds, msg);
+        if (result) {
+            const successCount = result.sent || 0;
+            const failCount = result.failed || 0;
+            const total = successCount + failCount;
+            const isAllFail = successCount === 0 && failCount > 0;
+            const bgColor = isAllFail ? '#fef2f2' : (failCount > 0 ? '#fffbeb' : '#f0fdf4');
+            const headerColor = isAllFail ? '#dc2626' : (failCount > 0 ? '#d97706' : '#16a34a');
+            const headerIcon = isAllFail ? '&#10060;' : (failCount > 0 ? '&#9888;&#65039;' : '&#9989;');
+            const headerText = isAllFail ? 'SMS 발송 실패' : (failCount > 0 ? 'SMS 발송 일부 실패' : 'SMS 발송 완료');
 
-        if (result.sent > 0) {
-            resultEl.innerHTML = `<div style="color:var(--safe)">발송 완료 - ${result.sent}건 성공${result.failed ? `, ${result.failed}건 실패` : ''}</div>`;
-            showToast(`공지 발송 완료 (${result.sent}건)`, 'success');
-        } else {
-            resultEl.innerHTML = `<div style="color:var(--caution)">발송 대상 없음 - 작업자가 QR로 앱을 등록해야 합니다.</div>`;
+            let resultHtml = `<div style="padding:14px 16px;border-top:1px solid var(--border);background:${bgColor}">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                    <span style="font-size:18px">${headerIcon}</span>
+                    <span style="font-weight:700;font-size:14px;color:${headerColor};flex:1">${headerText}</span>
+                    <button onclick="this.closest('[style*=border-top]').remove()" style="background:none;border:1px solid var(--border);color:var(--text-dim);padding:4px 14px;border-radius:6px;font-size:12px;cursor:pointer;flex-shrink:0">닫기</button>
+                </div>
+                <div style="display:flex;gap:16px;margin-bottom:6px">
+                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                        <div style="font-size:11px;color:var(--text-dim)">총 발송</div>
+                        <div style="font-size:20px;font-weight:700">${total}</div>
+                    </div>
+                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                        <div style="font-size:11px;color:var(--text-dim)">성공</div>
+                        <div style="font-size:20px;font-weight:700;color:#16a34a">${successCount}</div>
+                    </div>
+                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                        <div style="font-size:11px;color:var(--text-dim)">실패</div>
+                        <div style="font-size:20px;font-weight:700;color:${failCount > 0 ? '#dc2626' : 'var(--text-dim)'}">${failCount}</div>
+                    </div>
+                </div>`;
+
+            // 전체 에러 사유 (API 오류 등)
+            if (result.error) {
+                resultHtml += `<div style="background:white;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:12px;color:#991b1b;line-height:1.6">
+                    <div style="font-weight:600;margin-bottom:4px">
+                        &#128680; 실패 원인${result.error_code ? ' <span style="font-weight:400;color:#b91c1c;font-size:11px">[' + result.error_code + ']</span>' : ''}
+                    </div>
+                    <div>${result.error}</div>
+                </div>`;
+            }
+
+            // 개별 작업자별 상세 결과
+            if (result.details && result.details.length > 0) {
+                const failedDetails = result.details.filter(d => d.status !== 'sent');
+                const sentDetails = result.details.filter(d => d.status === 'sent');
+
+                resultHtml += `<div style="margin-top:8px">
+                    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;cursor:pointer"
+                         onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.querySelector('span').textContent=this.nextElementSibling.style.display==='none'?'&#9654;':'&#9660;'">
+                        <span>&#9660;</span> 작업자별 상세 결과 (${result.details.length}명)
+                    </div>
+                    <div style="max-height:240px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;background:white">
+                        <table style="width:100%;border-collapse:collapse;font-size:11px">
+                            <thead>
+                                <tr style="background:#f8fafc;position:sticky;top:0">
+                                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e2e8f0;font-weight:600">상태</th>
+                                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e2e8f0;font-weight:600">현장</th>
+                                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e2e8f0;font-weight:600">이름</th>
+                                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e2e8f0;font-weight:600">전화번호</th>
+                                    <th style="padding:6px 8px;text-align:left;border-bottom:1px solid #e2e8f0;font-weight:600">사유</th>
+                                </tr>
+                            </thead>
+                            <tbody>`;
+
+                // 실패 건을 먼저 표시
+                failedDetails.forEach(d => {
+                    resultHtml += `<tr style="background:#fef2f2">
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9"><span style="color:#dc2626;font-weight:700">&#10005; 실패</span></td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${d.site || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${d.name || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace">${d.phone || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#dc2626">${d.error || '알 수 없는 오류'}</td>
+                    </tr>`;
+                });
+                // 성공 건
+                sentDetails.forEach(d => {
+                    resultHtml += `<tr>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9"><span style="color:#16a34a">&#10003; 성공</span></td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${d.site || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${d.name || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace">${d.phone || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#16a34a">발송 완료</td>
+                    </tr>`;
+                });
+
+                resultHtml += `</tbody></table></div></div>`;
+            }
+
+            resultHtml += `</div>`;
+
+            const statsEl = document.getElementById('stats-content');
+            if (statsEl) statsEl.insertAdjacentHTML('beforebegin', resultHtml);
+
+            // 하단 통계 즉시 업데이트
+            const statsEl2 = document.getElementById('stats-content');
+            if (statsEl2) {
+                statsEl2.innerHTML = `
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="label">총 발송</div>
+                            <div class="value">${total}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">성공</div>
+                            <div class="value" style="color:var(--safe)">${successCount}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">실패</div>
+                            <div class="value" style="color:${failCount > 0 ? 'var(--danger)' : 'var(--text-dim)'}">${failCount}</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="label">현장</div>
+                            <div class="value">${getAlertFilteredSites().filter(s => document.querySelector(`.alert-site-check[data-site-id="${s.site_id}"]:checked`)).length || state.sites.length}</div>
+                        </div>
+                    </div>`;
+            }
+
+            showToast(`SMS ${successCount}건 성공${failCount > 0 ? `, ${failCount}건 실패` : ''}`, failCount > 0 ? 'warning' : 'success');
+            document.getElementById('sms-message').value = '';
         }
     } catch (e) {
-        resultEl.innerHTML = `<div style="color:var(--danger)">발송 실패: ${e.message}</div>`;
+        const errorHtml = `<div style="padding:14px 16px;border-top:1px solid var(--border);background:#fef2f2">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <span style="font-size:18px">&#10060;</span>
+                <span style="font-weight:700;font-size:14px;color:#dc2626;flex:1">SMS 발송 실패</span>
+                <button onclick="this.closest('[style*=border-top]').remove()" style="background:none;border:1px solid var(--border);color:var(--text-dim);padding:4px 14px;border-radius:6px;font-size:12px;cursor:pointer;flex-shrink:0">닫기</button>
+            </div>
+            <div style="background:white;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:12px;color:#991b1b;line-height:1.6">
+                <div style="font-weight:600;margin-bottom:4px">&#128680; 오류 사유:</div>
+                <div>${e.message}</div>
+                <div style="margin-top:8px;color:var(--text-dim);font-size:11px">
+                    SMS API 설정을 확인해주세요.<br>
+                    (.env 파일의 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE)
+                </div>
+            </div>
+        </div>`;
+
+        const statsEl = document.getElementById('stats-content');
+        if (statsEl) statsEl.insertAdjacentHTML('beforebegin', errorHtml);
+
+        showToast('SMS 발송 실패', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
     }
 }
+
+// 날씨 데이터 로드 후 알림 목록도 갱신
+const _origFilterSites = filterSites;
+// (filterSites 호출 시 알림 목록도 함께 갱신)
 
 // ── PWA 앱 설치 ──
-let deferredPrompt = null;
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    // 이전에 닫은 적 없으면 배너 표시
-    if (!sessionStorage.getItem('install-dismissed')) {
-        document.getElementById('install-banner').style.display = 'block';
-    }
-});
-
-async function installApp() {
-    if (!deferredPrompt) {
-        alert('이 브라우저에서는 앱 설치를 지원하지 않습니다.\n\n모바일 Chrome/Samsung Internet:\n메뉴 > "홈 화면에 추가"\n\niPhone Safari:\n공유 버튼 > "홈 화면에 추가"');
-        return;
-    }
-    deferredPrompt.prompt();
-    const result = await deferredPrompt.userChoice;
-    if (result.outcome === 'accepted') {
-        document.getElementById('install-banner').style.display = 'none';
-    }
-    deferredPrompt = null;
-}
-
-function dismissInstall() {
-    document.getElementById('install-banner').style.display = 'none';
-    sessionStorage.setItem('install-dismissed', '1');
-}
-
-// 이미 설치된 경우 배너 숨김
-window.addEventListener('appinstalled', () => {
-    document.getElementById('install-banner').style.display = 'none';
-    deferredPrompt = null;
-});

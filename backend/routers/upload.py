@@ -4,6 +4,7 @@
 - 작업자 엑셀 업로드 → 파싱 → 작업자 일괄 등록
 """
 
+import logging
 import re
 from typing import Optional
 
@@ -15,6 +16,8 @@ from backend.models.database import get_db
 from backend.services.excel_parser import parse_excel, parse_worker_excel, extract_workers_from_site_data
 from backend.services.geocoding import geocode_address
 from backend.services.repository import WorkSiteRepository, WorkerRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/upload", tags=["파일 업로드"])
 
@@ -111,24 +114,15 @@ async def import_sites(
         lat, lng = item.latitude, item.longitude
 
         # 좌표가 없고 주소가 있으면 지오코딩 시도
+        geo_failed = False
         if (lat == 0 or lng == 0) and item.address:
             geo = await geocode_address(item.address)
             if geo:
                 lat, lng = geo.latitude, geo.longitude
                 geocoded_count += 1
             else:
-                errors.append({
-                    "name": item.name,
-                    "error": f"주소를 찾을 수 없음 (카카오맵에서 검색 불가): {item.address}",
-                })
-                continue
-
-        if (lat == 0 or lng == 0) and not item.address:
-            errors.append({"name": item.name, "error": "주소가 비어있어 좌표를 구할 수 없음"})
-            continue
-        elif lat == 0 or lng == 0:
-            errors.append({"name": item.name, "error": "좌표 정보 없음"})
-            continue
+                geo_failed = True
+                logger.warning(f"지오코딩 실패 (주소로 등록): {item.name} - {item.address}")
 
         try:
             site = await site_repo.create(

@@ -35,23 +35,6 @@ class WebPushSender(NotificationSender):
             result = await session.execute(select(PushSubscription))
             return self._parse_subscriptions(result.scalars().all())
 
-    async def _get_worker_subscriptions(self, site_id: int) -> list[dict]:
-        """특정 현장의 worker 구독만 조회"""
-        from backend.models.database import async_session
-        from backend.models.models import PushSubscription
-        from sqlalchemy import and_
-
-        async with async_session() as session:
-            result = await session.execute(
-                select(PushSubscription).where(
-                    and_(
-                        PushSubscription.subscriber_type == "worker",
-                        PushSubscription.site_id == site_id,
-                    )
-                )
-            )
-            return self._parse_subscriptions(result.scalars().all())
-
     async def _get_admin_subscriptions(self) -> list[dict]:
         """관리자 구독만 조회"""
         from backend.models.database import async_session
@@ -131,11 +114,7 @@ class WebPushSender(NotificationSender):
             "위험": "/static/icons/alert-danger.svg",
         }
 
-        # site_id가 있으면 해당 현장 worker만, 없으면 전체 브로드캐스트
-        if site_id:
-            subscriptions = await self._get_worker_subscriptions(site_id)
-        else:
-            subscriptions = await self._get_all_subscriptions()
+        subscriptions = await self._get_all_subscriptions()
 
         if not subscriptions:
             return NotificationResult(
@@ -161,7 +140,7 @@ class WebPushSender(NotificationSender):
                 "site": work_site_name,
                 "site_id": site_id,
                 "actions": actions,
-                "url": f"/worker/{site_id}" if site_id else "/",
+                "url": "/",
             },
         }
 
@@ -198,7 +177,7 @@ class WebPushSender(NotificationSender):
             "위험": "/static/icons/alert-danger.svg",
         }
 
-        push_status = "푸시 발송 완료" if push_success else "푸시 구독자 없음 (작업자 QR 등록 필요)"
+        push_status = "푸시 발송 완료" if push_success else "푸시 구독자 없음"
         payload = {
             "title": f"[폭염 {stage_name}] {work_site_name}",
             "body": f"체감 {temperature}°C - 대상 {sent_count}/{total_count}명\n{push_status}",
@@ -223,11 +202,7 @@ class WebPushSender(NotificationSender):
         pass
 
 
-async def register_subscription(
-    subscription: dict,
-    subscriber_type: str = "admin",
-    site_id: int | None = None,
-) -> str:
+async def register_subscription(subscription: dict) -> str:
     """구독 등록 (DB 저장)"""
     from backend.models.database import async_session
     from backend.models.models import PushSubscription
@@ -244,14 +219,10 @@ async def register_subscription(
 
         if existing:
             existing.subscription_json = json.dumps(subscription)
-            existing.subscriber_type = subscriber_type
-            existing.site_id = site_id
         else:
             session.add(PushSubscription(
                 endpoint=endpoint,
                 subscription_json=json.dumps(subscription),
-                subscriber_type=subscriber_type,
-                site_id=site_id,
             ))
         await session.commit()
 
