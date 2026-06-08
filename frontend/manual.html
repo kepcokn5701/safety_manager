@@ -255,13 +255,13 @@
 <div class="step dev">
     <span class="step-num">1</span>
     <h4>START.bat 더블클릭</h4>
-    <p>기존 프로세스 정리 &rarr; 가상환경 확인 &rarr; 서버 시작 (포트 8081)</p>
+    <p>기존 프로세스 정리 &rarr; 가상환경 확인 &rarr; 서버 시작 (포트 8000)</p>
     <p>별도 창에서 서버 로그 실시간 표시. 브라우저 자동 열림.</p>
 </div>
 <div class="step dev">
     <span class="step-num">2</span>
     <h4>수동 실행 (고급)</h4>
-    <p><code>venv\Scripts\python -m uvicorn backend.app:app --host 0.0.0.0 --port 8081</code></p>
+    <p><code>venv\Scripts\python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000</code></p>
 </div>
 
 <h3>9-2. 서버 종료</h3>
@@ -310,7 +310,7 @@
     <tr><th>키</th><th>설명</th><th>기본값</th></tr>
     <tr><td>DATABASE_URL</td><td>DB 경로</td><td>sqlite+aiosqlite:///./safety_mgr.db</td></tr>
     <tr><td>WEATHER_CHECK_INTERVAL_MINUTES</td><td>자동 모니터링 간격</td><td>15</td></tr>
-    <tr><td>APP_PORT</td><td>서버 포트</td><td>8081</td></tr>
+    <tr><td>APP_PORT</td><td>서버 포트</td><td>8000</td></tr>
 </table>
 
 <h2 id="install" class="dev-title">11. 다른 PC에 설치하기</h2>
@@ -346,7 +346,7 @@
 <div class="step warn">
     <span class="step-num">!</span>
     <h4>방화벽 (다른 PC 접속 시)</h4>
-    <p><code>netsh advfirewall firewall add rule name="SafetyManager" dir=in action=allow protocol=TCP localport=8081</code></p>
+    <p><code>netsh advfirewall firewall add rule name="SafetyManager" dir=in action=allow protocol=TCP localport=8000</code></p>
 </div>
 
 <h2 id="tech" class="dev-title">12. 기술 구조</h2>

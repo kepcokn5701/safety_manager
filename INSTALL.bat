@@ -39,6 +39,6 @@ echo ========================================
 echo   Install complete!
 echo.
 echo   Start server: START.bat
-echo   URL: http://localhost:8081
+echo   URL: http://localhost:8000
 echo ========================================
 pause
