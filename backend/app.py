@@ -424,9 +424,31 @@ async def sms_status():
     configured = bool(settings.sms_app_key and settings.sms_secret_key and settings.sms_sender_phone)
     return {
         "configured": configured,
-        "sender_phone": settings.sms_sender_phone[-4:] if settings.sms_sender_phone else "",
+        "sender_phone": settings.sms_sender_phone if settings.sms_sender_phone else "",
+        "app_key_preview": settings.sms_app_key[:4] + "****" if settings.sms_app_key else "",
         "message": "NHN Cloud SMS 설정 완료" if configured else "SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요",
     }
+
+
+class SmsTestRequest(BaseModel):
+    phone: str
+    message: str = ""
+
+
+@app.post("/api/sms/test")
+async def sms_test(data: SmsTestRequest):
+    """SMS 테스트 발송 (1건)"""
+    from backend.services.alert_service import SmsSender
+    sender = SmsSender()
+    test_msg = data.message or "[KEPCO 안전관리] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다."
+    try:
+        result = await sender.send_bulk(
+            [data.phone], test_msg,
+            workers=[{"name": "테스트", "phone": data.phone, "site": "테스트"}],
+        )
+        return result
+    finally:
+        await sender.close()
 
 
 @app.get("/api/sms/auto-schedule")

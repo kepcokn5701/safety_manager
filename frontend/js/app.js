@@ -258,6 +258,243 @@ async function loadAutoSmsStatus() {
     } catch (e) {}
 }
 
+function showSmsPolicyGuide() {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+    <div style="background:white;border-radius:12px;max-width:560px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">
+        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1a237e,#283593);border-radius:12px 12px 0 0">
+            <div style="font-size:15px;font-weight:700;color:white">NHN Cloud SMS 발송 정책 안내</div>
+            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(255,255,255,0.7)">&times;</button>
+        </div>
+        <div style="padding:16px 20px">
+
+            <div style="background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#e65100;margin-bottom:6px">&#9888; 발신번호 사전등록 필수</div>
+                <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:#333">
+                    <li>SMS 발송 시 <b>반드시 본인(또는 자사) 소유의 발신번호를 등록</b>한 후 사용</li>
+                    <li>타인 발신번호 사용 시 서비스 중지 조치</li>
+                    <li>NHN Cloud 콘솔 &gt; Notification &gt; SMS &gt; <b>발신번호 관리</b>에서 등록</li>
+                    <li>등록 방법: 휴대폰 인증 / 서류 인증</li>
+                </ul>
+            </div>
+
+            <div style="background:#e3f2fd;border:1px solid #bbdefb;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#1565c0;margin-bottom:6px">&#128232; 번호 도용 문자 차단 서비스</div>
+                <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:#333">
+                    <li>이동통신사(SKT, KT, LG U+)에서 무료 제공하는 서비스</li>
+                    <li>가입되어 있으면 정상 발송이 <b>"스팸"으로 차단</b>될 수 있음</li>
+                    <li><b>발신번호로 등록한 번호의 "번호 도용 문자 차단 서비스"를 해지</b> 후 발송</li>
+                    <li>해지 후 적용까지 약 7일 소요</li>
+                </ul>
+            </div>
+
+            <div style="background:#fce4ec;border:1px solid #f8bbd0;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#c62828;margin-bottom:6px">&#128683; 통신사 스팸 차단 주의</div>
+                <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:#333">
+                    <li>전송 성공이어도 수신자 통신사에서 <b>스팸으로 분류</b>될 수 있음</li>
+                    <li>수신자가 문자를 못 받으면 통신사 스팸 차단 서비스 확인 필요</li>
+                    <li>각 통신사에서 "스팸 차단 서비스" 해지 가능</li>
+                </ul>
+            </div>
+
+            <div style="background:#f3e5f5;border:1px solid #e1bee7;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#7b1fa2;margin-bottom:6px">&#128202; 월 발송량 제한</div>
+                <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:#333">
+                    <li>SMS 서비스는 월 발송량을 제한 (초기 <b>월 5,000건</b>)</li>
+                    <li>발송량 제한은 SMS/LMS/MMS/RCS 합산</li>
+                    <li>월 발송량 확인 및 상향 요청: 콘솔 &gt; 프로젝트 &gt; 쿼터 관리</li>
+                </ul>
+            </div>
+
+            <div style="background:#fff8e1;border:1px solid #fff176;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#f57f17;margin-bottom:6px">&#128176; SMS 요금 안내</div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+                    <tr style="background:#fffde7">
+                        <th style="padding:6px 8px;border:1px solid #fff176;text-align:left">타입</th>
+                        <th style="padding:6px 8px;border:1px solid #fff176;text-align:center">최대 크기</th>
+                        <th style="padding:6px 8px;border:1px solid #fff176;text-align:center">건당 요금 (참고)</th>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 8px;border:1px solid #fff176;font-weight:600">SMS</td>
+                        <td style="padding:6px 8px;border:1px solid #fff176;text-align:center">90바이트 (한글 ~45자)</td>
+                        <td style="padding:6px 8px;border:1px solid #fff176;text-align:center;font-weight:700;color:#e65100">약 9.9원</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 8px;border:1px solid #fff176;font-weight:600">LMS</td>
+                        <td style="padding:6px 8px;border:1px solid #fff176;text-align:center">2,000바이트 (한글 ~1,000자)</td>
+                        <td style="padding:6px 8px;border:1px solid #fff176;text-align:center;font-weight:700;color:#e65100">약 30원</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 8px;border:1px solid #fff176;font-weight:600">MMS</td>
+                        <td style="padding:6px 8px;border:1px solid #fff176;text-align:center">2,000바이트 + 이미지</td>
+                        <td style="padding:6px 8px;border:1px solid #fff176;text-align:center;font-weight:700;color:#e65100">약 100원</td>
+                    </tr>
+                </table>
+                <ul style="margin:6px 0 0;padding-left:18px;font-size:11px;line-height:1.7;color:#666">
+                    <li>본 시스템은 <b>SMS</b>(단문)로 발송 — 건당 약 <b>9.9원</b></li>
+                    <li>90바이트 초과 시 자동으로 LMS(장문)로 전환 — 건당 약 <b>30원</b></li>
+                    <li>기본 무료 제공 없음 (사용량 기반 후불 과금)</li>
+                    <li>정확한 단가는 <b>NHN Cloud 콘솔 &gt; 요금계산기</b> 또는 고객센터(1588-7967)에서 확인</li>
+                    <li>예시: 작업자 100명 × 1일 2회 × 월 22일 = 4,400건 ≒ <b>월 약 43,560원</b></li>
+                </ul>
+            </div>
+
+            <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#2e7d32;margin-bottom:6px">&#9202; 메시지 수신 결과 타임아웃</div>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px">
+                    <tr style="background:#f1f8e9">
+                        <th style="padding:6px 8px;border:1px solid #c8e6c9;text-align:left">발송 타입</th>
+                        <th style="padding:6px 8px;border:1px solid #c8e6c9;text-align:center">타임아웃</th>
+                        <th style="padding:6px 8px;border:1px solid #c8e6c9;text-align:left">타임아웃 이후</th>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 8px;border:1px solid #c8e6c9;font-weight:600">SMS</td>
+                        <td style="padding:6px 8px;border:1px solid #c8e6c9;text-align:center">25시간</td>
+                        <td style="padding:6px 8px;border:1px solid #c8e6c9">재시도 없음, 결과 코드 2000</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px 8px;border:1px solid #c8e6c9;font-weight:600">LMS / MMS</td>
+                        <td style="padding:6px 8px;border:1px solid #c8e6c9;text-align:center">80시간</td>
+                        <td style="padding:6px 8px;border:1px solid #c8e6c9">재시도 없음, 결과 코드 2000</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="background:#efebe9;border:1px solid #d7ccc8;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#4e342e;margin-bottom:6px">&#128196; 문자 집합 안내</div>
+                <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:#333">
+                    <li>EUC-KR에 포함되지 않는 문자(특수 이모지 등)는 <b>깨져서 표시</b>될 수 있음</li>
+                    <li>수신 단말기 기종, 통신사에 따라 내용이 다르게 노출될 수 있음</li>
+                </ul>
+            </div>
+
+            <div style="background:#e8eaf6;border:1px solid #c5cae9;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:700;font-size:13px;color:#283593;margin-bottom:6px">&#128272; 광고성 문자 발송 규정</div>
+                <ul style="margin:0;padding-left:18px;font-size:12px;line-height:1.7;color:#333">
+                    <li>광고성 문자 발송 시 반드시 수신 동의를 받아야 함</li>
+                    <li>야간시간(오후 9시 ~ 오전 8시) 광고성 문자 발송 금지</li>
+                    <li>080 수신거부 번호 필수 표기</li>
+                    <li><b>본 시스템의 폭염 안전 SMS는 광고가 아닌 안전 목적이므로 해당 없음</b></li>
+                </ul>
+            </div>
+
+            <div style="background:linear-gradient(135deg,#f0f9ff,#e8f2ff);border:1px solid #90caf9;border-radius:8px;padding:12px;font-size:11px;line-height:1.7;color:#1565c0">
+                <b>&#128161; 안전담당자 참고사항</b><br>
+                &bull; 본 시스템은 안전관리 목적 SMS이므로 광고성 규정 적용 대상이 아닙니다.<br>
+                &bull; 발신번호 등록 및 번호 도용 문자 차단 해지는 <b>최초 1회만</b> 설정하면 됩니다.<br>
+                &bull; SMS 발송 실패 시 대부분 발신번호 미등록 또는 번호도용차단 미해지가 원인입니다.<br>
+                &bull; 월 5,000건 초과 시 NHN Cloud 콘솔에서 쿼터 상향을 요청하세요.<br>
+                &bull; SMS 요금은 <b>건당 약 9.9원</b> (후불 과금). NHN Cloud 콘솔에서 이용내역 확인 가능합니다.
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+}
+
+// ── SMS 테스트 발송 ──
+function showSmsTestModal() {
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+    <div style="background:white;border-radius:12px;max-width:420px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:15px;font-weight:700">SMS 테스트 발송</div>
+            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <div style="padding:16px 20px">
+            <div id="sms-test-status" style="padding:10px;border-radius:8px;margin-bottom:12px;font-size:12px;background:#f8fafc;color:#64748b;text-align:center">
+                SMS 설정 상태 확인 중...
+            </div>
+            <div style="margin-bottom:12px">
+                <label style="font-size:12px;font-weight:600;color:#333;display:block;margin-bottom:4px">수신 전화번호</label>
+                <input type="tel" id="sms-test-phone" placeholder="010-1234-5678" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box">
+            </div>
+            <div style="margin-bottom:14px">
+                <label style="font-size:12px;font-weight:600;color:#333;display:block;margin-bottom:4px">테스트 메시지</label>
+                <textarea id="sms-test-msg" rows="3" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:none;line-height:1.5;box-sizing:border-box">[KEPCO 안전관리] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다.</textarea>
+            </div>
+            <button id="sms-test-btn" onclick="executeSmsTest()" style="width:100%;padding:12px;font-size:14px;font-weight:700;background:linear-gradient(135deg,#2e7d32,#1b5e20);color:white;border:none;border-radius:8px;cursor:pointer">테스트 발송</button>
+            <div id="sms-test-result" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:12px;line-height:1.6"></div>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+    loadSmsTestStatus();
+}
+
+async function loadSmsTestStatus() {
+    const el = document.getElementById('sms-test-status');
+    if (!el) return;
+    try {
+        const data = await api('/api/sms/status');
+        if (data.configured) {
+            el.style.background = '#f0fdf4';
+            el.style.color = '#166534';
+            el.innerHTML = `<b>&#10003; SMS 연동 설정 완료</b><br>발신번호: ${data.sender_phone} | AppKey: ${data.app_key_preview}`;
+        } else {
+            el.style.background = '#fef2f2';
+            el.style.color = '#991b1b';
+            el.innerHTML = '<b>&#10005; SMS 미설정</b><br>.env에 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 입력 필요';
+        }
+    } catch (e) {
+        el.style.background = '#fef2f2';
+        el.style.color = '#991b1b';
+        el.textContent = '서버 연결 실패';
+    }
+}
+
+async function executeSmsTest() {
+    const phone = document.getElementById('sms-test-phone')?.value?.trim();
+    const message = document.getElementById('sms-test-msg')?.value?.trim();
+    const btn = document.getElementById('sms-test-btn');
+    const resultEl = document.getElementById('sms-test-result');
+
+    if (!phone) {
+        alert('수신 전화번호를 입력하세요.');
+        return;
+    }
+    if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(phone.replace(/\s/g, ''))) {
+        alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '발송 중...';
+    btn.style.opacity = '0.6';
+    resultEl.style.display = 'none';
+
+    try {
+        const data = await api('/api/sms/test', {
+            method: 'POST',
+            body: JSON.stringify({ phone, message }),
+        });
+
+        resultEl.style.display = 'block';
+        if (data.sent > 0) {
+            resultEl.style.background = '#f0fdf4';
+            resultEl.style.color = '#166534';
+            resultEl.innerHTML = `<b>&#10003; 테스트 발송 성공!</b><br>${phone}으로 SMS가 발송되었습니다.<br>수신까지 최대 수십 초 소요될 수 있습니다.`;
+        } else {
+            resultEl.style.background = '#fef2f2';
+            resultEl.style.color = '#991b1b';
+            const errMsg = data.error || '발송 실패';
+            const detail = data.details?.[0]?.error || '';
+            resultEl.innerHTML = `<b>&#10005; 발송 실패</b><br>${errMsg}${detail ? '<br><br><b>상세:</b> ' + detail : ''}`;
+        }
+    } catch (e) {
+        resultEl.style.display = 'block';
+        resultEl.style.background = '#fef2f2';
+        resultEl.style.color = '#991b1b';
+        resultEl.innerHTML = `<b>&#10005; 오류 발생</b><br>${e.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '테스트 발송';
+        btn.style.opacity = '1';
+    }
+}
+
 // ── Service Worker & 웹 푸시 ──
 async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) {
@@ -803,8 +1040,19 @@ function renderAllSitesOverview(sites) {
 
     container.innerHTML = sites.map(s => {
         if (s.error) {
-            return `<div style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:13px;color:var(--text-secondary)">
-                ${s.site_name}: 조회 실패</div>`;
+            const errMsg = s.error || '알 수 없는 오류';
+            const isCoord = errMsg.includes('좌표');
+            const iconColor = isCoord ? '#e65100' : '#dc2626';
+            return `<div style="padding:12px 16px;border-bottom:1px solid var(--border-light,#edf2f7);border-left:3px solid ${iconColor}">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div style="flex:1;min-width:0">
+                        <div style="font-weight:600;font-size:14px;color:var(--text,#1a1a2e)">${s.site_name}</div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${s.address || ''}</div>
+                    </div>
+                    <span style="flex-shrink:0;padding:2px 8px;background:#fef2f2;color:#dc2626;border-radius:12px;font-size:11px;font-weight:600">조회 실패</span>
+                </div>
+                <div style="margin-top:6px;padding:8px 10px;background:#fff5f5;border-radius:6px;font-size:11px;line-height:1.6;color:#991b1b">${errMsg}</div>
+            </div>`;
         }
 
         const stg = s.stage;
@@ -2017,6 +2265,8 @@ function toggleMockWeather() {
         btn.textContent = '모의 테스트';
         const mockBanner = document.getElementById('mock-data-banner');
         if (mockBanner) mockBanner.style.display = 'none';
+        const smsMockPanel = document.getElementById('mock-sms-panel');
+        if (smsMockPanel) smsMockPanel.style.display = 'none';
         loadAllSitesWeather();
     }
 }
@@ -2045,11 +2295,39 @@ async function loadMockWeather() {
             mockBanner = document.createElement('div');
             mockBanner.id = 'mock-data-banner';
             mockBanner.style.cssText = 'background:repeating-linear-gradient(45deg,#fff3cd,#fff3cd 10px,#fff8e1 10px,#fff8e1 20px);border:2px solid #e74c3c;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:12px;color:#991b1b;text-align:center;font-weight:600;line-height:1.6';
-            mockBanner.innerHTML = '&#9888; 현재 <span style="color:#e74c3c;text-decoration:underline">모의 테스트 모드</span>입니다<br><span style="font-weight:400;font-size:11px;color:#7c2d12">아래 모든 현장/작업자/날씨 데이터는 <b>가상 데이터</b>이며 실제와 무관합니다.<br>이름, 전화번호, 공사명은 모두 허구입니다. SMS 발송 시 실제 발송되지 않습니다.</span>';
+            mockBanner.innerHTML = '&#9888; 현재 <span style="color:#e74c3c;text-decoration:underline">모의 테스트 모드</span>입니다<br><span style="font-weight:400;font-size:11px;color:#7c2d12">아래 모든 현장/작업자/날씨 데이터는 <b>가상 데이터</b>이며 실제와 무관합니다.<br>이름, 전화번호, 공사명은 모두 허구입니다. 아래 SMS 테스트 패널에서 <b>내 번호로 실제 수신 테스트</b>가 가능합니다.</span>';
             const statsEl = document.getElementById('stats-content');
             if (statsEl) statsEl.parentElement.insertBefore(mockBanner, statsEl);
         }
         mockBanner.style.display = 'block';
+
+        // SMS 발송 테스트 패널
+        let smsMockPanel = document.getElementById('mock-sms-panel');
+        if (!smsMockPanel) {
+            smsMockPanel = document.createElement('div');
+            smsMockPanel.id = 'mock-sms-panel';
+            smsMockPanel.style.cssText = 'background:white;border:2px solid #e74c3c;border-radius:10px;padding:14px 16px;margin:8px 0;box-shadow:0 2px 12px rgba(231,76,60,0.12)';
+            smsMockPanel.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                    <div style="font-weight:700;font-size:14px;color:#c62828">SMS 실제 발송 테스트</div>
+                    <span style="font-size:11px;color:#64748b">단계별 문구를 실제 수신 확인</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
+                    <label style="font-size:12px;font-weight:600;color:#333;white-space:nowrap">수신번호</label>
+                    <input type="tel" id="mock-sms-phone" placeholder="010-1234-5678" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+                    <button onclick="sendMockSmsTest('interest')" class="mock-sms-btn" style="flex:1;min-width:70px;padding:8px 4px;background:#FFF8E1;border:1px solid #FFC107;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:#F57F17">관심<br><span style="font-weight:400;font-size:10px">31°C</span></button>
+                    <button onclick="sendMockSmsTest('caution')" class="mock-sms-btn" style="flex:1;min-width:70px;padding:8px 4px;background:#FFF3E0;border:1px solid #FF9800;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:#E65100">주의<br><span style="font-weight:400;font-size:10px">33°C</span></button>
+                    <button onclick="sendMockSmsTest('warning')" class="mock-sms-btn" style="flex:1;min-width:70px;padding:8px 4px;background:#FBE9E7;border:1px solid #FF5722;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:#BF360C">경고<br><span style="font-weight:400;font-size:10px">35°C</span></button>
+                    <button onclick="sendMockSmsTest('danger')" class="mock-sms-btn" style="flex:1;min-width:70px;padding:8px 4px;background:#FFEBEE;border:1px solid #D32F2F;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:#B71C1C">위험<br><span style="font-weight:400;font-size:10px">38°C</span></button>
+                    <button onclick="sendMockSmsTestAll()" style="flex:1;min-width:70px;padding:8px 4px;background:#E8EAF6;border:1px solid #3F51B5;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:#1A237E">전체<br><span style="font-weight:400;font-size:10px">4단계</span></button>
+                </div>
+                <div id="mock-sms-result" style="display:none;font-size:12px;line-height:1.6"></div>
+            `;
+            mockBanner.insertAdjacentElement('afterend', smsMockPanel);
+        }
+        smsMockPanel.style.display = 'block';
 
         if (data.sites.length > 0) {
             const top = data.sites.find(s => s.weather) || data.sites[0];
@@ -2072,6 +2350,133 @@ async function loadMockWeather() {
             setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
         }
     }
+}
+
+// ── 모의 테스트 SMS 실제 발송 ──
+const MOCK_SMS_STAGE_LABELS = {
+    interest: { name: '관심', color: '#F57F17' },
+    caution: { name: '주의', color: '#E65100' },
+    warning: { name: '경고', color: '#BF360C' },
+    danger: { name: '위험', color: '#B71C1C' },
+};
+
+async function sendMockSmsTest(stage) {
+    const phone = document.getElementById('mock-sms-phone')?.value?.trim();
+    const resultEl = document.getElementById('mock-sms-result');
+    if (!phone) {
+        alert('수신 전화번호를 입력하세요.');
+        document.getElementById('mock-sms-phone')?.focus();
+        return;
+    }
+    if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(phone.replace(/\s/g, ''))) {
+        alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
+        return;
+    }
+
+    const message = SMS_STAGE_MESSAGES[stage];
+    if (!message) { alert('단계 메시지를 찾을 수 없습니다.'); return; }
+
+    const label = MOCK_SMS_STAGE_LABELS[stage];
+    const btns = document.querySelectorAll('.mock-sms-btn');
+    btns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = `<div style="padding:8px;background:#f8fafc;border-radius:6px;text-align:center;color:#64748b"><span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span> <b style="color:${label.color}">${label.name}</b> 단계 SMS 발송 중...</div>`;
+
+    try {
+        const data = await api('/api/sms/test', {
+            method: 'POST',
+            body: JSON.stringify({ phone, message }),
+        });
+        if (data.sent > 0) {
+            resultEl.innerHTML = `<div style="padding:8px;background:#f0fdf4;border-radius:6px;border:1px solid #bbf7d0">
+                <span style="color:#16a34a;font-weight:700">&#10003; ${label.name} 단계 발송 성공!</span>
+                <span style="color:#64748b;font-size:11px;margin-left:4px">${phone}</span>
+            </div>`;
+        } else {
+            const errMsg = data.details?.[0]?.error || data.error || '발송 실패';
+            resultEl.innerHTML = `<div style="padding:8px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca">
+                <span style="color:#dc2626;font-weight:700">&#10005; ${label.name} 단계 발송 실패</span>
+                <div style="color:#991b1b;font-size:11px;margin-top:4px">${errMsg}</div>
+            </div>`;
+        }
+    } catch (e) {
+        resultEl.innerHTML = `<div style="padding:8px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca">
+            <span style="color:#dc2626;font-weight:700">&#10005; 오류</span>
+            <div style="color:#991b1b;font-size:11px;margin-top:4px">${e.message}</div>
+        </div>`;
+    } finally {
+        btns.forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+    }
+}
+
+async function sendMockSmsTestAll() {
+    const phone = document.getElementById('mock-sms-phone')?.value?.trim();
+    const resultEl = document.getElementById('mock-sms-result');
+    if (!phone) {
+        alert('수신 전화번호를 입력하세요.');
+        document.getElementById('mock-sms-phone')?.focus();
+        return;
+    }
+    if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(phone.replace(/\s/g, ''))) {
+        alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
+        return;
+    }
+    if (!confirm(`4개 단계(관심/주의/경고/위험) SMS를 순서대로 발송합니다.\n수신번호: ${phone}\n\n4건의 SMS가 실제 발송됩니다. 계속하시겠습니까?`)) return;
+
+    const stages = ['interest', 'caution', 'warning', 'danger'];
+    const allBtns = document.querySelectorAll('#mock-sms-panel button');
+    allBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+
+    resultEl.style.display = 'block';
+    let results = [];
+
+    for (let i = 0; i < stages.length; i++) {
+        const stage = stages[i];
+        const label = MOCK_SMS_STAGE_LABELS[stage];
+        const message = SMS_STAGE_MESSAGES[stage];
+
+        resultEl.innerHTML = renderMockSmsResults(results) +
+            `<div style="padding:6px 8px;background:#f8fafc;border-radius:4px;text-align:center;color:#64748b;margin-top:4px">
+                <span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>
+                <b style="color:${label.color}">${label.name}</b> 발송 중... (${i+1}/4)
+            </div>`;
+
+        try {
+            const data = await api('/api/sms/test', {
+                method: 'POST',
+                body: JSON.stringify({ phone, message }),
+            });
+            results.push({ stage, label, success: data.sent > 0, error: data.details?.[0]?.error || data.error });
+        } catch (e) {
+            results.push({ stage, label, success: false, error: e.message });
+        }
+
+        if (i < stages.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    resultEl.innerHTML = renderMockSmsResults(results);
+    allBtns.forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+}
+
+function renderMockSmsResults(results) {
+    if (results.length === 0) return '';
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+    const summary = results.length === 4
+        ? `<div style="font-weight:600;font-size:12px;margin-bottom:6px;color:${failCount === 0 ? '#16a34a' : '#dc2626'}">
+            전체 결과: 성공 ${successCount}건 / 실패 ${failCount}건
+           </div>`
+        : '';
+    return `<div style="padding:8px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0;margin-top:4px">
+        ${summary}
+        ${results.map(r => `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px">
+            <span style="color:${r.success ? '#16a34a' : '#dc2626'};font-weight:700">${r.success ? '&#10003;' : '&#10005;'}</span>
+            <span style="font-weight:600;color:${r.label.color}">${r.label.name}</span>
+            <span style="color:${r.success ? '#16a34a' : '#dc2626'}">${r.success ? '발송 성공' : '실패'}</span>
+            ${!r.success && r.error ? `<span style="color:#991b1b;font-size:10px">(${r.error})</span>` : ''}
+        </div>`).join('')}
+    </div>`;
 }
 
 // ── 폭염 시뮬레이션 ──
@@ -2230,8 +2635,9 @@ function getAlertFilteredSites() {
         sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
     }
     if (alertFilter === 'all') return sites;
-    if (alertFilter === 'safe') return sites.filter(s => !s.stage);
-    return sites.filter(s => s.stage?.key === stageKeyMap[alertFilter]);
+    if (alertFilter === 'error') return sites.filter(s => s.error);
+    if (alertFilter === 'safe') return sites.filter(s => !s.stage && !s.error);
+    return sites.filter(s => !s.error && s.stage?.key === stageKeyMap[alertFilter]);
 }
 
 function renderAlertSendList() {
@@ -2250,9 +2656,10 @@ function renderAlertSendList() {
     if (state.branchOffice) {
         sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
     }
-    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0 };
+    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0, error: 0 };
     sites.forEach(s => {
-        if (!s.stage) counts.safe++;
+        if (s.error) counts.error++;
+        else if (!s.stage) counts.safe++;
         else if (s.stage.key === 'stage_4_danger') counts.danger++;
         else if (s.stage.key === 'stage_3_warning') counts.warning++;
         else if (s.stage.key === 'stage_2_caution') counts.caution++;
@@ -2275,6 +2682,16 @@ function renderAlertSendList() {
     }
 
     listEl.innerHTML = filtered.map(s => {
+        if (s.error) {
+            return `<div style="border-bottom:1px solid var(--border-light,#edf2f7);padding:10px 16px;border-left:3px solid #dc2626">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <span style="font-weight:600;font-size:13px;flex:1;color:var(--text)">${s.site_name}</span>
+                    <span style="padding:2px 8px;background:#fef2f2;color:#dc2626;border-radius:12px;font-size:10px;font-weight:600">조회 실패</span>
+                </div>
+                <div style="padding:6px 8px;background:#fff5f5;border-radius:4px;font-size:11px;color:#991b1b;line-height:1.5">${s.error}</div>
+            </div>`;
+        }
+
         const stg = s.stage;
         const color = stg ? stg.color : '#27ae60';
         const label = stg ? stg.name : '정상';
@@ -2352,6 +2769,40 @@ async function sendSelectedSms() {
     const workerCount = getAlertSelectedWorkerCount();
     const customMsg = document.getElementById('sms-message')?.value?.trim();
     const msg = customMsg || `[KEPCO 안전관리] 폭염 알림\n선택된 ${siteIds.length}개 현장에 폭염 주의 알림이 발송되었습니다. 안전수칙을 준수해주세요.`;
+
+    // 모의 테스트 모드: 관리자 번호로 실제 발송
+    if (mockMode) {
+        const mockPhone = document.getElementById('mock-sms-phone')?.value?.trim() || '';
+        const testPhone = prompt(
+            `[모의 테스트] 가상 작업자 번호 대신 실제 수신할 관리자/담당자 번호를 입력하세요.\n\n선택: ${siteIds.length}개 현장\n메시지: ${msg.substring(0, 60)}...\n\n이 번호로 SMS 1건이 실제 발송됩니다.`,
+            mockPhone
+        );
+        if (!testPhone) return;
+        if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(testPhone.replace(/\s/g, ''))) {
+            alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
+            return;
+        }
+        const btn = document.querySelector('#sms-message').parentElement.querySelector('button');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>테스트 발송 중...';
+        try {
+            const result = await api('/api/sms/test', {
+                method: 'POST',
+                body: JSON.stringify({ phone: testPhone, message: msg }),
+            });
+            if (result.sent > 0) {
+                showToast(`테스트 SMS 발송 성공 → ${testPhone}`, 'success');
+            } else {
+                showToast(`테스트 SMS 실패: ${result.error || '알 수 없는 오류'}`, 'error');
+            }
+        } catch (e) {
+            showToast(`테스트 SMS 오류: ${e.message}`, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'SMS 발송';
+        }
+        return;
+    }
 
     if (!confirm(`${siteIds.length}개 현장, ${workerCount}명 작업자에게 SMS를 발송합니다.\n\n내용: ${msg}\n\n계속하시겠습니까?`)) return;
 

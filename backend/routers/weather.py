@@ -125,20 +125,45 @@ async def get_all_weather_status(
         *[fetch_grid_weather(k, v) for k, v in grid_sites.items()]
     )
     weather_cache = {}
+    grid_errors = {}
     for grid_key, weather, error in grid_results:
         if weather:
             weather_cache[grid_key] = weather
+        elif error:
+            grid_errors[grid_key] = error
 
     # 3단계: 현장별 결과 조합
     alert_repo = AlertLogRepository(db)
     results = []
     for site in sites:
         try:
-            nx, ny = latlon_to_grid(site.latitude, site.longitude)
+            lat, lon = site.latitude, site.longitude
+            if lat == 0.0 and lon == 0.0:
+                results.append({"site_id": site.id, "site_name": site.name, "address": site.address or "",
+                                "error": "좌표 미설정 (위도·경도가 0,0) — 엑셀 업로드 시 주소→좌표 변환에 실패했을 수 있습니다. 현장의 주소나 좌표를 확인해 주세요."})
+                continue
+            if not (32.0 <= lat <= 39.0 and 124.0 <= lon <= 132.0):
+                results.append({"site_id": site.id, "site_name": site.name, "address": site.address or "",
+                                "error": f"좌표 범위 이상 (위도:{lat}, 경도:{lon}) — 대한민국 범위(위도 33~38, 경도 125~132)를 벗어났습니다. 주소나 좌표를 확인해 주세요."})
+                continue
+
+            nx, ny = latlon_to_grid(lat, lon)
             grid_key = f"{nx},{ny}"
             weather = weather_cache.get(grid_key)
             if not weather:
-                results.append({"site_id": site.id, "site_name": site.name, "address": site.address or "", "error": "날씨 조회 실패"})
+                grid_err = grid_errors.get(grid_key, "")
+                if "APPLICATION_ERROR" in grid_err or "NO_DATA" in grid_err:
+                    reason = f"기상청 API에서 해당 격자({nx},{ny})의 데이터를 제공하지 않습니다 — 좌표({lat:.4f}, {lon:.4f})가 바다나 도서 지역일 수 있습니다."
+                elif "timeout" in grid_err.lower() or "Timeout" in grid_err:
+                    reason = "기상청 API 응답 시간 초과 — 잠시 후 새로고침하세요."
+                elif "ConnectError" in grid_err or "connect" in grid_err.lower():
+                    reason = "기상청 API 연결 실패 — 인터넷 연결 또는 프록시 설정을 확인하세요."
+                elif grid_err:
+                    reason = f"기상청 API 오류: {grid_err[:150]}"
+                else:
+                    reason = "날씨 데이터 없음 — 기상청 API에서 해당 지역의 데이터가 반환되지 않았습니다."
+                results.append({"site_id": site.id, "site_name": site.name, "address": site.address or "",
+                                "latitude": lat, "longitude": lon, "error": reason})
                 continue
 
             apparent_temp = HeatIndexCalculator.calculate_heat_index(weather.temperature, weather.humidity)
