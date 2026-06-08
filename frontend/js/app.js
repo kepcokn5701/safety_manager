@@ -4,6 +4,14 @@
 
 const API_BASE = '';
 
+// ── 폭염 단계별 SMS 기본 문구 ──
+const SMS_STAGE_MESSAGES = {
+    interest: '[체감온도 31도 이상, 폭염 "관심" 단계]\n폭염 시작입니다.\n충분한 수분 섭취와\n적절한 휴식을 취하세요!',
+    caution: '[체감온도 33도 이상, 폭염주의보]\n더위가 더욱 강해집니다.\n작업시간을 조정하시고,\n매 2시간 이내 20분 이상 휴식을 취하세요!',
+    warning: '[체감온도 35도 이상, 폭염경보]\n폭염 위험이 높습니다.\n어지럼, 메스꺼움을 느끼면 즉시 작업을 멈추고 그늘로 가세요!\n작업중지권 사용을 망설이지 마세요!',
+    danger: '[체감온도 38도 이상, 폭염중대경보]\n폭염 최고 단계입니다.\n무리는 곧 사고!\n재난 및 안전관리 등에 필요한 긴급조치 작업 외에는\n야외작업을 중지하세요!',
+};
+
 // ── 상태 관리 ──
 const state = {
     sites: [],
@@ -169,61 +177,73 @@ function updateWeatherCountdown() {
 
 // ── 자동 SMS 상세 ──
 async function showAutoSmsDetail() {
+    let data;
     try {
-        const data = await api('/api/sms/auto-schedule');
-        const statusText = data.enabled
-            ? '<span style="color:#16a34a;font-weight:600">&#10003; SMS 설정 완료 — 자동 발송 활성</span>'
-            : '<span style="color:#dc2626;font-weight:600">&#10005; SMS 미설정 — .env에서 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요</span>';
+        data = await api('/api/sms/auto-schedule');
+    } catch (e) {
+        data = {
+            enabled: false,
+            schedule: ['10:00', '13:00'],
+            messages: {
+                '관심 (31°C)': SMS_STAGE_MESSAGES.interest,
+                '주의 (33°C)': SMS_STAGE_MESSAGES.caution,
+                '경고 (35°C)': SMS_STAGE_MESSAGES.warning,
+                '위험 (38°C)': SMS_STAGE_MESSAGES.danger,
+            },
+        };
+    }
+    const statusText = data.enabled
+        ? '<span style="color:#16a34a;font-weight:600">&#10003; SMS 설정 완료 — 자동 발송 활성</span>'
+        : '<span style="color:#dc2626;font-weight:600">&#10005; SMS 미설정 — .env에서 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요</span>';
 
-        let msgHtml = '';
-        if (data.messages) {
-            msgHtml = Object.entries(data.messages).map(([stage, msg]) => {
-                const colors = {'관심': '#FFC107', '주의': '#FF9800', '경고': '#FF5722', '위험': '#D32F2F'};
-                const color = Object.entries(colors).find(([k]) => stage.includes(k))?.[1] || '#666';
-                return `<div style="margin-bottom:8px;padding:10px 12px;border-left:3px solid ${color};background:white;border-radius:0 6px 6px 0">
-                    <div style="font-weight:600;font-size:12px;color:${color};margin-bottom:4px">${stage}</div>
-                    <div style="font-size:12px;line-height:1.6;white-space:pre-line;color:#333">${msg}</div>
-                    <div style="font-size:10px;color:#94a3b8;margin-top:4px">글자 수: ${msg.length}자</div>
-                </div>`;
-            }).join('');
-        }
+    const stageList = data.messages || {};
+    const msgHtml = Object.entries(stageList).map(([stage, msg]) => {
+        const colors = {'관심': '#FFC107', '주의': '#FF9800', '경고': '#FF5722', '위험': '#D32F2F'};
+        const color = Object.entries(colors).find(([k]) => stage.includes(k))?.[1] || '#666';
+        return `<div style="margin-bottom:8px;padding:10px 12px;border-left:3px solid ${color};background:white;border-radius:0 6px 6px 0">
+            <div style="font-weight:600;font-size:12px;color:${color};margin-bottom:4px">${stage}</div>
+            <div style="font-size:12px;line-height:1.6;white-space:pre-line;color:#333">${msg}</div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:4px">글자 수: ${msg.length}자</div>
+        </div>`;
+    }).join('');
 
-        const modal = document.createElement('div');
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
-        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
-        modal.innerHTML = `
-        <div style="background:white;border-radius:12px;max-width:480px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">
-            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-                <div style="font-size:15px;font-weight:700">&#9200; 자동 SMS 발송 설정</div>
-                <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
-            </div>
-            <div style="padding:16px 20px">
-                <div style="margin-bottom:12px">${statusText}</div>
-                <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px">
-                    <div style="font-weight:600;font-size:13px;margin-bottom:6px">발송 스케줄</div>
-                    <div style="display:flex;gap:12px">
-                        <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
-                            <div style="font-size:18px;font-weight:700;color:#1565c0">10:00</div>
-                            <div style="font-size:10px;color:#64748b">오전</div>
-                        </div>
-                        <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
-                            <div style="font-size:18px;font-weight:700;color:#1565c0">13:00</div>
-                            <div style="font-size:10px;color:#64748b">오후</div>
-                        </div>
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `
+    <div style="background:white;border-radius:12px;max-width:480px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">
+        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+            <div style="font-size:15px;font-weight:700">&#9200; 자동 SMS 발송 설정</div>
+            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+        </div>
+        <div style="padding:16px 20px">
+            <div style="margin-bottom:12px">${statusText}</div>
+            <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px">
+                <div style="font-weight:600;font-size:13px;margin-bottom:6px">발송 스케줄</div>
+                <div style="display:flex;gap:12px">
+                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                        <div style="font-size:18px;font-weight:700;color:#1565c0">10:00</div>
+                        <div style="font-size:10px;color:#64748b">오전</div>
                     </div>
-                    <div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.5">
-                        각 현장의 실시간 체감온도에 따라 해당 단계의 메시지가 작업자에게 자동 발송됩니다.<br>
-                        체감온도 31도 미만(정상)인 현장은 발송되지 않습니다.
+                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                        <div style="font-size:18px;font-weight:700;color:#1565c0">13:00</div>
+                        <div style="font-size:10px;color:#64748b">오후</div>
                     </div>
                 </div>
-                <div style="font-weight:600;font-size:13px;margin-bottom:8px">단계별 SMS 문구</div>
-                ${msgHtml}
+                <div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.5">
+                    각 현장의 실시간 체감온도에 따라 해당 단계의 메시지가 작업자에게 자동 발송됩니다.<br>
+                    체감온도 31도 미만(정상)인 현장은 발송되지 않습니다.
+                </div>
             </div>
-        </div>`;
-        document.body.appendChild(modal);
-    } catch (e) {
-        showToast('자동 SMS 정보 조회 실패: ' + e.message, 'error');
-    }
+            <div style="font-weight:600;font-size:13px;margin-bottom:8px">단계별 SMS 문구</div>
+            ${msgHtml}
+            <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:11px;color:#166534;line-height:1.6">
+                <b>TIP:</b> 수동 발송 시에도 위 필터 버튼(관심/주의/경고/위험)을 클릭하면<br>
+                해당 단계 문구가 SMS 입력창에 자동 입력됩니다. 내용 수정 후 발송 가능합니다.
+            </div>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
 }
 
 async function loadAutoSmsStatus() {
@@ -2186,6 +2206,18 @@ function filterAlertList(stage) {
         btn.classList.toggle('active', btn.dataset.stage === stage);
     });
     renderAlertSendList();
+
+    const textarea = document.getElementById('sms-message');
+    if (!textarea) return;
+    const msg = SMS_STAGE_MESSAGES[stage];
+    if (msg) {
+        textarea.value = msg;
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    } else if (stage === 'all' || stage === 'safe') {
+        textarea.value = '';
+        textarea.style.height = '';
+    }
 }
 
 function getAlertFilteredSites() {
