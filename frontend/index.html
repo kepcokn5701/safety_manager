@@ -101,6 +101,16 @@
             <span id="alert-selected-count" style="color:var(--kepco);font-weight:600;font-size:13px"></span>
         </div>
 
+        <!-- 자동 발송 안내 -->
+        <div id="auto-sms-info" style="padding:8px 16px;background:linear-gradient(135deg,#f0f9ff,#e8f2ff);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:#1565c0">
+            <span style="font-size:15px">&#9200;</span>
+            <div style="flex:1">
+                <b>자동 발송</b>: 매일 <b>오전 10시</b>, <b>오후 1시</b> 폭염 단계별 SMS 자동 발송
+                <span id="auto-sms-status" style="margin-left:4px"></span>
+            </div>
+            <button onclick="showAutoSmsDetail()" style="background:none;border:1px solid #90caf9;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">상세</button>
+        </div>
+
         <!-- 6단계 필터 (왼→오: 정상→위험) -->
         <div style="padding:6px 16px 8px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;align-items:center">
             <button class="stage-filter active" data-filter-group="alert" data-stage="all" data-label="전체" onclick="filterAlertList('all')">전체</button>

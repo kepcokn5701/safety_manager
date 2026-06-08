@@ -81,6 +81,7 @@ function startApp() {
     loadSites();
     loadAlertHistory();
     loadStats();
+    loadAutoSmsStatus();
 
     // 알림 이력/통계만 1분마다 갱신
     setInterval(() => { loadAlertHistory(); loadStats(); }, 60000);
@@ -164,6 +165,77 @@ function updateWeatherCountdown() {
         const min = Math.floor(diff / 60000);
         el.textContent = `다음 자동 조회: ${nextWeatherTime.toLocaleTimeString('ko-KR', {hour:'2-digit',minute:'2-digit'})} (${min}분 후)`;
     }
+}
+
+// ── 자동 SMS 상세 ──
+async function showAutoSmsDetail() {
+    try {
+        const data = await api('/api/sms/auto-schedule');
+        const statusText = data.enabled
+            ? '<span style="color:#16a34a;font-weight:600">&#10003; SMS 설정 완료 — 자동 발송 활성</span>'
+            : '<span style="color:#dc2626;font-weight:600">&#10005; SMS 미설정 — .env에서 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요</span>';
+
+        let msgHtml = '';
+        if (data.messages) {
+            msgHtml = Object.entries(data.messages).map(([stage, msg]) => {
+                const colors = {'관심': '#FFC107', '주의': '#FF9800', '경고': '#FF5722', '위험': '#D32F2F'};
+                const color = Object.entries(colors).find(([k]) => stage.includes(k))?.[1] || '#666';
+                return `<div style="margin-bottom:8px;padding:10px 12px;border-left:3px solid ${color};background:white;border-radius:0 6px 6px 0">
+                    <div style="font-weight:600;font-size:12px;color:${color};margin-bottom:4px">${stage}</div>
+                    <div style="font-size:12px;line-height:1.6;white-space:pre-line;color:#333">${msg}</div>
+                    <div style="font-size:10px;color:#94a3b8;margin-top:4px">글자 수: ${msg.length}자</div>
+                </div>`;
+            }).join('');
+        }
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        modal.innerHTML = `
+        <div style="background:white;border-radius:12px;max-width:480px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">
+            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+                <div style="font-size:15px;font-weight:700">&#9200; 자동 SMS 발송 설정</div>
+                <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+            </div>
+            <div style="padding:16px 20px">
+                <div style="margin-bottom:12px">${statusText}</div>
+                <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px">
+                    <div style="font-weight:600;font-size:13px;margin-bottom:6px">발송 스케줄</div>
+                    <div style="display:flex;gap:12px">
+                        <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                            <div style="font-size:18px;font-weight:700;color:#1565c0">10:00</div>
+                            <div style="font-size:10px;color:#64748b">오전</div>
+                        </div>
+                        <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
+                            <div style="font-size:18px;font-weight:700;color:#1565c0">13:00</div>
+                            <div style="font-size:10px;color:#64748b">오후</div>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.5">
+                        각 현장의 실시간 체감온도에 따라 해당 단계의 메시지가 작업자에게 자동 발송됩니다.<br>
+                        체감온도 31도 미만(정상)인 현장은 발송되지 않습니다.
+                    </div>
+                </div>
+                <div style="font-weight:600;font-size:13px;margin-bottom:8px">단계별 SMS 문구</div>
+                ${msgHtml}
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+    } catch (e) {
+        showToast('자동 SMS 정보 조회 실패: ' + e.message, 'error');
+    }
+}
+
+async function loadAutoSmsStatus() {
+    try {
+        const data = await api('/api/sms/auto-schedule');
+        const el = document.getElementById('auto-sms-status');
+        if (el) {
+            el.innerHTML = data.enabled
+                ? '<span style="color:#16a34a;font-size:11px">&#10003; 활성</span>'
+                : '<span style="color:#dc2626;font-size:11px">&#10005; 미설정</span>';
+        }
+    } catch (e) {}
 }
 
 // ── Service Worker & 웹 푸시 ──

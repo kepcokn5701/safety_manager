@@ -41,6 +41,35 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 
 
+SMS_STAGE_MESSAGES = {
+    "stage_1_interest": (
+        '[체감온도 31도 이상, 폭염 "관심" 단계]\n'
+        "폭염 시작입니다.\n"
+        "충분한 수분 섭취와\n"
+        "적절한 휴식을 취하세요!"
+    ),
+    "stage_2_caution": (
+        "[체감온도 33도 이상, 폭염주의보]\n"
+        "더위가 더욱 강해집니다.\n"
+        "작업시간을 조정하시고,\n"
+        "매 2시간 이내 20분 이상 휴식을 취하세요!"
+    ),
+    "stage_3_warning": (
+        "[체감온도 35도 이상, 폭염경보]\n"
+        "폭염 위험이 높습니다.\n"
+        "어지럼, 메스꺼움을 느끼면 즉시 작업을 멈추고 그늘로 가세요!\n"
+        "작업중지권 사용을 망설이지 마세요!"
+    ),
+    "stage_4_danger": (
+        "[체감온도 38도 이상, 폭염중대경보]\n"
+        "폭염 최고 단계입니다.\n"
+        "무리는 곧 사고!\n"
+        "재난 및 안전관리 등에 필요한 긴급조치 작업 외에는\n"
+        "야외작업을 중지하세요!"
+    ),
+}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 생명주기 관리"""
@@ -91,10 +120,18 @@ async def lifespan(app: FastAPI):
             id="heat_wave_monitor",
             name="폭염 모니터링",
         )
+        scheduler.add_job(
+            scheduled_auto_sms,
+            "cron",
+            hour="10,13",
+            id="auto_sms",
+            name="자동 SMS (10시/13시)",
+        )
         scheduler.start()
         logger.info(
             f"폭염 모니터링 스케줄러 시작 (간격: {settings.weather_check_interval_minutes}분)"
         )
+        logger.info("자동 SMS 스케줄 등록: 매일 10:00, 13:00")
 
     yield
 
@@ -114,6 +151,84 @@ async def scheduled_monitoring():
     async with async_session() as session:
         result = await monitor.check_all_sites(session)
         logger.info(f"정기 모니터링 결과: {result}")
+
+
+async def scheduled_auto_sms():
+    """오전 10시 / 오후 1시 자동 SMS 발송 (폭염 단계별 메시지)"""
+    from backend.services.alert_service import SmsSender
+    from backend.services.repository import WorkSiteRepository
+    from backend.services.weather_service import HeatIndexCalculator
+
+    sender = SmsSender()
+    if not sender._app_key or not sender._secret_key:
+        logger.info("[Auto SMS] SMS 미설정 — 자동발송 건너뜀")
+        return
+
+    total_sent = 0
+    total_failed = 0
+    total_skipped = 0
+
+    try:
+        weather_provider = get_weather_provider()
+        threshold_mgr = get_threshold_manager()
+
+        async with async_session() as session:
+            site_repo = WorkSiteRepository(session)
+            sites = await site_repo.get_all_outdoor_active()
+            logger.info(f"[Auto SMS] {len(sites)}개 현장 대상 자동 발송 시작")
+
+            for site in sites:
+                try:
+                    weather = await weather_provider.get_current_weather(
+                        site.latitude, site.longitude
+                    )
+                    apparent_temp = HeatIndexCalculator.calculate_heat_index(
+                        weather.temperature, weather.humidity
+                    )
+                    stage_info = threshold_mgr.determine_stage(apparent_temp)
+                    if not stage_info:
+                        total_skipped += 1
+                        continue
+
+                    stage_key = stage_info["key"]
+                    message = SMS_STAGE_MESSAGES.get(stage_key)
+                    if not message:
+                        total_skipped += 1
+                        continue
+
+                    workers = await site_repo.get_workers(site.id)
+                    workers_dicts = [
+                        {"name": w.name, "phone": w.phone, "site": site.name}
+                        for w in workers if w.phone
+                    ]
+                    if not workers_dicts:
+                        total_skipped += 1
+                        continue
+
+                    phone_list = [w["phone"] for w in workers_dicts]
+                    result = await sender.send_bulk(
+                        phone_list, message, workers=workers_dicts
+                    )
+                    total_sent += result.get("sent", 0)
+                    total_failed += result.get("failed", 0)
+                    logger.info(
+                        f"[Auto SMS] {site.name} ({stage_info['name']}, "
+                        f"체감 {apparent_temp}°C) → "
+                        f"{result.get('sent', 0)}건 성공, "
+                        f"{result.get('failed', 0)}건 실패"
+                    )
+                except Exception as e:
+                    logger.error(f"[Auto SMS] {site.name} 처리 실패: {e}")
+
+    except Exception as e:
+        logger.error(f"[Auto SMS] 전체 자동 발송 실패: {e}")
+    finally:
+        await sender.close()
+
+    logger.info(
+        f"[Auto SMS] 완료: 성공 {total_sent}, 실패 {total_failed}, "
+        f"건너뜀 {total_skipped}"
+    )
 
 
 app = FastAPI(
@@ -311,6 +426,23 @@ async def sms_status():
         "configured": configured,
         "sender_phone": settings.sms_sender_phone[-4:] if settings.sms_sender_phone else "",
         "message": "NHN Cloud SMS 설정 완료" if configured else "SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요",
+    }
+
+
+@app.get("/api/sms/auto-schedule")
+async def sms_auto_schedule():
+    """자동 SMS 발송 스케줄 및 단계별 메시지 조회"""
+    configured = bool(settings.sms_app_key and settings.sms_secret_key and settings.sms_sender_phone)
+    return {
+        "enabled": configured,
+        "schedule": ["10:00", "13:00"],
+        "description": "매일 오전 10시, 오후 1시 폭염 단계별 자동 SMS 발송",
+        "messages": {
+            "관심 (31°C)": SMS_STAGE_MESSAGES["stage_1_interest"],
+            "주의 (33°C)": SMS_STAGE_MESSAGES["stage_2_caution"],
+            "경고 (35°C)": SMS_STAGE_MESSAGES["stage_3_warning"],
+            "위험 (38°C)": SMS_STAGE_MESSAGES["stage_4_danger"],
+        },
     }
 
 
