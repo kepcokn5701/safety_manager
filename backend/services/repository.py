@@ -80,23 +80,45 @@ class WorkSiteRepository:
     async def get_by_id(self, site_id: int) -> Optional[WorkSite]:
         return await self._session.get(WorkSite, site_id)
 
-    async def get_all_active(self) -> list[WorkSite]:
-        result = await self._session.execute(
-            select(WorkSite).where(WorkSite.is_active == True)
-        )
+    async def get_all_active(self, branch_office: str | None = None) -> list[WorkSite]:
+        q = select(WorkSite).where(WorkSite.is_active == True)
+        if branch_office:
+            q = q.where(WorkSite.branch_office == branch_office)
+        result = await self._session.execute(q)
         return list(result.scalars().all())
 
-    async def get_all_outdoor_active(self) -> list[WorkSite]:
+    async def get_all_outdoor_active(self, branch_office: str | None = None) -> list[WorkSite]:
         """활성 옥외 작업현장 조회 (폭염 모니터링 대상)"""
+        conditions = [WorkSite.is_active == True, WorkSite.is_outdoor == True]
+        if branch_office:
+            conditions.append(WorkSite.branch_office == branch_office)
         result = await self._session.execute(
-            select(WorkSite).where(
-                and_(WorkSite.is_active == True, WorkSite.is_outdoor == True)
-            )
+            select(WorkSite).where(and_(*conditions))
         )
         return list(result.scalars().all())
 
-    async def assign_worker(self, site_id: int, worker_id: int) -> WorkSiteWorker:
-        mapping = WorkSiteWorker(work_site_id=site_id, worker_id=worker_id)
+    async def get_by_name(self, name: str) -> Optional[WorkSite]:
+        result = await self._session.execute(
+            select(WorkSite).where(and_(WorkSite.name == name, WorkSite.is_active == True))
+        )
+        return result.scalar_one_or_none()
+
+    async def update_worker_role(self, site_id: int, worker_id: int, role: str) -> bool:
+        result = await self._session.execute(
+            select(WorkSiteWorker).where(and_(
+                WorkSiteWorker.work_site_id == site_id,
+                WorkSiteWorker.worker_id == worker_id,
+            ))
+        )
+        mapping = result.scalar_one_or_none()
+        if mapping:
+            mapping.role = role
+            await self._session.commit()
+            return True
+        return False
+
+    async def assign_worker(self, site_id: int, worker_id: int, role: str = "worker") -> WorkSiteWorker:
+        mapping = WorkSiteWorker(work_site_id=site_id, worker_id=worker_id, role=role)
         self._session.add(mapping)
         await self._session.commit()
         await self._session.refresh(mapping)
@@ -114,6 +136,23 @@ class WorkSiteRepository:
             )
         )
         return list(result.scalars().all())
+
+    async def get_workers_with_role(self, site_id: int) -> list[dict]:
+        """현장 작업자를 role 포함하여 반환"""
+        result = await self._session.execute(
+            select(Worker, WorkSiteWorker.role)
+            .join(WorkSiteWorker, WorkSiteWorker.worker_id == Worker.id)
+            .where(
+                and_(
+                    WorkSiteWorker.work_site_id == site_id,
+                    Worker.is_active == True,
+                )
+            )
+        )
+        return [
+            {"worker": row[0], "role": row[1] or "worker"}
+            for row in result.all()
+        ]
 
     async def remove_worker(self, site_id: int, worker_id: int) -> bool:
         result = await self._session.execute(

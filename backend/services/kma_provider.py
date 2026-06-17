@@ -223,5 +223,141 @@ class KmaProvider(WeatherProvider):
             provider="kma",
         )
 
+    async def get_tomorrow_forecast(
+        self, latitude: float, longitude: float
+    ) -> dict | None:
+        """내일 시간대별 기온 예보 조회 → 최고기온 + 해당 시간 반환.
+
+        Returns:
+            {
+                "date": "20260611",
+                "max_temp": 36.0,
+                "max_temp_time": "1500",
+                "max_humidity": 75.0,
+                "hourly": [{"time":"0600","temp":28.0,"humidity":65.0,"wind":1.5}, ...],
+                "apparent_max": 38.2,
+                "stage_name": "경고",
+                "stage_key": "stage_3_warning",
+            }
+        """
+        from backend.services.weather_service import HeatIndexCalculator, ThresholdManager
+
+        nx, ny = latlon_to_grid(latitude, longitude)
+
+        now = datetime.now(KST)
+        tomorrow = now + timedelta(days=1)
+        tomorrow_str = tomorrow.strftime("%Y%m%d")
+
+        base_date, base_time = _get_base_datetime()
+
+        params = {
+            "authKey": settings.kma_api_key,
+            "numOfRows": "1000",
+            "pageNo": "1",
+            "dataType": "JSON",
+            "base_date": base_date,
+            "base_time": base_time,
+            "nx": nx,
+            "ny": ny,
+        }
+
+        try:
+            response = await self._client.get(self.BASE_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            header = data.get("response", {}).get("header", {})
+            if header.get("resultCode") != "00":
+                logger.warning(f"내일 예보 API 오류: {header.get('resultMsg')}")
+                return None
+
+            items = (
+                data.get("response", {})
+                .get("body", {})
+                .get("items", {})
+                .get("item", [])
+            )
+
+            hourly = {}
+            for item in items:
+                if item.get("fcstDate") != tomorrow_str:
+                    continue
+                fcst_time = item.get("fcstTime", "")
+                category = item.get("category", "")
+                value = item.get("fcstValue")
+                if category in ("TMP", "REH", "WSD", "SKY", "PTY", "POP") and value is not None:
+                    if fcst_time not in hourly:
+                        hourly[fcst_time] = {}
+                    try:
+                        hourly[fcst_time][category] = float(value)
+                    except (ValueError, TypeError):
+                        pass
+
+            if not hourly:
+                logger.info(f"내일({tomorrow_str}) 예보 데이터 없음 (base: {base_date} {base_time})")
+                return None
+
+            max_apparent = -999
+            max_temp = -999
+            max_temp_time = ""
+            max_humidity = 0
+            max_pop = 0
+            sky_at_max = 1
+            pty_at_max = 0
+            hourly_list = []
+
+            threshold_mgr = ThresholdManager()
+
+            for t in sorted(hourly.keys()):
+                d = hourly[t]
+                temp = d.get("TMP", 0)
+                hum = d.get("REH", 0)
+                wind = d.get("WSD", 0)
+                sky = int(d.get("SKY", 1))
+                pty = int(d.get("PTY", 0))
+                pop = d.get("POP", 0)
+                apparent = HeatIndexCalculator.calculate_heat_index(temp, hum)
+
+                hourly_list.append({
+                    "time": t, "temp": temp,
+                    "humidity": hum, "wind": wind,
+                    "apparent": apparent,
+                    "sky": sky, "pty": pty, "pop": pop,
+                })
+
+                if pop > max_pop:
+                    max_pop = pop
+
+                if apparent > max_apparent:
+                    max_apparent = apparent
+                    max_temp = temp
+                    max_temp_time = t
+                    max_humidity = hum
+                    sky_at_max = sky
+                    pty_at_max = pty
+
+            stage_info = threshold_mgr.determine_stage(max_apparent)
+
+            sky_text = {1: "맑음", 3: "구름많음", 4: "흐림"}.get(sky_at_max, "맑음")
+            pty_text = {0: None, 1: "비", 2: "비/눈", 3: "눈", 5: "빗방울", 6: "빗방울눈날림", 7: "눈날림"}.get(pty_at_max)
+
+            return {
+                "date": tomorrow_str,
+                "max_temp": max_temp,
+                "max_temp_time": max_temp_time,
+                "max_humidity": max_humidity,
+                "max_apparent": round(max_apparent, 1),
+                "max_pop": max_pop,
+                "sky": sky_text,
+                "pty": pty_text,
+                "hourly": hourly_list,
+                "stage_name": stage_info["name"] if stage_info else None,
+                "stage_key": stage_info["key"] if stage_info else None,
+            }
+
+        except Exception as e:
+            logger.error(f"내일 예보 조회 실패: {e}")
+            return None
+
     async def close(self) -> None:
         await self._client.aclose()

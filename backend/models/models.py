@@ -34,6 +34,12 @@ class AlertStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class SmsType(str, enum.Enum):
+    MOCK = "mock"
+    REAL = "real"
+    AUTO = "auto"
+
+
 # ── 작업자 ──
 class Worker(Base):
     __tablename__ = "workers"
@@ -81,6 +87,7 @@ class WorkSiteWorker(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     work_site_id = Column(Integer, ForeignKey("work_sites.id"), nullable=False)
     worker_id = Column(Integer, ForeignKey("workers.id"), nullable=False)
+    role = Column(String(20), default="worker")  # manager(현장책임자) / worker(작업자)
     assigned_at = Column(DateTime, default=datetime.utcnow)
 
     work_site = relationship("WorkSite", back_populates="workers")
@@ -143,3 +150,31 @@ class SystemSetting(Base):
     key = Column(String(100), nullable=False, unique=True)
     value = Column(Text, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class SmsLog(Base):
+    __tablename__ = "sms_logs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sms_type = Column(Enum(SmsType), nullable=False)
+    recipient_phone = Column(String(20), nullable=False)
+    recipient_name = Column(String(100), default="")
+    site_name = Column(String(200), default="")
+    stage = Column(String(50), default="")
+    message_preview = Column(String(100), default="")
+    full_message = Column(Text, default="")
+    status = Column(String(10), nullable=False)  # sent / failed
+    error_message = Column(Text, nullable=True)
+    cost = Column(Float, default=30.0)  # LMS 건당 30원
+    sent_at = Column(DateTime, default=datetime.utcnow)
+
+
+class SmsFixedRecipient(Base):
+    __tablename__ = "sms_fixed_recipients"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False)
+    phone = Column(String(20), nullable=False)
+    role = Column(String(50), default="")
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -109,8 +109,8 @@
                 <span id="auto-sms-status" style="margin-left:4px"></span>
             </div>
             <button onclick="showSmsTestModal()" style="background:none;border:1px solid #a5d6a7;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">SMS 테스트</button>
-            <button onclick="showSmsPolicyGuide()" style="background:none;border:1px solid #e0e0e0;color:#555;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">NHN 정책</button>
-            <button onclick="showAutoSmsDetail()" style="background:none;border:1px solid #90caf9;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">상세</button>
+            <button onclick="showSmsContentModal()" style="background:none;border:1px solid #90caf9;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">SMS 내용확인</button>
+            <button onclick="showSmsStatsModal()" style="background:none;border:1px solid #ce93d8;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">발송 통계</button>
         </div>
 
         <!-- 6단계 필터 (왼→오: 정상→위험) -->
@@ -137,6 +137,18 @@
         <!-- 발송 대상 목록 -->
         <div id="alert-send-list" style="max-height:320px;overflow-y:auto">
             <p style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px">날씨 조회 후 표시됩니다</p>
+        </div>
+
+        <!-- SMS 발송 대상 선택 -->
+        <div id="sms-target-selector" style="padding:6px 16px;border-top:1px solid var(--border-light,#edf2f7);display:flex;gap:16px;align-items:center;background:#f8fafc">
+            <span style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">발송 대상:</span>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="radio" name="sms-target" value="all" checked style="width:auto;margin:0"> 작업자 전원
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="radio" name="sms-target" value="manager" style="width:auto;margin:0"> 현장책임자만
+            </label>
+            <span id="sms-target-count" style="font-size:11px;color:var(--text-faint);margin-left:auto"></span>
         </div>
 
         <!-- SMS 입력 + 발송 (인라인) -->
@@ -340,7 +352,7 @@
     </div>
 </div>
 
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=20260617h"></script>
 <script>
     function updateClock() {
         const el = document.getElementById('current-time');

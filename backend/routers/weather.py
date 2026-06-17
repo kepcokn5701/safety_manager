@@ -96,13 +96,14 @@ async def get_weather_status(
 async def get_all_weather_status(
     db: AsyncSession = Depends(get_db),
     weather_provider=Depends(get_weather_provider),
+    branch_office: str = "",
 ):
     """모든 활성 옥외 작업현장의 날씨를 한 번에 조회 (격자 캐시로 최적화)"""
     import asyncio
     from backend.services.kma_provider import latlon_to_grid
 
     site_repo = WorkSiteRepository(db)
-    sites = await site_repo.get_all_outdoor_active()
+    sites = await site_repo.get_all_outdoor_active(branch_office=branch_office or None)
 
     # 1단계: 격자별로 현장 묶기 (같은 격자 = 같은 날씨)
     grid_sites = {}
@@ -181,14 +182,15 @@ async def get_all_weather_status(
                 stage=stage_info["key"] if stage_info else None,
             )
 
-            # 작업자 + 알림 상태
-            workers = await site_repo.get_workers(site.id)
-            worker_ids = [w.id for w in workers]
+            # 작업자 + 역할 + 알림 상태
+            workers_with_role = await site_repo.get_workers_with_role(site.id)
+            worker_ids = [wr["worker"].id for wr in workers_with_role]
             latest_alerts = await alert_repo.get_latest_by_site_workers(site.id, worker_ids) if worker_ids else {}
 
             worker_list = []
-            for w in workers:
-                wdata = {"id": w.id, "name": w.name, "phone": w.phone, "is_vulnerable": w.is_vulnerable}
+            for wr in workers_with_role:
+                w = wr["worker"]
+                wdata = {"id": w.id, "name": w.name, "phone": w.phone, "is_vulnerable": w.is_vulnerable, "role": wr["role"]}
                 alert = latest_alerts.get(w.id)
                 if alert:
                     wdata["last_alert"] = {

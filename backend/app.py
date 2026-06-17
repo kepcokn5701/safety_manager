@@ -5,19 +5,21 @@ Safety Manager - FastAPI 메인 애플리케이션
 
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from sqlalchemy import select, func, case, and_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.config import settings
 from backend.models.database import init_db, async_session
+from backend.models.models import SmsLog, SmsType, SmsFixedRecipient
 from backend.routers import weather, alerts, workers, push, upload
 from backend.dependencies import (
     get_weather_provider,
@@ -39,6 +41,36 @@ FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 # Vercel 환경 감지
 IS_VERCEL = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+
+
+_tomorrow_forecast_cache = {}
+_progress = {"task": "", "current": 0, "total": 0, "detail": ""}
+
+LMS_COST = 30.0  # LMS 건당 비용 (원)
+
+
+async def _log_sms(sms_type: str, details: list[dict], stage: str = "", message: str = ""):
+    """SMS 발송 이력을 DB에 저장"""
+    try:
+        async with async_session() as session:
+            for d in details:
+                log = SmsLog(
+                    sms_type=sms_type,
+                    recipient_phone=d.get("phone", ""),
+                    recipient_name=d.get("name", ""),
+                    site_name=d.get("site", ""),
+                    stage=stage,
+                    message_preview=message[:100] if message else "",
+                    full_message=message or "",
+                    status=d.get("status", "failed"),
+                    error_message=d.get("error"),
+                    cost=LMS_COST if d.get("status") == "sent" else 0,
+                    sent_at=datetime.now(),
+                )
+                session.add(log)
+            await session.commit()
+    except Exception as e:
+        logger.error(f"[SMS Log] 이력 저장 실패: {e}")
 
 
 SMS_STAGE_MESSAGES = {
@@ -89,6 +121,26 @@ async def lifespan(app: FastAPI):
     try:
         await init_db()
         logger.info(f"DB 연결 성공: {settings.database_url[:40]}...")
+
+        # DB 마이그레이션
+        try:
+            async with async_session() as session:
+                from sqlalchemy import text
+                # work_site_workers.role
+                result = await session.execute(text("PRAGMA table_info(work_site_workers)"))
+                columns = [row[1] for row in result.fetchall()]
+                if "role" not in columns:
+                    await session.execute(text("ALTER TABLE work_site_workers ADD COLUMN role VARCHAR(20) DEFAULT 'worker'"))
+                    logger.info("DB 마이그레이션: work_site_workers.role 컬럼 추가")
+                # sms_logs.full_message
+                result = await session.execute(text("PRAGMA table_info(sms_logs)"))
+                columns = [row[1] for row in result.fetchall()]
+                if columns and "full_message" not in columns:
+                    await session.execute(text("ALTER TABLE sms_logs ADD COLUMN full_message TEXT DEFAULT ''"))
+                    logger.info("DB 마이그레이션: sms_logs.full_message 컬럼 추가")
+                await session.commit()
+        except Exception as e:
+            logger.warning(f"DB 마이그레이션 확인/실행 중 오류 (무시): {e}")
     except Exception as e:
         logger.error(f"DB 연결 실패: {e}")
         if "asyncpg" in settings.database_url:
@@ -121,6 +173,13 @@ async def lifespan(app: FastAPI):
             name="폭염 모니터링",
         )
         scheduler.add_job(
+            scheduled_tomorrow_forecast,
+            "cron",
+            hour="9",
+            id="tomorrow_forecast",
+            name="내일 예보 수집 (9시)",
+        )
+        scheduler.add_job(
             scheduled_auto_sms,
             "cron",
             hour="10,13",
@@ -131,7 +190,7 @@ async def lifespan(app: FastAPI):
         logger.info(
             f"폭염 모니터링 스케줄러 시작 (간격: {settings.weather_check_interval_minutes}분)"
         )
-        logger.info("자동 SMS 스케줄 등록: 매일 10:00, 13:00")
+        logger.info("자동 SMS 스케줄 등록: 09:00 내일예보 수집, 10:00/13:00 SMS 발송")
 
     yield
 
@@ -153,8 +212,98 @@ async def scheduled_monitoring():
         logger.info(f"정기 모니터링 결과: {result}")
 
 
+async def scheduled_tomorrow_forecast():
+    """매일 09:00 — 현장별 내일 예보를 수집하여 캐시에 저장"""
+    global _tomorrow_forecast_cache
+    from backend.services.kma_provider import latlon_to_grid
+    from backend.services.repository import WorkSiteRepository
+
+    logger.info("[내일예보] 내일 예보 수집 시작")
+    _tomorrow_forecast_cache = {}
+    _progress.update(task="tomorrow_forecast", current=0, total=0, detail="현장 목록 조회 중...")
+
+    try:
+        weather_provider = get_weather_provider()
+        async with async_session() as session:
+            site_repo = WorkSiteRepository(session)
+            sites = await site_repo.get_all_outdoor_active()
+            _progress.update(total=len(sites), detail=f"{len(sites)}개 현장 예보 수집 시작")
+
+            grid_done = {}
+            for i, site in enumerate(sites):
+                _progress.update(current=i + 1, detail=site.name)
+                if site.latitude == 0 and site.longitude == 0:
+                    continue
+                nx, ny = latlon_to_grid(site.latitude, site.longitude)
+                grid_key = f"{nx},{ny}"
+                if grid_key in grid_done:
+                    _tomorrow_forecast_cache[site.id] = grid_done[grid_key]
+                    continue
+
+                try:
+                    forecast = await weather_provider.get_tomorrow_forecast(
+                        site.latitude, site.longitude
+                    )
+                    grid_done[grid_key] = forecast
+                    _tomorrow_forecast_cache[site.id] = forecast
+                except Exception as e:
+                    logger.warning(f"[내일예보] {site.name} 예보 실패: {e}")
+                    grid_done[grid_key] = None
+
+        success = sum(1 for v in _tomorrow_forecast_cache.values() if v)
+        _progress.update(task="", current=0, total=0, detail="")
+        logger.info(f"[내일예보] 수집 완료: {success}/{len(_tomorrow_forecast_cache)}건 성공")
+    except Exception as e:
+        _progress.update(task="", current=0, total=0, detail="")
+        logger.error(f"[내일예보] 수집 실패: {e}")
+
+
+def _build_tomorrow_text(forecast: dict | None) -> str:
+    """내일 예보 캐시 → SMS 추가 문구 생성"""
+    if not forecast:
+        return ""
+    date_str = forecast.get("date", "")
+    if date_str and len(date_str) == 8:
+        date_display = f"{date_str[4:6]}/{date_str[6:8]}"
+    else:
+        date_display = "내일"
+
+    time_str = forecast.get("max_temp_time", "")
+    if time_str and len(time_str) == 4:
+        hour = time_str[:2]
+        time_display = f"{hour}시경"
+    else:
+        time_display = ""
+
+    apparent = forecast.get("max_apparent", 0)
+    stage_name = forecast.get("stage_name")
+
+    sky = forecast.get("sky", "")
+    pty = forecast.get("pty")
+    pop = forecast.get("max_pop", 0)
+
+    if pty:
+        weather_text = pty
+    else:
+        weather_text = sky
+
+    if pop and pop >= 30:
+        weather_text += f"(강수확률 {int(pop)}%)"
+
+    line = f"\n\n[내일({date_display}) 예보]"
+    line += f"\n날씨: {weather_text}"
+    if stage_name:
+        line += f"\n체감 {apparent}도({stage_name}) {time_display} 예상"
+        line += "\n내일 작업 시 각별히 주의 바랍니다."
+    else:
+        line += f"\n최고 체감 {apparent}도 {time_display} 예상"
+    line += "\n※ 예보 기반 참고 정보입니다."
+    return line
+
+
 async def scheduled_auto_sms():
-    """오전 10시 / 오후 1시 자동 SMS 발송 (폭염 단계별 메시지)"""
+    """오전 10시 / 오후 1시 자동 SMS 발송 (폭염 단계별 메시지 + 내일 예보)
+    동일 전화번호는 가장 높은 단계 메시지 1건만 발송 (중복제거)"""
     from backend.services.alert_service import SmsSender
     from backend.services.repository import WorkSiteRepository
     from backend.services.weather_service import HeatIndexCalculator
@@ -167,16 +316,23 @@ async def scheduled_auto_sms():
     total_sent = 0
     total_failed = 0
     total_skipped = 0
+    stage_order = ["stage_4_danger", "stage_3_warning", "stage_2_caution", "stage_1_interest"]
 
     try:
         weather_provider = get_weather_provider()
         threshold_mgr = get_threshold_manager()
+
+        # 단계별로 발송할 작업자를 모음 (전화번호 중복제거: 가장 높은 단계만)
+        stage_recipients = {}  # stage_key -> {message, workers: [{name, phone, site}]}
+        sent_phones = set()
 
         async with async_session() as session:
             site_repo = WorkSiteRepository(session)
             sites = await site_repo.get_all_outdoor_active()
             logger.info(f"[Auto SMS] {len(sites)}개 현장 대상 자동 발송 시작")
 
+            # 1단계: 현장별 폭염 단계 판정 + 작업자 수집
+            site_stage_data = []
             for site in sites:
                 try:
                     weather = await weather_provider.get_current_weather(
@@ -196,29 +352,70 @@ async def scheduled_auto_sms():
                         total_skipped += 1
                         continue
 
+                    tomorrow = _tomorrow_forecast_cache.get(site.id)
+                    tomorrow_text = _build_tomorrow_text(tomorrow)
+                    full_message = message + tomorrow_text
+
                     workers = await site_repo.get_workers(site.id)
                     workers_dicts = [
                         {"name": w.name, "phone": w.phone, "site": site.name}
                         for w in workers if w.phone
                     ]
-                    if not workers_dicts:
+                    if workers_dicts:
+                        site_stage_data.append({
+                            "site": site, "stage_key": stage_key, "stage_info": stage_info,
+                            "message": full_message, "workers": workers_dicts,
+                            "apparent_temp": apparent_temp, "has_tomorrow": bool(tomorrow),
+                        })
+                    else:
                         total_skipped += 1
-                        continue
-
-                    phone_list = [w["phone"] for w in workers_dicts]
-                    result = await sender.send_bulk(
-                        phone_list, message, workers=workers_dicts
-                    )
-                    total_sent += result.get("sent", 0)
-                    total_failed += result.get("failed", 0)
-                    logger.info(
-                        f"[Auto SMS] {site.name} ({stage_info['name']}, "
-                        f"체감 {apparent_temp}°C) → "
-                        f"{result.get('sent', 0)}건 성공, "
-                        f"{result.get('failed', 0)}건 실패"
-                    )
                 except Exception as e:
                     logger.error(f"[Auto SMS] {site.name} 처리 실패: {e}")
+
+            # 2단계: 높은 단계 우선으로 정렬 → 전화번호 중복제거
+            site_stage_data.sort(key=lambda x: stage_order.index(x["stage_key"]) if x["stage_key"] in stage_order else 99)
+
+            for sd in site_stage_data:
+                sk = sd["stage_key"]
+                if sk not in stage_recipients:
+                    stage_recipients[sk] = {"message": sd["message"], "workers": []}
+                for w in sd["workers"]:
+                    phone_key = w["phone"].replace("-", "")
+                    if phone_key not in sent_phones:
+                        sent_phones.add(phone_key)
+                        stage_recipients[sk]["workers"].append(w)
+
+            # 고정수신 멤버 로드
+            fixed_recipients = (await session.execute(
+                select(SmsFixedRecipient).where(SmsFixedRecipient.is_active == True)
+            )).scalars().all()
+
+            # 3단계: 단계별 일괄 발송 (가장 높은 단계에만 고정수신 추가)
+            fixed_added_to = None
+            for sk in stage_order:
+                if sk not in stage_recipients:
+                    continue
+                sr = stage_recipients[sk]
+                if not sr["workers"]:
+                    continue
+                # 고정수신 멤버는 가장 높은 단계 메시지에 1회만 포함
+                if fixed_added_to is None:
+                    for fr in fixed_recipients:
+                        pk = fr.phone.replace("-", "")
+                        if pk not in sent_phones:
+                            sent_phones.add(pk)
+                            sr["workers"].append({"name": fr.name, "phone": fr.phone, "site": f"[고정수신] {fr.role}"})
+                    fixed_added_to = sk
+                phone_list = [w["phone"] for w in sr["workers"]]
+                result = await sender.send_bulk(phone_list, sr["message"], workers=sr["workers"])
+                total_sent += result.get("sent", 0)
+                total_failed += result.get("failed", 0)
+                await _log_sms("auto", result.get("details", []), stage=sk, message=sr["message"])
+                logger.info(
+                    f"[Auto SMS] {sk} 단계 → "
+                    f"{result.get('sent', 0)}건 성공, "
+                    f"{result.get('failed', 0)}건 실패"
+                )
 
     except Exception as e:
         logger.error(f"[Auto SMS] 전체 자동 발송 실패: {e}")
@@ -227,7 +424,7 @@ async def scheduled_auto_sms():
 
     logger.info(
         f"[Auto SMS] 완료: 성공 {total_sent}, 실패 {total_failed}, "
-        f"건너뜀 {total_skipped}"
+        f"건너뜀 {total_skipped}, 중복제거 후 총 {len(sent_phones)}명"
     )
 
 
@@ -410,12 +607,58 @@ class SmsRequest(BaseModel):
 
 @app.post("/api/sms/send")
 async def send_sms(data: SmsRequest):
-    """SMS 일괄 발송 (NHN Cloud SMS API)"""
+    """SMS 일괄 발송 (NHN Cloud SMS API) — 동일 전화번호 자동 중복제거"""
     from backend.services.alert_service import SmsSender
     sender = SmsSender()
     workers_dicts = [w.model_dump() for w in data.workers] if data.workers else None
-    result = await sender.send_bulk(data.phone_numbers, data.message, workers=workers_dicts)
-    return result
+
+    # 전화번호 중복제거 (같은 번호가 여러 현장에 있을 수 있음)
+    if workers_dicts:
+        seen = set()
+        unique_workers = []
+        for w in workers_dicts:
+            phone_key = w["phone"].replace("-", "")
+            if phone_key not in seen:
+                seen.add(phone_key)
+                unique_workers.append(w)
+        deduped_count = len(workers_dicts) - len(unique_workers)
+        workers_dicts = unique_workers
+        phone_numbers = [w["phone"] for w in unique_workers]
+    else:
+        seen = set()
+        phone_numbers = []
+        for p in data.phone_numbers:
+            key = p.replace("-", "")
+            if key not in seen:
+                seen.add(key)
+                phone_numbers.append(p)
+        deduped_count = len(data.phone_numbers) - len(phone_numbers)
+
+    try:
+        # 고정수신 멤버 추가
+        async with async_session() as session:
+            fixed = (await session.execute(
+                select(SmsFixedRecipient).where(SmsFixedRecipient.is_active == True)
+            )).scalars().all()
+        fixed_added = 0
+        for fr in fixed:
+            phone_key = fr.phone.replace("-", "")
+            if phone_key not in seen:
+                seen.add(phone_key)
+                phone_numbers.append(fr.phone)
+                if workers_dicts is not None:
+                    workers_dicts.append({"name": fr.name, "phone": fr.phone, "site": f"[고정수신] {fr.role}"})
+                fixed_added += 1
+
+        result = await sender.send_bulk(phone_numbers, data.message, workers=workers_dicts)
+        if deduped_count > 0:
+            result["deduped"] = deduped_count
+        if fixed_added > 0:
+            result["fixed_added"] = fixed_added
+        await _log_sms("real", result.get("details", []), message=data.message)
+        return result
+    finally:
+        await sender.close()
 
 
 @app.get("/api/sms/status")
@@ -433,6 +676,7 @@ async def sms_status():
 class SmsTestRequest(BaseModel):
     phone: str
     message: str = ""
+    is_mock: bool = True
 
 
 @app.post("/api/sms/test")
@@ -446,6 +690,8 @@ async def sms_test(data: SmsTestRequest):
             [data.phone], test_msg,
             workers=[{"name": "테스트", "phone": data.phone, "site": "테스트"}],
         )
+        sms_type = "mock" if data.is_mock else "real"
+        await _log_sms(sms_type, result.get("details", []), message=test_msg)
         return result
     finally:
         await sender.close()
@@ -457,14 +703,226 @@ async def sms_auto_schedule():
     configured = bool(settings.sms_app_key and settings.sms_secret_key and settings.sms_sender_phone)
     return {
         "enabled": configured,
-        "schedule": ["10:00", "13:00"],
-        "description": "매일 오전 10시, 오후 1시 폭염 단계별 자동 SMS 발송",
+        "schedule": ["09:00 내일예보 수집", "10:00 SMS 발송", "13:00 SMS 발송"],
+        "description": "매일 9시 내일 예보 수집 → 10시/13시 폭염 단계별 SMS에 내일 예보 포함 발송",
         "messages": {
             "관심 (31°C)": SMS_STAGE_MESSAGES["stage_1_interest"],
             "주의 (33°C)": SMS_STAGE_MESSAGES["stage_2_caution"],
             "경고 (35°C)": SMS_STAGE_MESSAGES["stage_3_warning"],
             "위험 (38°C)": SMS_STAGE_MESSAGES["stage_4_danger"],
         },
+    }
+
+
+@app.get("/api/sms/stats")
+async def sms_stats(date: str = Query(default="", description="YYYY-MM-DD")):
+    """SMS 발송 통계 (요약 + 날짜별 상세)"""
+    async with async_session() as session:
+        # 전체 요약
+        summary_q = select(
+            SmsLog.sms_type,
+            SmsLog.status,
+            func.count().label("count"),
+            func.sum(SmsLog.cost).label("total_cost"),
+        ).group_by(SmsLog.sms_type, SmsLog.status)
+        summary_rows = (await session.execute(summary_q)).all()
+
+        summary = {"mock": {"sent": 0, "failed": 0, "cost": 0}, "real": {"sent": 0, "failed": 0, "cost": 0}, "auto": {"sent": 0, "failed": 0, "cost": 0}}
+        for sms_type, status, count, cost in summary_rows:
+            key = sms_type.value if hasattr(sms_type, "value") else sms_type
+            if key in summary:
+                summary[key][status] = count
+                if status == "sent":
+                    summary[key]["cost"] = float(cost or 0)
+
+        total_sent = sum(s["sent"] for s in summary.values())
+        total_failed = sum(s["failed"] for s in summary.values())
+        total_cost = sum(s["cost"] for s in summary.values())
+
+        # 일별 집계
+        daily_q = select(
+            func.date(SmsLog.sent_at).label("day"),
+            SmsLog.sms_type,
+            SmsLog.status,
+            func.count().label("count"),
+            func.sum(SmsLog.cost).label("cost"),
+        ).group_by(func.date(SmsLog.sent_at), SmsLog.sms_type, SmsLog.status).order_by(func.date(SmsLog.sent_at).desc())
+        daily_rows = (await session.execute(daily_q)).all()
+
+        daily = {}
+        for day, sms_type, status, count, cost in daily_rows:
+            d = str(day)
+            if d not in daily:
+                daily[d] = {"date": d, "mock_sent": 0, "mock_failed": 0, "real_sent": 0, "real_failed": 0, "auto_sent": 0, "auto_failed": 0, "cost": 0}
+            key = sms_type.value if hasattr(sms_type, "value") else sms_type
+            daily[d][f"{key}_{status}"] = count
+            if status == "sent":
+                daily[d]["cost"] += float(cost or 0)
+
+        # 특정 날짜 상세 이력
+        detail_list = []
+        if date:
+            detail_q = select(SmsLog).where(
+                func.date(SmsLog.sent_at) == date
+            ).order_by(SmsLog.sent_at.desc())
+            detail_rows = (await session.execute(detail_q)).scalars().all()
+            for r in detail_rows:
+                detail_list.append({
+                    "id": r.id,
+                    "type": r.sms_type.value if hasattr(r.sms_type, "value") else r.sms_type,
+                    "phone": r.recipient_phone,
+                    "name": r.recipient_name,
+                    "site": r.site_name,
+                    "stage": r.stage,
+                    "status": r.status,
+                    "error": r.error_message,
+                    "cost": r.cost,
+                    "sent_at": r.sent_at.strftime("%H:%M:%S") if r.sent_at else "",
+                })
+
+        return {
+            "summary": summary,
+            "total": {"sent": total_sent, "failed": total_failed, "cost": total_cost},
+            "daily": list(daily.values()),
+            "details": detail_list,
+        }
+
+
+@app.get("/api/sms/today-content")
+async def sms_today_content():
+    """오늘 발송된 SMS 내용 조회 (고유 메시지만)"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    async with async_session() as session:
+        q = select(
+            SmsLog.full_message,
+            SmsLog.sms_type,
+            SmsLog.stage,
+            func.min(SmsLog.sent_at).label("first_sent"),
+            func.count().label("count"),
+        ).where(
+            and_(
+                func.date(SmsLog.sent_at) == today,
+                SmsLog.status == "sent",
+                SmsLog.full_message != "",
+            )
+        ).group_by(SmsLog.full_message, SmsLog.sms_type, SmsLog.stage).order_by(func.min(SmsLog.sent_at).desc())
+        rows = (await session.execute(q)).all()
+
+        messages = []
+        for full_message, sms_type, stage, first_sent, count in rows:
+            messages.append({
+                "message": full_message,
+                "type": sms_type.value if hasattr(sms_type, "value") else sms_type,
+                "stage": stage,
+                "sent_at": first_sent.strftime("%H:%M") if first_sent else "",
+                "count": count,
+            })
+
+    return {"date": today, "messages": messages}
+
+
+# ── SMS 고정수신 멤버 ──
+
+class FixedRecipientRequest(BaseModel):
+    name: str
+    phone: str
+    role: str = ""
+
+
+@app.get("/api/sms/fixed-recipients")
+async def get_fixed_recipients():
+    """SMS 고정수신 멤버 목록 조회"""
+    async with async_session() as session:
+        rows = (await session.execute(
+            select(SmsFixedRecipient).where(SmsFixedRecipient.is_active == True).order_by(SmsFixedRecipient.id)
+        )).scalars().all()
+        return [{"id": r.id, "name": r.name, "phone": r.phone, "role": r.role} for r in rows]
+
+
+@app.post("/api/sms/fixed-recipients")
+async def add_fixed_recipient(data: FixedRecipientRequest):
+    """SMS 고정수신 멤버 추가"""
+    import re
+    phone = re.sub(r"[^0-9]", "", data.phone)
+    if len(phone) != 11 or not phone.startswith("01"):
+        return {"error": "올바른 전화번호 형식이 아닙니다."}
+    formatted = f"{phone[:3]}-{phone[3:7]}-{phone[7:]}"
+
+    async with async_session() as session:
+        existing = (await session.execute(
+            select(SmsFixedRecipient).where(
+                and_(SmsFixedRecipient.phone == formatted, SmsFixedRecipient.is_active == True)
+            )
+        )).scalar_one_or_none()
+        if existing:
+            return {"error": f"{formatted} 은(는) 이미 등록되어 있습니다."}
+
+        recipient = SmsFixedRecipient(name=data.name, phone=formatted, role=data.role)
+        session.add(recipient)
+        await session.commit()
+        return {"id": recipient.id, "name": recipient.name, "phone": formatted, "role": recipient.role}
+
+
+@app.delete("/api/sms/fixed-recipients/{recipient_id}")
+async def delete_fixed_recipient(recipient_id: int):
+    """SMS 고정수신 멤버 삭제"""
+    async with async_session() as session:
+        r = (await session.execute(
+            select(SmsFixedRecipient).where(SmsFixedRecipient.id == recipient_id)
+        )).scalar_one_or_none()
+        if not r:
+            return {"error": "해당 멤버를 찾을 수 없습니다."}
+        r.is_active = False
+        await session.commit()
+        return {"deleted": True}
+
+
+@app.get("/api/weather/tomorrow")
+async def get_tomorrow_forecast_api():
+    """내일 예보 캐시 조회 (09:00에 자동 수집된 데이터)"""
+    if not _tomorrow_forecast_cache:
+        return {"cached": False, "message": "내일 예보가 아직 수집되지 않았습니다. 매일 09:00에 자동 수집됩니다.", "forecasts": {}}
+
+    result = {}
+    for site_id, forecast in _tomorrow_forecast_cache.items():
+        if forecast:
+            result[site_id] = {
+                "date": forecast.get("date"),
+                "max_apparent": forecast.get("max_apparent"),
+                "max_temp": forecast.get("max_temp"),
+                "max_temp_time": forecast.get("max_temp_time"),
+                "max_pop": forecast.get("max_pop"),
+                "sky": forecast.get("sky"),
+                "pty": forecast.get("pty"),
+                "stage_name": forecast.get("stage_name"),
+                "sms_preview": _build_tomorrow_text(forecast),
+            }
+    return {"cached": True, "count": len(result), "forecasts": result}
+
+
+@app.post("/api/weather/tomorrow/collect")
+async def collect_tomorrow_forecast_now():
+    """내일 예보 수동 수집 (테스트용)"""
+    await scheduled_tomorrow_forecast()
+    count = sum(1 for v in _tomorrow_forecast_cache.values() if v)
+    return {"message": f"내일 예보 수집 완료: {count}건", "count": count}
+
+
+@app.get("/api/progress")
+async def get_progress():
+    """현재 진행 중인 작업의 진행률 조회"""
+    if not _progress["task"]:
+        return {"active": False}
+    pct = 0
+    if _progress["total"] > 0:
+        pct = round(_progress["current"] / _progress["total"] * 100)
+    return {
+        "active": True,
+        "task": _progress["task"],
+        "current": _progress["current"],
+        "total": _progress["total"],
+        "percent": pct,
+        "detail": _progress["detail"],
     }
 
 

@@ -141,12 +141,13 @@ class KakaoAlimTalkSender(NotificationSender):
 
 class SmsSender(NotificationSender):
     """
-    SMS 발송 - NHN Cloud SMS API v3.0
+    LMS(장문) 발송 - NHN Cloud SMS API v3.0
     https://docs.nhncloud.com/ko/Notification/SMS/ko/api-guide/
 
-    API: POST https://sms.api.nhncloudservice.com/sms/v3.0/appKeys/{appKey}/sender/sms
+    API: POST https://sms.api.nhncloudservice.com/sms/v3.0/appKeys/{appKey}/sender/mms
     Header: X-Secret-Key
-    Body: {"body":"메시지","sendNo":"발신번호","recipientList":[{"recipientNo":"수신번호"}]}
+    Body: {"title":"제목","body":"메시지","sendNo":"발신번호","recipientList":[{"recipientNo":"수신번호"}]}
+    LMS: 최대 2000바이트 (한글 약 1000자). 건당 약 30원 (SMS 4.4원 대비 증가)
     """
 
     BASE_URL = "https://sms.api.nhncloudservice.com/sms/v3.0/appKeys"
@@ -183,12 +184,13 @@ class SmsSender(NotificationSender):
         phone = recipient_phone.replace("-", "")
         try:
             response = await self._client.post(
-                f"{self.BASE_URL}/{self._app_key}/sender/sms",
+                f"{self.BASE_URL}/{self._app_key}/sender/mms",
                 headers={
                     "Content-Type": "application/json;charset=UTF-8",
                     "X-Secret-Key": self._secret_key,
                 },
                 json={
+                    "title": "[KEPCO 안전관리]",
                     "body": message,
                     "sendNo": self._sender.replace("-", ""),
                     "recipientList": [{"recipientNo": phone}],
@@ -288,12 +290,13 @@ class SmsSender(NotificationSender):
 
         try:
             response = await self._client.post(
-                f"{self.BASE_URL}/{self._app_key}/sender/sms",
+                f"{self.BASE_URL}/{self._app_key}/sender/mms",
                 headers={
                     "Content-Type": "application/json;charset=UTF-8",
                     "X-Secret-Key": self._secret_key,
                 },
                 json={
+                    "title": "[KEPCO 안전관리]",
                     "body": message,
                     "sendNo": self._sender.replace("-", ""),
                     "recipientList": recipients,

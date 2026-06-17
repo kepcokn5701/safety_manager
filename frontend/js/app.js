@@ -91,6 +91,11 @@ function startApp() {
     loadStats();
     loadAutoSmsStatus();
 
+    // SMS 대상 선택 변경 시 카운트 갱신
+    document.querySelectorAll('input[name="sms-target"]').forEach(radio => {
+        radio.addEventListener('change', () => { renderAlertSendList(); });
+    });
+
     // 알림 이력/통계만 1분마다 갱신
     setInterval(() => { loadAlertHistory(); loadStats(); }, 60000);
 
@@ -120,13 +125,16 @@ async function checkSmsStatus() {
     }
 }
 
-async function sendSmsToSiteWorkers(siteIds, message) {
+async function sendSmsToSiteWorkers(siteIds, message, targetRole) {
     // 선택 현장 작업자에게 SMS 발송 (이름/현장 포함)
+    // targetRole: 'all' = 전원, 'manager' = 현장책임자만
     const workers = [];
     const sites = state.allSitesWeather || [];
     sites.filter(s => !siteIds || siteIds.includes(s.site_id)).forEach(s => {
         (s.workers || []).forEach(w => {
-            if (w.phone) workers.push({ name: w.name || '', phone: w.phone, site: s.site_name || '' });
+            if (!w.phone) return;
+            if (targetRole === 'manager' && w.role !== 'manager') return;
+            workers.push({ name: w.name || '', phone: w.phone, site: s.site_name || '' });
         });
     });
     if (workers.length === 0) throw new Error('발송 대상 작업자가 없습니다 (전화번호 없음)');
@@ -176,34 +184,50 @@ function updateWeatherCountdown() {
 }
 
 // ── 자동 SMS 상세 ──
-async function showAutoSmsDetail() {
-    let data;
-    try {
-        data = await api('/api/sms/auto-schedule');
-    } catch (e) {
-        data = {
-            enabled: false,
-            schedule: ['10:00', '13:00'],
-            messages: {
-                '관심 (31°C)': SMS_STAGE_MESSAGES.interest,
-                '주의 (33°C)': SMS_STAGE_MESSAGES.caution,
-                '경고 (35°C)': SMS_STAGE_MESSAGES.warning,
-                '위험 (38°C)': SMS_STAGE_MESSAGES.danger,
-            },
-        };
-    }
-    const statusText = data.enabled
-        ? '<span style="color:#16a34a;font-weight:600">&#10003; SMS 설정 완료 — 자동 발송 활성</span>'
-        : '<span style="color:#dc2626;font-weight:600">&#10005; SMS 미설정 — .env에서 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 설정 필요</span>';
+async function showAutoSmsDetail() { showSmsContentModal(); }
 
-    const stageList = data.messages || {};
-    const msgHtml = Object.entries(stageList).map(([stage, msg]) => {
+async function showSmsContentModal() {
+    let scheduleData, todayData;
+    try {
+        [scheduleData, todayData] = await Promise.all([
+            api('/api/sms/auto-schedule'),
+            api('/api/sms/today-content'),
+        ]);
+    } catch (e) {
+        scheduleData = { enabled: false, messages: {} };
+        todayData = { date: '', messages: [] };
+    }
+
+    const typeBadges = {
+        'mock': '<span style="background:#FFF3E0;color:#E65100;padding:1px 5px;border-radius:6px;font-size:10px">모의</span>',
+        'real': '<span style="background:#E8F5E9;color:#2E7D32;padding:1px 5px;border-radius:6px;font-size:10px">수동</span>',
+        'auto': '<span style="background:#E3F2FD;color:#1565C0;padding:1px 5px;border-radius:6px;font-size:10px">자동</span>',
+    };
+
+    // 오늘 발송 내용
+    let todayHtml = '';
+    if (todayData.messages.length > 0) {
+        todayHtml = todayData.messages.map(m => {
+            const badge = typeBadges[m.type] || m.type;
+            return `<div style="margin-bottom:8px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+                <div style="padding:6px 10px;background:#f8fafc;display:flex;align-items:center;gap:6px;font-size:11px;border-bottom:1px solid #f0f0f0">
+                    ${badge} <b>${m.sent_at}</b> <span style="color:#64748b">${m.count}건 발송</span>
+                </div>
+                <div style="padding:10px 12px;font-size:12px;white-space:pre-wrap;line-height:1.6;font-family:monospace;background:white">${m.message.replace(/</g, '&lt;')}</div>
+            </div>`;
+        }).join('');
+    } else {
+        todayHtml = '<div style="text-align:center;padding:16px;color:#94a3b8;font-size:12px">오늘 발송된 SMS가 없습니다</div>';
+    }
+
+    // 단계별 기본 문구
+    const stageList = scheduleData.messages || {};
+    const stageHtml = Object.entries(stageList).map(([stage, msg]) => {
         const colors = {'관심': '#FFC107', '주의': '#FF9800', '경고': '#FF5722', '위험': '#D32F2F'};
         const color = Object.entries(colors).find(([k]) => stage.includes(k))?.[1] || '#666';
-        return `<div style="margin-bottom:8px;padding:10px 12px;border-left:3px solid ${color};background:white;border-radius:0 6px 6px 0">
-            <div style="font-weight:600;font-size:12px;color:${color};margin-bottom:4px">${stage}</div>
-            <div style="font-size:12px;line-height:1.6;white-space:pre-line;color:#333">${msg}</div>
-            <div style="font-size:10px;color:#94a3b8;margin-top:4px">글자 수: ${msg.length}자</div>
+        return `<div style="margin-bottom:6px;padding:8px 10px;border-left:3px solid ${color};background:white;border-radius:0 6px 6px 0">
+            <div style="font-weight:600;font-size:11px;color:${color};margin-bottom:3px">${stage}</div>
+            <div style="font-size:11px;line-height:1.5;white-space:pre-line;color:#333">${msg}</div>
         </div>`;
     }).join('');
 
@@ -211,35 +235,25 @@ async function showAutoSmsDetail() {
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     modal.innerHTML = `
-    <div style="background:white;border-radius:12px;max-width:480px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">
-        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
-            <div style="font-size:15px;font-weight:700">&#9200; 자동 SMS 발송 설정</div>
-            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
+    <div onclick="event.stopPropagation()" style="background:white;border-radius:12px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;display:flex;flex-direction:column">
+        <div style="padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1565c0,#1976d2);border-radius:12px 12px 0 0;flex-shrink:0">
+            <div style="font-size:15px;font-weight:700;color:white">SMS 내용 확인</div>
+            <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(255,255,255,0.7)">&times;</button>
         </div>
-        <div style="padding:16px 20px">
-            <div style="margin-bottom:12px">${statusText}</div>
-            <div style="background:#f8fafc;border-radius:8px;padding:12px;margin-bottom:14px">
-                <div style="font-weight:600;font-size:13px;margin-bottom:6px">발송 스케줄</div>
-                <div style="display:flex;gap:12px">
-                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
-                        <div style="font-size:18px;font-weight:700;color:#1565c0">10:00</div>
-                        <div style="font-size:10px;color:#64748b">오전</div>
-                    </div>
-                    <div style="text-align:center;padding:8px 16px;background:white;border-radius:8px;border:1px solid #e2e8f0">
-                        <div style="font-size:18px;font-weight:700;color:#1565c0">13:00</div>
-                        <div style="font-size:10px;color:#64748b">오후</div>
-                    </div>
+        <div style="padding:16px 20px;overflow-y:auto">
+            <div style="font-weight:700;font-size:13px;margin-bottom:8px">오늘 발송된 SMS (${todayData.date})</div>
+            ${todayHtml}
+
+            <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
+                <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+                    단계별 기본 문구
+                    <span style="font-size:11px;font-weight:400;color:#64748b">자동 발송: 매일 10시 / 13시</span>
                 </div>
-                <div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.5">
-                    각 현장의 실시간 체감온도에 따라 해당 단계의 메시지가 작업자에게 자동 발송됩니다.<br>
-                    체감온도 31도 미만(정상)인 현장은 발송되지 않습니다.
-                </div>
+                ${stageHtml}
             </div>
-            <div style="font-weight:600;font-size:13px;margin-bottom:8px">단계별 SMS 문구</div>
-            ${msgHtml}
-            <div style="margin-top:12px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:11px;color:#166534;line-height:1.6">
-                <b>TIP:</b> 수동 발송 시에도 위 필터 버튼(관심/주의/경고/위험)을 클릭하면<br>
-                해당 단계 문구가 SMS 입력창에 자동 입력됩니다. 내용 수정 후 발송 가능합니다.
+
+            <div style="margin-top:10px;padding:8px 10px;background:#f0fdf4;border-radius:6px;font-size:11px;color:#166534;line-height:1.5">
+                <b>TIP:</b> 필터 버튼(관심/주의/경고/위험) 클릭 시 해당 문구가 SMS 입력창에 자동 입력됩니다.
             </div>
         </div>
     </div>`;
@@ -386,12 +400,260 @@ function showSmsPolicyGuide() {
                 &bull; 발신번호 등록 및 번호 도용 문자 차단 해지는 <b>최초 1회만</b> 설정하면 됩니다.<br>
                 &bull; SMS 발송 실패 시 대부분 발신번호 미등록 또는 번호도용차단 미해지가 원인입니다.<br>
                 &bull; 월 5,000건 초과 시 NHN Cloud 콘솔에서 쿼터 상향을 요청하세요.<br>
-                &bull; SMS 요금은 <b>건당 약 9.9원</b> (후불 과금). NHN Cloud 콘솔에서 이용내역 확인 가능합니다.
+                &bull; LMS 요금은 <b>건당 약 30원</b> (후불 과금). NHN Cloud 콘솔에서 이용내역 확인 가능합니다. 상단 "발송 통계"에서 누적 비용을 확인할 수 있습니다.
             </div>
         </div>
     </div>`;
     document.body.appendChild(modal);
 }
+
+// ── SMS 발송 통계 ──
+async function showSmsStatsModal(selectedDate = '') {
+    let data;
+    try {
+        data = await api('/api/sms/stats' + (selectedDate ? '?date=' + selectedDate : ''));
+    } catch (e) {
+        alert('통계 조회 실패: ' + e.message);
+        return;
+    }
+
+    const old = document.getElementById('sms-stats-modal');
+    if (old) old.remove();
+
+    const s = data.summary;
+    const t = data.total;
+    const cf = function(v) { return v.toLocaleString() + '원'; };
+
+    let dailyHtml = '';
+    if (data.daily.length > 0) {
+        for (let i = 0; i < data.daily.length; i++) {
+            const d = data.daily[i];
+            const dSent = (d.mock_sent || 0) + (d.real_sent || 0) + (d.auto_sent || 0);
+            const dFail = (d.mock_failed || 0) + (d.real_failed || 0) + (d.auto_failed || 0);
+            const bg = d.date === selectedDate ? 'background:#e8f5e9;font-weight:600' : '';
+            dailyHtml += '<tr class="sms-stats-day" data-date="' + d.date + '" style="cursor:pointer;' + bg + '">'
+                + '<td style="padding:6px 8px;font-size:12px">' + d.date + '</td>'
+                + '<td style="padding:6px 8px;font-size:12px;text-align:center">' + (d.mock_sent || 0) + '</td>'
+                + '<td style="padding:6px 8px;font-size:12px;text-align:center">' + (d.real_sent || 0) + '</td>'
+                + '<td style="padding:6px 8px;font-size:12px;text-align:center">' + (d.auto_sent || 0) + '</td>'
+                + '<td style="padding:6px 8px;font-size:12px;text-align:center;font-weight:600">' + dSent + '</td>'
+                + '<td style="padding:6px 8px;font-size:12px;text-align:center;color:#dc2626">' + (dFail || '-') + '</td>'
+                + '<td style="padding:6px 8px;font-size:12px;text-align:right">' + cf(d.cost || 0) + '</td>'
+                + '</tr>';
+        }
+    } else {
+        dailyHtml = '<tr><td colspan="7" style="padding:16px;text-align:center;color:#94a3b8;font-size:12px">발송 이력이 없습니다</td></tr>';
+    }
+
+    let detailHtml = '';
+    if (selectedDate && data.details && data.details.length > 0) {
+        const typeBadges = {
+            'mock': '<span style="background:#FFF3E0;color:#E65100;padding:1px 6px;border-radius:8px;font-size:10px">모의</span>',
+            'real': '<span style="background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;font-size:10px">수동</span>',
+            'auto': '<span style="background:#E3F2FD;color:#1565C0;padding:1px 6px;border-radius:8px;font-size:10px">자동</span>',
+        };
+        let rows = '';
+        for (let i = 0; i < data.details.length; i++) {
+            const d = data.details[i];
+            const badge = typeBadges[d.type] || d.type;
+            const icon = d.status === 'sent' ? '<span style="color:#16a34a">O</span>' : '<span style="color:#dc2626">X</span>';
+            rows += '<tr style="border-top:1px solid #f1f5f9">'
+                + '<td style="padding:5px 6px">' + d.sent_at + '</td>'
+                + '<td style="padding:5px 6px">' + badge + '</td>'
+                + '<td style="padding:5px 6px">' + d.phone + '</td>'
+                + '<td style="padding:5px 6px">' + (d.name || '-') + '</td>'
+                + '<td style="padding:5px 6px;text-align:center">' + icon + '</td>'
+                + '<td style="padding:5px 6px;text-align:right">' + (d.cost > 0 ? cf(d.cost) : '-') + '</td>'
+                + '</tr>';
+        }
+        detailHtml = '<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px">'
+            + '<div style="font-weight:700;font-size:13px;margin-bottom:8px">' + selectedDate + ' 상세 이력 (' + data.details.length + '건)</div>'
+            + '<div style="max-height:250px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px">'
+            + '<table style="width:100%;border-collapse:collapse;font-size:11px">'
+            + '<thead><tr style="background:#f1f5f9;position:sticky;top:0">'
+            + '<th style="padding:6px;text-align:left">시간</th><th style="padding:6px;text-align:left">유형</th>'
+            + '<th style="padding:6px;text-align:left">수신번호</th><th style="padding:6px;text-align:left">이름</th>'
+            + '<th style="padding:6px;text-align:center">결과</th><th style="padding:6px;text-align:right">비용</th>'
+            + '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'sms-stats-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = '<div style="background:white;border-radius:12px;max-width:680px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto">'
+        + '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#4a148c,#7b1fa2);border-radius:12px 12px 0 0">'
+        + '<div style="font-size:15px;font-weight:700;color:white">SMS 발송 통계</div>'
+        + '<button id="sms-stats-close" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(255,255,255,0.7)">&times;</button>'
+        + '</div>'
+        + '<div style="padding:16px 20px">'
+        + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'
+        + '<div style="text-align:center;padding:12px 8px;background:#FFF3E0;border-radius:8px;border:1px solid #FFE0B2">'
+            + '<div style="font-size:10px;color:#64748b">모의 테스트</div>'
+            + '<div style="font-size:20px;font-weight:700;color:#E65100">' + s.mock.sent + '</div>'
+            + '<div style="font-size:10px;color:#94a3b8">' + cf(s.mock.cost) + '</div></div>'
+        + '<div style="text-align:center;padding:12px 8px;background:#E8F5E9;border-radius:8px;border:1px solid #A5D6A7">'
+            + '<div style="font-size:10px;color:#64748b">수동 발송</div>'
+            + '<div style="font-size:20px;font-weight:700;color:#2E7D32">' + s.real.sent + '</div>'
+            + '<div style="font-size:10px;color:#94a3b8">' + cf(s.real.cost) + '</div></div>'
+        + '<div style="text-align:center;padding:12px 8px;background:#E3F2FD;border-radius:8px;border:1px solid #90CAF9">'
+            + '<div style="font-size:10px;color:#64748b">자동 발송</div>'
+            + '<div style="font-size:20px;font-weight:700;color:#1565C0">' + s.auto.sent + '</div>'
+            + '<div style="font-size:10px;color:#94a3b8">' + cf(s.auto.cost) + '</div></div>'
+        + '<div style="text-align:center;padding:12px 8px;background:#faf5ff;border-radius:8px;border:1px solid #ce93d8">'
+            + '<div style="font-size:10px;color:#64748b">총 발송 / 비용</div>'
+            + '<div style="font-size:20px;font-weight:700;color:#7b1fa2">' + t.sent + '</div>'
+            + '<div style="font-size:10px;color:#e53935">' + (t.failed > 0 ? '실패 ' + t.failed + '건 / ' : '') + cf(t.cost) + '</div></div>'
+        + '</div>'
+        + '<div style="font-weight:700;font-size:13px;margin-bottom:8px">날짜별 발송 현황 <span style="font-weight:400;font-size:11px;color:#94a3b8">(클릭하면 상세 조회)</span></div>'
+        + '<div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;max-height:300px;overflow-y:auto">'
+        + '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f8fafc;position:sticky;top:0">'
+        + '<th style="padding:8px;text-align:left;font-size:11px;font-weight:600">날짜</th>'
+        + '<th style="padding:8px;text-align:center;font-size:11px;font-weight:600;color:#E65100">모의</th>'
+        + '<th style="padding:8px;text-align:center;font-size:11px;font-weight:600;color:#2E7D32">수동</th>'
+        + '<th style="padding:8px;text-align:center;font-size:11px;font-weight:600;color:#1565C0">자동</th>'
+        + '<th style="padding:8px;text-align:center;font-size:11px;font-weight:600">합계</th>'
+        + '<th style="padding:8px;text-align:center;font-size:11px;font-weight:600;color:#dc2626">실패</th>'
+        + '<th style="padding:8px;text-align:right;font-size:11px;font-weight:600">비용</th>'
+        + '</tr></thead><tbody>' + dailyHtml + '</tbody></table></div>'
+        + detailHtml
+        + '<div style="margin-top:14px">'
+        + '<button onclick="showFixedRecipientsModal()" style="width:100%;padding:10px;border:1px solid #90caf9;background:#e3f2fd;color:#1565c0;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">확인용 수신자 관리 (시스템관리자/안전담당자)</button>'
+        + '</div>'
+        + '<div style="margin-top:8px;padding:8px 10px;background:#faf5ff;border-radius:6px;font-size:11px;color:#7b1fa2;line-height:1.5;display:flex;justify-content:space-between;align-items:center">'
+        + '<span>LMS 건당 약 30원 | 성공 건만 과금 | 실패 건은 비용 미발생</span>'
+        + '<button onclick="showSmsPolicyGuide()" style="background:none;border:1px solid #ce93d8;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;white-space:nowrap;flex-shrink:0">NHN 정책 상세</button>'
+        + '</div>'
+        + '</div></div>';
+    document.body.appendChild(modal);
+
+    document.getElementById('sms-stats-close').onclick = function() { modal.remove(); };
+    modal.querySelectorAll('.sms-stats-day').forEach(function(tr) {
+        tr.onclick = function() {
+            modal.remove();
+            showSmsStatsModal(tr.dataset.date);
+        };
+    });
+}
+
+// ── 확인용 수신자 관리 ──
+async function showFixedRecipientsModal() {
+    const old = document.getElementById('fixed-recipients-modal');
+    if (old) old.remove();
+
+    let recipients = [];
+    try {
+        recipients = await api('/api/sms/fixed-recipients');
+    } catch (e) {
+        console.error('확인용 수신자 조회 실패:', e);
+    }
+
+    function renderList() {
+        let listHtml = '';
+        if (recipients.length === 0) {
+            listHtml = '<div style="text-align:center;padding:24px;color:#94a3b8;font-size:13px">등록된 확인용 수신자가 없습니다</div>';
+        } else {
+            listHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr style="background:#f8fafc">'
+                + '<th style="padding:8px;text-align:left">이름</th>'
+                + '<th style="padding:8px;text-align:left">전화번호</th>'
+                + '<th style="padding:8px;text-align:left">역할</th>'
+                + '<th style="padding:8px;text-align:center;width:50px">삭제</th>'
+                + '</tr></thead><tbody>';
+            recipients.forEach(r => {
+                listHtml += `<tr style="border-top:1px solid #f1f5f9">
+                    <td style="padding:7px 8px;font-weight:500">${r.name}</td>
+                    <td style="padding:7px 8px;font-family:monospace">${r.phone}</td>
+                    <td style="padding:7px 8px;color:#64748b">${r.role || '-'}</td>
+                    <td style="padding:7px 8px;text-align:center"><button class="fixed-del-btn" data-id="${r.id}" style="background:none;border:1px solid #fecaca;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer">삭제</button></td>
+                </tr>`;
+            });
+            listHtml += '</tbody></table>';
+        }
+        const listEl = document.getElementById('fixed-recipients-list');
+        if (listEl) listEl.innerHTML = listHtml;
+
+        document.querySelectorAll('.fixed-del-btn').forEach(btn => {
+            btn.onclick = async function() {
+                if (!confirm('확인용 수신자를 삭제하시겠습니까?')) return;
+                try {
+                    await api('/api/sms/fixed-recipients/' + btn.dataset.id, { method: 'DELETE' });
+                    recipients = recipients.filter(r => r.id !== parseInt(btn.dataset.id));
+                    renderList();
+                    showToast('확인용 수신자 삭제 완료', 'success');
+                } catch (e) {
+                    showToast('삭제 실패: ' + e.message, 'error');
+                }
+            };
+        });
+    }
+
+    const modal = document.createElement('div');
+    modal.id = 'fixed-recipients-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;justify-content:center;align-items:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    modal.innerHTML = `<div onclick="event.stopPropagation()" style="background:white;border-radius:12px;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);max-height:85vh;display:flex;flex-direction:column">
+        <div style="padding:14px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1565c0,#1976d2);border-radius:12px 12px 0 0;flex-shrink:0">
+            <div style="font-size:15px;font-weight:700;color:white">확인용 수신자 관리</div>
+            <button onclick="document.getElementById('fixed-recipients-modal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:rgba(255,255,255,0.7)">&times;</button>
+        </div>
+        <div style="padding:16px 20px;overflow-y:auto">
+            <div style="padding:10px 12px;background:#e3f2fd;border-radius:8px;font-size:12px;color:#1565c0;margin-bottom:14px;line-height:1.5">
+                아래 등록된 수신자에게 SMS 발송 시 항상 동일한 문자가 함께 발송됩니다.<br>
+                문자가 실제로 잘 도착하는지 확인하는 용도로 활용하세요.
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:14px;align-items:end">
+                <div style="flex:1">
+                    <label style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:2px;display:block">이름</label>
+                    <input id="fixed-name" type="text" placeholder="홍길동" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box">
+                </div>
+                <div style="flex:1">
+                    <label style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:2px;display:block">전화번호</label>
+                    <input id="fixed-phone" type="text" placeholder="010-1234-5678" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box">
+                </div>
+                <div style="flex:0.8">
+                    <label style="font-size:11px;font-weight:600;color:#64748b;margin-bottom:2px;display:block">역할</label>
+                    <select id="fixed-role" style="width:100%;padding:7px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;box-sizing:border-box">
+                        <option value="시스템관리자">시스템관리자</option>
+                        <option value="안전담당자">안전담당자</option>
+                        <option value="개발자">개발자</option>
+                        <option value="">기타</option>
+                    </select>
+                </div>
+                <button id="fixed-add-btn" style="padding:7px 16px;background:#1565c0;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">추가</button>
+            </div>
+            <div id="fixed-recipients-list" style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden"></div>
+        </div>
+    </div>`;
+    document.body.appendChild(modal);
+    renderList();
+
+    document.getElementById('fixed-add-btn').onclick = async function() {
+        const name = document.getElementById('fixed-name').value.trim();
+        const phone = document.getElementById('fixed-phone').value.trim();
+        const role = document.getElementById('fixed-role').value;
+        if (!name) { showToast('이름을 입력하세요', 'warning'); return; }
+        if (!phone) { showToast('전화번호를 입력하세요', 'warning'); return; }
+
+        try {
+            const result = await api('/api/sms/fixed-recipients', {
+                method: 'POST',
+                body: JSON.stringify({ name, phone, role }),
+            });
+            if (result.error) {
+                showToast(result.error, 'warning');
+                return;
+            }
+            recipients.push(result);
+            renderList();
+            document.getElementById('fixed-name').value = '';
+            document.getElementById('fixed-phone').value = '';
+            showToast(`${name} 확인용 수신자 등록 완료`, 'success');
+        } catch (e) {
+            showToast('등록 실패: ' + e.message, 'error');
+        }
+    };
+}
+
 
 // ── SMS 테스트 발송 ──
 function showSmsTestModal() {
@@ -863,7 +1125,8 @@ function urlBase64ToUint8Array(base64String) {
 // ── 작업현장 목록 ──
 async function loadSites() {
     try {
-        state.sites = await api('/api/sites');
+        const branchParam = state.branchOffice ? '?branch_office=' + encodeURIComponent(state.branchOffice) : '';
+        state.sites = await api('/api/sites' + branchParam);
         renderSiteList();
         // 현장이 있으면 일단 기본 목록을 먼저 보여주고, 날씨는 비동기로
         if (state.sites.length > 0) {
@@ -936,7 +1199,8 @@ async function loadAllSitesWeather() {
             </div>`;
         }
 
-        const data = await api('/api/weather/status-all');
+        const branchParam = state.branchOffice ? '?branch_office=' + encodeURIComponent(state.branchOffice) : '';
+        const data = await api('/api/weather/status-all' + branchParam);
         if (progressEl) progressEl.style.display = 'none';
         state.allSitesWeather = data.sites;
 
@@ -1093,8 +1357,9 @@ function renderAllSitesOverview(sites) {
                     <div style="display:flex;align-items:center;gap:6px">
                         <input type="checkbox" class="site-check" data-site-id="${s.site_id}" onclick="event.stopPropagation();updateSelectedCount()" style="width:auto;display:none">
                         <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.site_name}</span>
+                        ${s.branch_office ? `<span style="flex-shrink:0;font-size:10px;padding:1px 6px;background:rgba(0,102,204,0.08);color:var(--kepco,#0066cc);border-radius:4px;font-weight:600;border:1px solid rgba(0,102,204,0.15)">${s.branch_office}</span>` : ''}
                     </div>
-                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.branch_office ? `<span style="color:var(--kepco)">${s.branch_office}</span> | ` : ''}${s.address || ''}</div>
+                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
                     ${s.worker_count > 0 ? (() => {
                         const total = s.workers?.length || 0;
                         const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
@@ -1780,7 +2045,11 @@ async function uploadExcelFile(file) {
 function renderExcelPreview(filename) {
     document.getElementById('excel-upload-area').style.display = 'none';
     document.getElementById('excel-preview').style.display = 'block';
-    document.getElementById('excel-info').textContent = `${filename} - ${excelData.total_rows}건`;
+    let infoText = `${filename} - ${excelData.total_rows}건`;
+    if (excelData.multi_sheet && excelData.sheets) {
+        infoText += ` (${excelData.sheets.length}개 시트)`;
+    }
+    document.getElementById('excel-info').textContent = infoText;
 
     // 컬럼 매핑 표시
     const mappingEl = document.getElementById('mapping-fields');
@@ -1845,11 +2114,13 @@ function renderExcelPreview(filename) {
                         <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:left">이름</th>
                         <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:left">전화번호</th>
                         <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:left">출처</th>
+                        <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:center">역할</th>
                     </tr></thead>
                     <tbody>${workers.map(w => `<tr>
                         <td style="padding:3px 8px;border:1px solid var(--border)">${w.name}</td>
                         <td style="padding:3px 8px;border:1px solid var(--border)">${w.phone}</td>
                         <td style="padding:3px 8px;border:1px solid var(--border)">${w.source}</td>
+                        <td style="padding:3px 8px;border:1px solid var(--border);text-align:center">${w.role === 'manager' ? '<span style="color:#1565c0;font-weight:600">책임자</span>' : '작업자'}</td>
                     </tr>`).join('')}</tbody>
                 </table>
             </div>
@@ -1919,20 +2190,31 @@ async function importSelectedSites() {
     // 각 현장에 해당하는 작업자 매칭 (row_index 기준)
     const extractedWorkers = excelData.extracted_workers || [];
 
+    // 사업소 컬럼 자동 감지 (2차사업소 등)
+    const branchColEntry = Object.entries(excelData.mapped_columns).find(([, v]) => v === 'branch_office');
+    const branchCol = branchColEntry ? branchColEntry[0] : null;
+
     const sites = checked.map(i => {
         const row = excelData.rows[i];
         const siteName = row[nameCol] || `현장 ${i + 1}`;
+        // 사업소: 엑셀 컬럼 > 시트명 > 선택된 사업소 > 빈값
+        let rowBranch = '';
+        if (branchCol) rowBranch = row[branchCol] || '';
+        if (!rowBranch) rowBranch = row['__sheet_branch'] || '';
+        if (!rowBranch) rowBranch = branchOffice;
         // 이 행에서 추출된 작업자들
         const siteWorkers = extractedWorkers
             .filter(w => w.row_index === i)
-            .map(w => ({ name: w.name, phone: w.phone }));
+            .map(w => {
+                return { name: w.name, phone: w.phone, role: w.role || 'worker' };
+            });
         return {
             name: siteName,
             address: addrCol ? (row[addrCol] || '') : '',
             latitude: lat,
             longitude: lng,
             work_intensity: intensity,
-            branch_office: branchOffice,
+            branch_office: rowBranch,
             workers: siteWorkers,
         };
     }).filter(s => s.name.trim());
@@ -1959,7 +2241,11 @@ async function importSelectedSites() {
         closeModal('site-modal');
         resetExcelUpload();
 
-        let msg = `현장 ${result.created}건 등록 완료`;
+        let msg = '';
+        if (result.created > 0) msg += `현장 ${result.created}건 신규 등록`;
+        if (result.updated > 0) msg += `${msg ? ', ' : ''}기존 현장 ${result.updated}건 역할 갱신`;
+        if (result.roles_updated > 0) msg += ` (작업자 ${result.roles_updated}명)`;
+        if (!msg) msg = '등록 완료';
         if (result.geocoded > 0) msg += ` (좌표 변환 ${result.geocoded}건)`;
         if (result.workers_assigned > 0) msg += `\n작업자 ${result.workers_created}명 등록, ${result.workers_assigned}명 배정`;
         if (result.errors > 0) msg += `\n실패 ${result.errors}건`;
@@ -2054,6 +2340,68 @@ async function uploadWorkerExcelFile(file) {
     }
 }
 
+function _validateWorkerRow(row, nameCol, phoneCol) {
+    const issues = [];
+    const name = nameCol ? (row[nameCol] || '').trim() : '';
+    const phone = phoneCol ? (row[phoneCol] || '').trim() : '';
+
+    if (!nameCol) {
+        issues.push('이름 컬럼 미선택');
+    } else if (!name) {
+        issues.push('이름 누락');
+    }
+
+    if (!phoneCol) {
+        issues.push('연락처 컬럼 미선택');
+    } else if (!phone) {
+        issues.push('연락처 누락');
+    } else {
+        const digits = phone.replace(/[^0-9]/g, '');
+        if (!/^01[0-9]\d{7,8}$/.test(digits)) {
+            issues.push(`연락처 형식 오류 (${phone})`);
+        }
+    }
+
+    return issues;
+}
+
+function _updateWorkerValidationSummary() {
+    const nameCol = document.querySelector('[data-worker-field="name"]')?.value;
+    const phoneCol = document.querySelector('[data-worker-field="phone"]')?.value;
+    if (!workerExcelData) return;
+
+    let validCount = 0, issueRows = [];
+    const table = document.getElementById('worker-excel-table');
+    const tbody = table?.querySelector('tbody');
+    if (!tbody) return;
+
+    workerExcelData.rows.forEach((row, i) => {
+        const issues = _validateWorkerRow(row, nameCol, phoneCol);
+        const tr = tbody.children[i];
+        if (!tr) return;
+
+        const statusTd = tr.querySelector('.worker-row-status');
+        if (issues.length === 0) {
+            validCount++;
+            if (statusTd) statusTd.innerHTML = '<span style="color:#27ae60">OK</span>';
+            tr.style.opacity = '1';
+        } else {
+            if (statusTd) statusTd.innerHTML = `<span style="color:#e74c3c" title="${issues.join(', ')}">${issues[0]}</span>`;
+            tr.style.opacity = '0.6';
+            issueRows.push({ idx: i + 1, issues });
+        }
+    });
+
+    const summaryEl = document.getElementById('worker-validation-summary');
+    if (summaryEl) {
+        if (issueRows.length === 0) {
+            summaryEl.innerHTML = `<span style="color:#27ae60">전체 ${validCount}명 정상</span>`;
+        } else {
+            summaryEl.innerHTML = `<span style="color:#27ae60">정상 ${validCount}명</span> / <span style="color:#e74c3c">확인 필요 ${issueRows.length}명</span>`;
+        }
+    }
+}
+
 function renderWorkerExcelPreview(filename) {
     document.getElementById('worker-excel-upload-area').style.display = 'none';
     document.getElementById('worker-excel-preview').style.display = 'block';
@@ -2075,14 +2423,27 @@ function renderWorkerExcelPreview(filename) {
         return `
             <div style="display:flex;align-items:center;gap:6px">
                 <span style="font-size:12px;min-width:55px;color:var(--text-secondary)">${f.label}:</span>
-                <select data-worker-field="${f.key}" style="flex:1;padding:4px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:12px">
+                <select data-worker-field="${f.key}" onchange="_updateWorkerValidationSummary()" style="flex:1;padding:4px 6px;background:rgba(255,255,255,0.05);border:1px solid var(--border-color);border-radius:4px;color:var(--text-primary);font-size:12px">
                     <option value="">(선택 안 함)</option>
                     ${options}
                 </select>
             </div>`;
     }).join('');
 
-    // 테이블 렌더링
+    // 유효성 요약 영역
+    const summaryArea = document.getElementById('worker-validation-summary');
+    if (!summaryArea) {
+        const container = document.getElementById('worker-mapping-fields').parentElement;
+        const div = document.createElement('div');
+        div.id = 'worker-validation-summary';
+        div.style.cssText = 'font-size:12px;margin-top:6px;padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:4px';
+        container.appendChild(div);
+    }
+
+    // 테이블 렌더링 (상태 컬럼 추가)
+    const nameCol = document.querySelector('[data-worker-field="name"]')?.value;
+    const phoneCol = document.querySelector('[data-worker-field="phone"]')?.value;
+
     const table = document.getElementById('worker-excel-table');
     const cols = workerExcelData.columns.slice(0, 8);
     let html = '<thead><tr>';
@@ -2092,19 +2453,31 @@ function renderWorkerExcelPreview(filename) {
         const highlight = mapped ? 'background:rgba(41,128,185,0.3)' : 'background:rgba(41,128,185,0.2)';
         html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${c}${mapped ? ' *' : ''}</th>`;
     });
+    html += '<th style="padding:6px 8px;background:rgba(41,128,185,0.2);border:1px solid var(--border-color);font-size:11px;white-space:nowrap;min-width:80px">상태</th>';
     html += '</tr></thead><tbody>';
 
     workerExcelData.rows.forEach((row, i) => {
-        html += `<tr>`;
-        html += `<td style="padding:4px 8px;border:1px solid var(--border-color);text-align:center"><input type="checkbox" class="worker-row-check" data-idx="${i}" checked></td>`;
+        const issues = _validateWorkerRow(row, nameCol, phoneCol);
+        const hasIssue = issues.length > 0;
+        html += `<tr style="opacity:${hasIssue ? '0.6' : '1'}">`;
+        html += `<td style="padding:4px 8px;border:1px solid var(--border-color);text-align:center"><input type="checkbox" class="worker-row-check" data-idx="${i}" ${hasIssue ? '' : 'checked'}></td>`;
         cols.forEach(c => {
             const val = row[c] || '';
-            html += `<td style="padding:4px 8px;border:1px solid var(--border-color);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${val}">${val}</td>`;
+            const isNameCol = c === nameCol;
+            const isPhoneCol = c === phoneCol;
+            let cellStyle = 'padding:4px 8px;border:1px solid var(--border-color);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+            if (isNameCol && !val.trim()) cellStyle += ';background:rgba(231,76,60,0.15)';
+            if (isPhoneCol && val.trim() && !/^01[0-9]/.test(val.replace(/[^0-9]/g, ''))) cellStyle += ';background:rgba(231,76,60,0.15)';
+            if (isPhoneCol && !val.trim()) cellStyle += ';background:rgba(231,76,60,0.15)';
+            html += `<td style="${cellStyle}" title="${val}">${val || '<span style="color:#e74c3c;font-size:10px">빈값</span>'}</td>`;
         });
+        html += `<td class="worker-row-status" style="padding:4px 8px;border:1px solid var(--border-color);font-size:10px;white-space:nowrap">${hasIssue ? `<span style="color:#e74c3c" title="${issues.join(', ')}">${issues[0]}</span>` : '<span style="color:#27ae60">OK</span>'}</td>`;
         html += '</tr>';
     });
     html += '</tbody>';
     table.innerHTML = html;
+
+    _updateWorkerValidationSummary();
 }
 
 function toggleAllWorkerRows(master) {
@@ -2146,21 +2519,45 @@ async function importSelectedWorkers() {
         return;
     }
 
-    const workers = checked.map(i => {
+    const allRows = checked.map(i => {
         const row = workerExcelData.rows[i];
         return {
+            rowNum: i + 1,
             name: (row[nameCol] || '').trim(),
             phone: (row[phoneCol] || '').trim(),
             department: deptCol ? (row[deptCol] || '').trim() : '',
             team: teamCol ? (row[teamCol] || '').trim() : '',
             is_vulnerable: bulkVulnerable,
+            issues: _validateWorkerRow(row, nameCol, phoneCol),
         };
-    }).filter(w => w.name && w.phone);
+    });
 
-    if (workers.length === 0) {
-        alert('등록할 유효한 작업자가 없습니다.\n이름과 전화번호가 있는 행이 필요합니다.');
+    const valid = allRows.filter(w => w.issues.length === 0);
+    const invalid = allRows.filter(w => w.issues.length > 0);
+
+    if (valid.length === 0 && invalid.length > 0) {
+        const detail = invalid.slice(0, 5).map(w => {
+            const label = w.name || w.phone || `${w.rowNum}행`;
+            return `  - ${label}: ${w.issues.join(', ')}`;
+        }).join('\n');
+        alert(`등록할 유효한 작업자가 없습니다.\n\n확인 필요 (${invalid.length}건):\n${detail}${invalid.length > 5 ? `\n  ... 외 ${invalid.length - 5}건` : ''}`);
         return;
     }
+
+    if (invalid.length > 0) {
+        const detail = invalid.slice(0, 5).map(w => {
+            const label = w.name || w.phone || `${w.rowNum}행`;
+            return `  - ${label}: ${w.issues.join(', ')}`;
+        }).join('\n');
+        const proceed = confirm(
+            `선택한 ${allRows.length}명 중 ${invalid.length}명은 정보가 누락되어 제외됩니다.\n\n` +
+            `제외 사유:\n${detail}${invalid.length > 5 ? `\n  ... 외 ${invalid.length - 5}건` : ''}\n\n` +
+            `정상 ${valid.length}명만 등록하시겠습니까?`
+        );
+        if (!proceed) return;
+    }
+
+    const workers = valid.map(({ rowNum, issues, ...w }) => w);
 
     try {
         const result = await api('/api/upload/import-workers', {
@@ -2170,7 +2567,14 @@ async function importSelectedWorkers() {
         let msg = `작업자 ${result.created}명 등록 완료`;
         if (result.skipped > 0) msg += ` (중복 ${result.skipped}명 건너뜀)`;
         if (result.errors > 0) msg += ` (실패 ${result.errors}건)`;
-        showToast(msg, result.errors > 0 ? 'warning' : 'success');
+        if (invalid.length > 0) msg += ` (정보 누락 ${invalid.length}명 제외)`;
+
+        if (result.error_details?.length > 0) {
+            const errDetail = result.error_details.slice(0, 3).map(e => `${e.name}: ${e.error}`).join('\n');
+            showToast(msg + '\n' + errDetail, 'warning');
+        } else {
+            showToast(msg, result.errors > 0 ? 'warning' : 'success');
+        }
         closeModal('worker-modal');
         resetWorkerExcelUpload();
         switchWorkerTab('manual');
@@ -2314,7 +2718,7 @@ async function loadMockWeather() {
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px">
                     <label style="font-size:12px;font-weight:600;color:#333;white-space:nowrap">수신번호</label>
-                    <input type="tel" id="mock-sms-phone" placeholder="010-1234-5678" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
+                    <input type="tel" id="mock-sms-phone" placeholder="010-1234-5678" oninput="renderAlertSendList()" style="flex:1;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px">
                 </div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
                     <button onclick="sendMockSmsTest('interest')" class="mock-sms-btn" style="flex:1;min-width:70px;padding:8px 4px;background:#FFF8E1;border:1px solid #FFC107;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;color:#F57F17">관심<br><span style="font-weight:400;font-size:10px">31°C</span></button>
@@ -2360,6 +2764,38 @@ const MOCK_SMS_STAGE_LABELS = {
     danger: { name: '위험', color: '#B71C1C' },
 };
 
+async function _fetchTomorrowForecastText(progressEl) {
+    try {
+        let data = await api('/api/weather/tomorrow');
+        if (!data.cached || !data.forecasts || Object.keys(data.forecasts).length === 0) {
+            // 수집이 필요하면 비동기로 시작하고 진행률 폴링
+            const collectPromise = api('/api/weather/tomorrow/collect', { method: 'POST' });
+            if (progressEl) {
+                const pollId = setInterval(async () => {
+                    try {
+                        const p = await api('/api/progress');
+                        if (p.active && p.task === 'tomorrow_forecast' && p.total > 0) {
+                            progressEl.innerHTML = '<div style="display:flex;align-items:center;gap:8px;padding:4px 0">'
+                                + '<div style="flex:1;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">'
+                                + '<div style="height:100%;background:linear-gradient(90deg,#1565c0,#42a5f5);border-radius:3px;transition:width 0.3s;width:' + p.percent + '%"></div></div>'
+                                + '<span style="font-size:11px;color:#1565c0;font-weight:600;min-width:60px;text-align:right">' + p.current + '/' + p.total + '</span></div>'
+                                + '<div style="font-size:10px;color:#64748b;margin-top:2px">' + (p.detail || '') + '</div>';
+                        }
+                    } catch {}
+                }, 500);
+                await collectPromise;
+                clearInterval(pollId);
+            } else {
+                await collectPromise;
+            }
+            data = await api('/api/weather/tomorrow');
+        }
+        if (!data.cached || !data.forecasts) return '';
+        const first = Object.values(data.forecasts)[0];
+        return first?.sms_preview || '';
+    } catch { return ''; }
+}
+
 async function sendMockSmsTest(stage) {
     const phone = document.getElementById('mock-sms-phone')?.value?.trim();
     const resultEl = document.getElementById('mock-sms-result');
@@ -2373,15 +2809,21 @@ async function sendMockSmsTest(stage) {
         return;
     }
 
-    const message = SMS_STAGE_MESSAGES[stage];
-    if (!message) { alert('단계 메시지를 찾을 수 없습니다.'); return; }
+    const baseMsg = SMS_STAGE_MESSAGES[stage];
+    if (!baseMsg) { alert('단계 메시지를 찾을 수 없습니다.'); return; }
 
     const label = MOCK_SMS_STAGE_LABELS[stage];
+    if (!confirm(`[모의 테스트] ${label.name} 단계 SMS 1건 발송\n수신번호: ${phone}\n\n비용: LMS 1건 × 30원 = 30원\n\n실제 문자가 발송됩니다. 계속하시겠습니까?`)) return;
+
     const btns = document.querySelectorAll('.mock-sms-btn');
     btns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
 
     resultEl.style.display = 'block';
+    resultEl.innerHTML = `<div id="mock-sms-progress" style="padding:8px;background:#f8fafc;border-radius:6px;color:#64748b"><div style="text-align:center"><span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span> 내일 예보 조회 중...</div></div>`;
+
+    const tomorrowText = await _fetchTomorrowForecastText(document.getElementById('mock-sms-progress'));
     resultEl.innerHTML = `<div style="padding:8px;background:#f8fafc;border-radius:6px;text-align:center;color:#64748b"><span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span> <b style="color:${label.color}">${label.name}</b> 단계 SMS 발송 중...</div>`;
+    const message = baseMsg + tomorrowText;
 
     try {
         const data = await api('/api/sms/test', {
@@ -2422,19 +2864,21 @@ async function sendMockSmsTestAll() {
         alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
         return;
     }
-    if (!confirm(`4개 단계(관심/주의/경고/위험) SMS를 순서대로 발송합니다.\n수신번호: ${phone}\n\n4건의 SMS가 실제 발송됩니다. 계속하시겠습니까?`)) return;
+    if (!confirm(`[모의 테스트] 4단계(관심/주의/경고/위험) SMS 발송\n수신번호: ${phone}\n\n비용: LMS 4건 × 30원 = 120원\n\n실제 문자 4건이 순서대로 발송됩니다. 계속하시겠습니까?`)) return;
 
     const stages = ['interest', 'caution', 'warning', 'danger'];
     const allBtns = document.querySelectorAll('#mock-sms-panel button');
     allBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
 
     resultEl.style.display = 'block';
+    resultEl.innerHTML = `<div id="mock-all-progress" style="padding:8px;background:#f8fafc;border-radius:6px;color:#64748b"><div style="text-align:center"><span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span> 내일 예보 조회 중...</div></div>`;
+    const tomorrowText = await _fetchTomorrowForecastText(document.getElementById('mock-all-progress'));
     let results = [];
 
     for (let i = 0; i < stages.length; i++) {
         const stage = stages[i];
         const label = MOCK_SMS_STAGE_LABELS[stage];
-        const message = SMS_STAGE_MESSAGES[stage];
+        const message = SMS_STAGE_MESSAGES[stage] + tomorrowText;
 
         resultEl.innerHTML = renderMockSmsResults(results) +
             `<div style="padding:6px 8px;background:#f8fafc;border-radius:4px;text-align:center;color:#64748b;margin-top:4px">
@@ -2558,16 +3002,9 @@ let currentFilter = 'all';
 
 function filterSites(stage) {
     currentFilter = 'all'; // 공사현황은 항상 전체 표시
+    // 사업소 필터는 서버에서 처리됨
     let sites = state.allSitesWeather || [];
-
-    // 사업소 필터 (로그인한 사업소 및 사업소 미지정 현장 포함)
-    if (state.branchOffice) {
-        sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
-    }
-
     renderAllSitesOverview(sites);
-
-    // 알림 발송 목록도 갱신
     renderAlertSendList();
 }
 
@@ -2630,10 +3067,8 @@ function getAlertFilteredSites() {
         'danger': 'stage_4_danger', 'warning': 'stage_3_warning',
         'caution': 'stage_2_caution', 'interest': 'stage_1_interest',
     };
+    // 사업소 필터는 서버 API에서 처리됨
     let sites = state.allSitesWeather || [];
-    if (state.branchOffice) {
-        sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
-    }
     if (alertFilter === 'all') return sites;
     if (alertFilter === 'error') return sites.filter(s => s.error);
     if (alertFilter === 'safe') return sites.filter(s => !s.stage && !s.error);
@@ -2646,16 +3081,13 @@ function renderAlertSendList() {
 
     const filtered = getAlertFilteredSites();
     const allSites = state.allSitesWeather || [];
+    const targetRole = getSmsTargetRole();
 
     // 카운트 업데이트
     const countEl = document.getElementById('alert-filter-count');
-    if (countEl) countEl.textContent = `${filtered.length}/${allSites.length}개`;
 
-    // 알림 필터 버튼 카운트
+    // 알림 필터 버튼 카운트 (사업소 필터는 서버에서 처리됨)
     let sites = allSites;
-    if (state.branchOffice) {
-        sites = sites.filter(s => !s.branch_office || s.branch_office === state.branchOffice || s.branch_office.includes(state.branchOffice) || state.branchOffice.includes(s.branch_office));
-    }
     const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0, error: 0 };
     sites.forEach(s => {
         if (s.error) counts.error++;
@@ -2671,9 +3103,58 @@ function renderAlertSendList() {
             const cnt = counts[stg] || 0;
             const label = btn.dataset.label || stg;
             const temp = btn.dataset.temp ? ` ${btn.dataset.temp}°` : '';
-            btn.textContent = cnt > 0 ? `${label}${temp}(${cnt})` : `${label}${temp}`;
+            if (mockMode) {
+                btn.textContent = cnt > 0 ? `${label}${temp}(1)` : `${label}${temp}`;
+            } else {
+                btn.textContent = cnt > 0 ? `${label}${temp}(${cnt})` : `${label}${temp}`;
+            }
         }
     });
+
+    // 모의 테스트 모드: 단계별 테스트 수신번호 1건만 표시
+    if (mockMode) {
+        const mockPhone = document.getElementById('mock-sms-phone')?.value?.trim() || '수신번호 미입력';
+        const stageLabels = {
+            safe: { name: '정상', color: '#27ae60', temp: '-' },
+            interest: { name: '관심', color: '#F57F17', temp: '31' },
+            caution: { name: '주의', color: '#E65100', temp: '33' },
+            warning: { name: '경고', color: '#BF360C', temp: '35' },
+            danger: { name: '위험', color: '#B71C1C', temp: '38' },
+        };
+        const activeStages = Object.entries(counts).filter(([k, v]) => v > 0 && k !== 'error' && k !== 'safe');
+        if (countEl) countEl.textContent = `${activeStages.length}/${activeStages.length}개`;
+
+        if (activeStages.length === 0) {
+            listEl.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:16px">해당 단계의 현장이 없습니다</p>';
+            updateAlertSelectedCount();
+            return;
+        }
+
+        const currentFilter = document.querySelector('[data-filter-group="alert"].active')?.dataset?.stage || 'all';
+        const stagesToShow = currentFilter === 'all'
+            ? activeStages
+            : activeStages.filter(([k]) => k === currentFilter);
+
+        listEl.innerHTML = stagesToShow.map(([stageKey]) => {
+            const info = stageLabels[stageKey] || stageLabels.interest;
+            return `<div style="border-bottom:1px solid var(--border-light,#edf2f7);padding:10px 16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                    <input type="checkbox" class="alert-site-check" data-site-id="mock_${stageKey}" onchange="updateAlertSelectedCount()" style="width:auto" checked>
+                    <span class="badge" style="background:${info.color};font-size:10px">${info.name}</span>
+                    <span style="font-weight:600;font-size:13px;flex:1">TEST</span>
+                    <span style="font-size:13px;font-weight:700;color:${info.color}">체감 ${info.temp}°</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:2px 10px;padding-left:28px">
+                    <span style="font-size:11px"><span style="font-weight:500">테스트</span> <span style="color:var(--text-faint)">${mockPhone}</span></span>
+                </div>
+            </div>`;
+        }).join('');
+
+        updateAlertSelectedCount();
+        return;
+    }
+
+    if (countEl) countEl.textContent = `${filtered.length}/${allSites.length}개`;
 
     if (filtered.length === 0) {
         listEl.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:16px">해당 단계의 현장이 없습니다</p>';
@@ -2681,39 +3162,64 @@ function renderAlertSendList() {
         return;
     }
 
-    listEl.innerHTML = filtered.map(s => {
-        if (s.error) {
-            return `<div style="border-bottom:1px solid var(--border-light,#edf2f7);padding:10px 16px;border-left:3px solid #dc2626">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                    <span style="font-weight:600;font-size:13px;flex:1;color:var(--text)">${s.site_name}</span>
-                    <span style="padding:2px 8px;background:#fef2f2;color:#dc2626;border-radius:12px;font-size:10px;font-weight:600">조회 실패</span>
-                </div>
-                <div style="padding:6px 8px;background:#fff5f5;border-radius:4px;font-size:11px;color:#991b1b;line-height:1.5">${s.error}</div>
-            </div>`;
-        }
+    const sendable = filtered.filter(s => {
+        if (s.error) return false;
+        if (targetRole === 'manager') return (s.workers || []).some(w => w.role === 'manager');
+        return (s.workers || []).length > 0;
+    });
 
+    if (sendable.length === 0) {
+        listEl.innerHTML = `<p style="color:var(--text-dim);text-align:center;padding:16px">${targetRole === 'manager' ? '현장책임자가 등록된 현장이 없습니다' : '발송 대상이 없습니다'}</p>`;
+        updateAlertSelectedCount();
+        return;
+    }
+
+    // 컴팩트 테이블 형태
+    let totalWorkerCount = 0;
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:rgba(0,0,0,0.03);position:sticky;top:0;z-index:1">
+            <th style="padding:6px 4px;text-align:center;width:28px"><input type="checkbox" id="alert-select-all-table" checked onchange="toggleAlertSelectAll(this)" style="width:auto"></th>
+            <th style="padding:6px 2px;text-align:center;width:28px;color:#94a3b8;font-size:10px">No</th>
+            <th style="padding:6px 4px;text-align:center;width:40px">단계</th>
+            <th style="padding:6px 8px;text-align:left">현장명</th>
+            <th style="padding:6px 8px;text-align:left;width:70px">사업소</th>
+            <th style="padding:6px 4px;text-align:center;width:30px;color:#94a3b8;font-size:10px">명</th>
+            <th style="padding:6px 8px;text-align:left">발송대상</th>
+            <th style="padding:6px 4px;text-align:right;width:56px">체감</th>
+        </tr></thead><tbody>`;
+
+    html += sendable.map((s, idx) => {
         const stg = s.stage;
         const color = stg ? stg.color : '#27ae60';
         const label = stg ? stg.name : '정상';
         const temp = s.weather ? s.weather.apparent_temperature : '-';
-        const workers = s.workers || [];
+        const workers = targetRole === 'manager' ? (s.workers || []).filter(w => w.role === 'manager') : (s.workers || []);
+        totalWorkerCount += workers.length;
+        const workerStr = workers.map(w => `${w.name}`).join(', ');
+        const phoneStr = workers.map(w => w.phone).join(', ');
 
-        return `<div style="border-bottom:1px solid var(--border-light,#edf2f7);padding:10px 16px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                <input type="checkbox" class="alert-site-check" data-site-id="${s.site_id}" onchange="updateAlertSelectedCount()" style="width:auto" checked>
-                <span class="badge" style="background:${color};font-size:10px">${label}</span>
-                <span style="font-weight:600;font-size:13px;flex:1">${s.site_name}</span>
-                <span style="font-size:13px;font-weight:700;color:${color}">체감 ${temp}°</span>
-            </div>
-            ${workers.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:2px 10px;padding-left:28px">
-                ${workers.map(w => {
-                    const vulnTag = w.is_vulnerable ? '<span style="font-size:9px;padding:0 3px;background:rgba(231,76,60,0.12);color:#e74c3c;border-radius:3px">취약</span>' : '';
-                    return `<span style="font-size:11px"><span style="font-weight:500">${w.name}</span> <span style="color:var(--text-faint)">${w.phone}</span>${vulnTag}</span>`;
-                }).join('')}
-            </div>` : '<div style="font-size:11px;color:var(--text-faint);padding-left:28px">작업자 없음</div>'}
-            ${stg && stg.work_restriction && stg.work_restriction !== '없음' ? `<div style="margin-top:3px;font-size:11px;color:${color};padding-left:28px">${stg.work_restriction}</div>` : ''}
-        </div>`;
+        return `<tr style="border-bottom:1px solid #f0f0f0" title="${workerStr}\n${phoneStr}">
+            <td style="padding:5px 4px;text-align:center"><input type="checkbox" class="alert-site-check" data-site-id="${s.site_id}" onchange="updateAlertSelectedCount()" style="width:auto" checked></td>
+            <td style="padding:5px 2px;text-align:center;font-size:10px;color:#b0b0b0">${idx + 1}</td>
+            <td style="padding:5px 4px;text-align:center"><span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;color:#fff;background:${color}">${label}</span></td>
+            <td style="padding:5px 8px;font-weight:500;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.site_name}</td>
+            <td style="padding:5px 8px;font-size:11px;color:var(--kepco,#0066cc)">${s.branch_office || ''}</td>
+            <td style="padding:5px 4px;text-align:center;font-size:10px;font-weight:600;color:#64748b">${workers.length}</td>
+            <td style="padding:5px 8px;font-size:11px;color:#555;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${workers.map(w => {
+                const tag = w.role === 'manager' ? '<b style="color:#1565c0">'+w.name+'</b>' : w.name;
+                return tag + ' <span style="color:#aaa">' + w.phone + '</span>';
+            }).join(', ')}</td>
+            <td style="padding:5px 4px;text-align:right;font-weight:700;color:${color};white-space:nowrap">${temp}°</td>
+        </tr>`;
     }).join('');
+
+    const roleLabel = targetRole === 'manager' ? '책임자' : '작업자';
+    html += `</tbody><tfoot><tr style="background:rgba(0,0,0,0.03);border-top:2px solid #e2e8f0">
+        <td colspan="5" style="padding:6px 8px;font-size:11px;font-weight:700;text-align:right;color:#333">합계: ${sendable.length}개 현장</td>
+        <td style="padding:6px 4px;text-align:center;font-size:11px;font-weight:700;color:var(--kepco,#0066cc)">${totalWorkerCount}</td>
+        <td colspan="2" style="padding:6px 8px;font-size:11px;font-weight:600;color:#64748b">${roleLabel} ${totalWorkerCount}명 발송</td>
+    </tr></tfoot></table>`;
+    listEl.innerHTML = html;
 
     updateAlertSelectedCount();
 }
@@ -2738,15 +3244,54 @@ function updateAlertSelectedCount() {
     }
     const selectAll = document.getElementById('alert-select-all');
     if (selectAll) selectAll.checked = total > 0 && checked === total;
+    updateSmsTargetCount();
+}
+
+function getSmsTargetRole() {
+    return document.querySelector('input[name="sms-target"]:checked')?.value || 'all';
 }
 
 function getAlertSelectedWorkerCount() {
     const siteIds = [...document.querySelectorAll('.alert-site-check:checked')].map(cb => parseInt(cb.dataset.siteId));
     const sites = state.allSitesWeather || [];
+    const targetRole = getSmsTargetRole();
     return siteIds.reduce((sum, id) => {
         const s = sites.find(x => x.site_id === id);
-        return sum + (s?.workers?.length || 0);
+        if (!s?.workers) return sum;
+        if (targetRole === 'manager') return sum + s.workers.filter(w => w.role === 'manager').length;
+        return sum + s.workers.length;
     }, 0);
+}
+
+function updateSmsTargetCount() {
+    const el = document.getElementById('sms-target-count');
+    if (!el) return;
+    const total = getAlertSelectedWorkerCount();
+    const deduped = getSmsDedupedCount();
+    const targetRole = getSmsTargetRole();
+    const roleLabel = targetRole === 'manager' ? '책임자' : '전원';
+    if (total === 0) { el.textContent = ''; return; }
+    if (total !== deduped) {
+        el.textContent = roleLabel + ' ' + total + '명 (중복제거 후 ' + deduped + '명 발송)';
+    } else {
+        el.textContent = roleLabel + ' ' + deduped + '명 발송';
+    }
+}
+
+function getSmsDedupedCount() {
+    const siteIds = [...document.querySelectorAll('.alert-site-check:checked')].map(cb => parseInt(cb.dataset.siteId));
+    const sites = state.allSitesWeather || [];
+    const targetRole = getSmsTargetRole();
+    const seen = new Set();
+    siteIds.forEach(id => {
+        const s = sites.find(x => x.site_id === id);
+        (s?.workers || []).forEach(w => {
+            if (!w.phone) return;
+            if (targetRole === 'manager' && w.role !== 'manager') return;
+            seen.add(w.phone.replace(/-/g, ''));
+        });
+    });
+    return seen.size;
 }
 
 async function sendSelectedAlerts() {
@@ -2770,28 +3315,84 @@ async function sendSelectedSms() {
     const customMsg = document.getElementById('sms-message')?.value?.trim();
     const msg = customMsg || `[KEPCO 안전관리] 폭염 알림\n선택된 ${siteIds.length}개 현장에 폭염 주의 알림이 발송되었습니다. 안전수칙을 준수해주세요.`;
 
-    // 모의 테스트 모드: 관리자 번호로 실제 발송
+    // 모의 테스트 모드: 관리자 번호로 실제 발송 (작업자와 동일한 내용)
     if (mockMode) {
         const mockPhone = document.getElementById('mock-sms-phone')?.value?.trim() || '';
-        const testPhone = prompt(
-            `[모의 테스트] 가상 작업자 번호 대신 실제 수신할 관리자/담당자 번호를 입력하세요.\n\n선택: ${siteIds.length}개 현장\n메시지: ${msg.substring(0, 60)}...\n\n이 번호로 SMS 1건이 실제 발송됩니다.`,
-            mockPhone
-        );
-        if (!testPhone) return;
-        if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(testPhone.replace(/\s/g, ''))) {
-            alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
-            return;
+
+        // 선택된 현장의 폭염 단계를 읽어서 가장 높은 단계 메시지 자동 구성
+        const allSites = state.allSitesWeather || [];
+        const selectedSites = allSites.filter(s => siteIds.includes(s.site_id));
+        const stageKeyToSms = {
+            'stage_4_danger': 'danger', 'stage_3_warning': 'warning',
+            'stage_2_caution': 'caution', 'stage_1_interest': 'interest',
+        };
+        const stageOrder = ['stage_4_danger', 'stage_3_warning', 'stage_2_caution', 'stage_1_interest'];
+        let highestStage = null;
+        for (const s of selectedSites) {
+            const sk = s.stage?.key;
+            if (sk && (!highestStage || stageOrder.indexOf(sk) < stageOrder.indexOf(highestStage))) {
+                highestStage = sk;
+            }
         }
+
+        // 현장 단계에 맞는 실제 SMS 문구 + 현장 날씨 정보
+        let stageMsg;
+        if (highestStage && stageKeyToSms[highestStage]) {
+            stageMsg = SMS_STAGE_MESSAGES[stageKeyToSms[highestStage]];
+        } else {
+            stageMsg = msg;
+        }
+
+        // 현장의 오늘 날씨 정보 추가
+        const topSite = selectedSites.find(s => s.stage?.key === highestStage) || selectedSites[0];
+        if (topSite?.weather) {
+            const w = topSite.weather;
+            stageMsg += `\n\n[오늘 현장 날씨]`;
+            stageMsg += `\n기온 ${w.temperature}도 / 습도 ${w.humidity}%`;
+            stageMsg += `\n체감온도 ${w.apparent_temperature}도`;
+        }
+
         const btn = document.querySelector('#sms-message').parentElement.querySelector('button');
         btn.disabled = true;
+        btn.innerHTML = '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>예보 조회 중...';
+
+        let progressArea = document.getElementById('sms-send-progress');
+        if (!progressArea) {
+            progressArea = document.createElement('div');
+            progressArea.id = 'sms-send-progress';
+            progressArea.style.cssText = 'padding:6px 16px;font-size:12px;color:#64748b';
+            btn.parentElement.insertAdjacentElement('afterend', progressArea);
+        }
+        progressArea.innerHTML = '<div style="text-align:center"><span class="progress-spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span> 내일 예보 조회 중...</div>';
+
+        const tomorrowText = await _fetchTomorrowForecastText(progressArea);
+        progressArea.remove();
+        const fullMsg = stageMsg + tomorrowText;
+
+        const stageNames = { 'stage_4_danger': '위험', 'stage_3_warning': '경고', 'stage_2_caution': '주의', 'stage_1_interest': '관심' };
+        const testPhone = mockPhone || prompt('수신할 관리자/담당자 번호를 입력하세요.', '010-');
+        if (!testPhone) { btn.disabled = false; btn.textContent = 'SMS 발송'; return; }
+        if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(testPhone.replace(/\s/g, ''))) {
+            alert('올바른 전화번호 형식이 아닙니다.\n예: 010-1234-5678');
+            btn.disabled = false; btn.textContent = 'SMS 발송';
+            return;
+        }
+        if (!confirm(
+            `[모의 테스트] SMS 1건 발송 확인\n\n` +
+            `수신번호: ${testPhone}\n` +
+            `폭염 단계: ${highestStage ? stageNames[highestStage] : '해당 없음'}\n` +
+            `비용: LMS 1건 × 30원 = 30원\n\n` +
+            `─── SMS 내용 미리보기 ───\n${fullMsg.substring(0, 200)}${fullMsg.length > 200 ? '...' : ''}\n─────────────\n\n` +
+            `실제 문자가 발송됩니다. 계속하시겠습니까?`
+        )) { btn.disabled = false; btn.textContent = 'SMS 발송'; return; }
         btn.innerHTML = '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>테스트 발송 중...';
         try {
             const result = await api('/api/sms/test', {
                 method: 'POST',
-                body: JSON.stringify({ phone: testPhone, message: msg }),
+                body: JSON.stringify({ phone: testPhone, message: fullMsg }),
             });
             if (result.sent > 0) {
-                showToast(`테스트 SMS 발송 성공 → ${testPhone}`, 'success');
+                showToast(`테스트 SMS 발송 성공 → ${testPhone}\n(작업자 수신 내용과 동일)`, 'success');
             } else {
                 showToast(`테스트 SMS 실패: ${result.error || '알 수 없는 오류'}`, 'error');
             }
@@ -2804,7 +3405,12 @@ async function sendSelectedSms() {
         return;
     }
 
-    if (!confirm(`${siteIds.length}개 현장, ${workerCount}명 작업자에게 SMS를 발송합니다.\n\n내용: ${msg}\n\n계속하시겠습니까?`)) return;
+    const targetRole = getSmsTargetRole();
+    const dedupedCount = getSmsDedupedCount();
+    const targetLabel = targetRole === 'manager' ? '현장책임자' : '작업자 전원';
+    const estCost = dedupedCount * 30;
+    const dedupNote = dedupedCount < workerCount ? `\n(동일 번호 중복제거: ${workerCount}명 → ${dedupedCount}명)` : '';
+    if (!confirm(`[${targetLabel} 대상 발송]\n${siteIds.length}개 현장, ${dedupedCount}명에게 SMS를 발송합니다.${dedupNote}\n\n예상 비용: LMS ${dedupedCount}건 × 30원 = ${estCost.toLocaleString()}원\n\n내용: ${msg.substring(0, 150)}${msg.length > 150 ? '...' : ''}\n\n계속하시겠습니까?`)) return;
 
     // 발송 버튼 비활성화 + 로딩
     const btn = document.querySelector('#sms-message').parentElement.querySelector('button');
@@ -2813,7 +3419,7 @@ async function sendSelectedSms() {
     btn.innerHTML = '<span class="progress-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>발송 중...';
 
     try {
-        const result = await sendSmsToSiteWorkers(siteIds, msg);
+        const result = await sendSmsToSiteWorkers(siteIds, msg, targetRole);
         if (result) {
             const successCount = result.sent || 0;
             const failCount = result.failed || 0;
@@ -2844,6 +3450,13 @@ async function sendSelectedSms() {
                         <div style="font-size:20px;font-weight:700;color:${failCount > 0 ? '#dc2626' : 'var(--text-dim)'}">${failCount}</div>
                     </div>
                 </div>`;
+
+            if (result.deduped > 0) {
+                resultHtml += `<div style="font-size:11px;color:#64748b;margin-bottom:6px">동일 번호 중복제거: ${result.deduped}건 제외</div>`;
+            }
+            if (result.fixed_added > 0) {
+                resultHtml += `<div style="font-size:11px;color:#1565c0;margin-bottom:6px">확인용 수신자 ${result.fixed_added}명 포함 발송</div>`;
+            }
 
             // 전체 에러 사유 (API 오류 등)
             if (result.error) {

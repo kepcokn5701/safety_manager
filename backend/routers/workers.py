@@ -86,10 +86,10 @@ async def create_work_site(
 
 
 @router.get("/sites", response_model=list[WorkSiteResponse])
-async def list_work_sites(db: AsyncSession = Depends(get_db)):
+async def list_work_sites(branch_office: str = "", db: AsyncSession = Depends(get_db)):
     """활성 작업현장 목록 조회"""
     repo = WorkSiteRepository(db)
-    return await repo.get_all_active()
+    return await repo.get_all_active(branch_office=branch_office or None)
 
 
 @router.get("/sites/{site_id}", response_model=WorkSiteResponse)

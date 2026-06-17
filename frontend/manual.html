@@ -77,8 +77,9 @@
     <a href="#weather">4. 날씨 조회 및 검증</a>
     <a href="#sms">5. SMS 발송</a>
     <a href="#mock">6. 모의 테스트</a>
-    <a href="#stages">7. 폭염 단계 기준</a>
-    <a href="#trouble">8. 문제 해결 (FAQ)</a>
+    <a href="#stats">7. 발송 통계</a>
+    <a href="#stages">8. 폭염 단계 기준</a>
+    <a href="#trouble">9. 문제 해결 (FAQ)</a>
 </div>
 
 <h2 id="overview">1. 시스템 개요</h2>
@@ -88,7 +89,7 @@
 <table>
     <tr><th>구분</th><th>내용</th></tr>
     <tr><td>사용자</td><td>안전재난부 + 각 지사 담당자</td></tr>
-    <tr><td>주요 기능</td><td>현장 등록, 날씨 조회, 폭염 단계 판정, SMS 경보 발송</td></tr>
+    <tr><td>주요 기능</td><td>사업소별 현장 필터링, 날씨 조회, 폭염 단계 판정, SMS 경보 발송(대상 선택), 내일 예보 안내</td></tr>
     <tr><td>알림 채널</td><td>SMS (NHN Cloud)</td></tr>
     <tr><td>날씨 데이터</td><td>기상청 단기예보 API (5km 격자)</td></tr>
     <tr><td>접속 방법</td><td>사내 서버 PC (별도 안내된 URL)</td></tr>
@@ -97,9 +98,9 @@
 <h3>화면 구성</h3>
 <table>
     <tr><th>영역</th><th>설명</th></tr>
-    <tr><td>상단 헤더</td><td>사용방법, 모의 테스트, 로그아웃</td></tr>
+    <tr><td>상단 헤더</td><td>사용방법, 모의 테스트, SMS 테스트, NHN 정책, 발송 통계, 로그아웃</td></tr>
     <tr><td>전체 공사현장 현황</td><td>등록된 현장 목록 + 실시간 날씨/체감온도/단계 표시</td></tr>
-    <tr><td>SMS 발송</td><td>6단계 필터로 대상 선택 후 SMS 일괄 발송</td></tr>
+    <tr><td>SMS 발송</td><td>7개 필터(전체/정상/관심/주의/경고/위험/조회실패)로 대상 선택 후 SMS 일괄 발송</td></tr>
     <tr><td>최근 알림</td><td>발송 이력 확인</td></tr>
 </table>
 
@@ -107,31 +108,51 @@
 <div class="step">
     <span class="step-num">1</span>
     <h4>사업소 선택 (로그인)</h4>
-    <p>담당 사업소 선택 후 접속. 해당 사업소 현장만 필터링됩니다.</p>
+    <p>담당 사업소 선택 후 접속. <strong>해당 사업소에 등록된 공사만</strong> 목록/날씨/SMS 발송에 표시됩니다.</p>
+    <p>"전체 (경남본부)" 선택 시 모든 사업소의 공사가 조회됩니다.</p>
 </div>
 <div class="flow-arrow">&#8595;</div>
 <div class="step">
     <span class="step-num">2</span>
     <h4>사전신고 엑셀 등록</h4>
     <p><strong>"사전신고 엑셀파일 등록"</strong> &rarr; 엑셀 업로드 &rarr; 컬럼 매핑 &rarr; 일괄 등록</p>
+    <p>작업자 이름/연락처 누락 시 행별로 사유가 표시됩니다. (이름 누락, 연락처 형식 오류 등)</p>
 </div>
 <div class="flow-arrow">&#8595;</div>
 <div class="step">
     <span class="step-num">3</span>
     <h4>날씨 조회</h4>
     <p><strong>"새로고침"</strong> 클릭 &rarr; 각 현장 날씨 + 폭염 단계 자동 판정</p>
+    <p>조회 실패 시 원인이 상세하게 표시됩니다. (좌표 미설정, 범위 이상, API 오류 등)</p>
 </div>
 <div class="flow-arrow">&#8595;</div>
 <div class="step">
     <span class="step-num">4</span>
-    <h4>SMS 발송</h4>
-    <p>단계별 필터 &rarr; 대상 선택 &rarr; 메시지 입력 &rarr; <strong>"SMS 발송"</strong></p>
+    <h4>SMS 발송 (자동 + 수동)</h4>
+    <p><strong>자동:</strong> 매일 10시/13시에 폭염 단계별 SMS + 내일 예보가 자동 발송됩니다.</p>
+    <p><strong>수동:</strong> 단계별 필터 &rarr; 대상 선택 &rarr; <strong>"SMS 발송"</strong></p>
 </div>
 <div class="flow-arrow">&#8595;</div>
 <div class="step">
     <span class="step-num">5</span>
     <h4>결과 확인</h4>
     <p>작업자별 성공/실패 상세 사유 확인</p>
+</div>
+
+<h3>자동 스케줄 (서버가 켜져 있으면 자동 실행)</h3>
+<table>
+    <tr><th>시간</th><th>동작</th></tr>
+    <tr><td>매 15분</td><td>전체 현장 날씨 자동 갱신 (기상청 API)</td></tr>
+    <tr><td>09:00</td><td>내일 시간대별 기온/날씨/강수확률 예보 수집</td></tr>
+    <tr><td>10:00</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송</td></tr>
+    <tr><td>13:00</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송</td></tr>
+</table>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>내일 예보란?</h4>
+    <p>내일의 최고 체감온도, 해당 시간대, 날씨(맑음/구름/비), 강수확률을 미리 안내합니다.</p>
+    <p>작업자가 다음 날 작업을 사전에 대비할 수 있도록 하는 <strong>참고용 예보 정보</strong>입니다.</p>
+    <p style="color:#e65100">&#8251; 예보는 실제와 다를 수 있으므로 참고용으로 활용해 주세요.</p>
 </div>
 
 <h2 id="sites">3. 사전신고 엑셀 등록</h2>
@@ -179,8 +200,10 @@
 <div class="step">
     <span class="step-num">1</span>
     <h4>단계별 필터</h4>
-    <p>6개 필터 (왼쪽 안전 &rarr; 오른쪽 위험):</p>
-    <p><span class="badge" style="background:#64748b">전체</span> <span class="badge" style="background:#10b981">정상</span> <span class="badge" style="background:#FFC107;color:#333">관심 31&#176;</span> <span class="badge" style="background:#FF9800">주의 33&#176;</span> <span class="badge" style="background:#FF5722">경고 35&#176;</span> <span class="badge" style="background:#D32F2F">위험 38&#176;</span></p>
+    <p>7개 필터 (왼쪽 안전 &rarr; 오른쪽 위험):</p>
+    <p><span class="badge" style="background:#64748b">전체</span> <span class="badge" style="background:#10b981">정상</span> <span class="badge" style="background:#FFC107;color:#333">관심 31&#176;</span> <span class="badge" style="background:#FF9800">주의 33&#176;</span> <span class="badge" style="background:#FF5722">경고 35&#176;</span> <span class="badge" style="background:#D32F2F">위험 38&#176;</span> <span class="badge" style="background:#9e9e9e">조회실패</span></p>
+    <p>단계 필터 클릭 시 해당 단계의 SMS 문구가 자동 입력됩니다.</p>
+    <p>"조회실패" 필터: 좌표 오류, API 오류 등으로 날씨 조회에 실패한 현장만 표시됩니다.</p>
 </div>
 <div class="step">
     <span class="step-num">2</span>
@@ -188,15 +211,48 @@
     <p>"전체 선택" 또는 개별 현장 선택. 선택 현장 수/작업자 수가 표시됩니다.</p>
 </div>
 
-<h3>5-2. 발송 및 결과</h3>
+<h3>5-2. 발송 대상 선택</h3>
 <div class="step">
     <span class="step-num">3</span>
-    <h4>메시지 입력 + "SMS 발송"</h4>
-    <p>입력란에 SMS 내용 작성 (미입력 시 기본 문구). 우측 "SMS 발송" 클릭</p>
+    <h4>현장책임자 / 작업자 전원 선택</h4>
+    <p>SMS 발송 영역 하단에서 발송 대상을 선택합니다:</p>
+    <p><strong>작업자 전원</strong> &mdash; 선택된 현장의 모든 작업자에게 발송 (기본값)</p>
+    <p><strong>현장책임자만</strong> &mdash; 현장책임자(관리자/감독자/담당자 등)로 등록된 작업자에게만 발송</p>
+    <p>선택한 옵션에 따라 발송 예상 인원과 비용이 실시간으로 표시됩니다.</p>
 </div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>역할 자동 구분</h4>
+    <p>엑셀의 <strong>"현장책임자", "감독자", "관리자", "담당자"</strong> 등의 컬럼에 있는
+    작업자는 <strong>현장책임자</strong>로, 나머지는 <strong>작업자</strong>로 자동 분류됩니다.</p>
+    <p>이미 등록된 현장과 동일한 이름의 현장을 다시 업로드하면, 중복 생성 없이
+    <strong>작업자 역할만 갱신</strong>됩니다.</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>전화번호 중복 자동 제거</h4>
+    <p>같은 작업자가 여러 공사 현장에 등록되어 있어도, SMS 발송 시 <strong>동일 전화번호는 1건만 발송</strong>됩니다.</p>
+    <p>공사 목록에서는 모든 현장에 작업자가 그대로 표시되며, 발송 시에만 중복이 제거됩니다.</p>
+    <p>중복 제거된 건수는 발송 확인 팝업과 결과에 표시됩니다.</p>
+</div>
+
+<h3>5-3. SMS 내용 (LMS 장문)</h3>
+<div class="step">
+    <span class="step-num">4</span>
+    <h4>자동 구성되는 LMS</h4>
+    <p>문자는 <strong>LMS(장문, 최대 2000바이트)</strong>로 발송되어 내용이 잘리지 않습니다.</p>
+    <p>SMS 내용은 <strong>자동 발송 시</strong> 다음과 같이 구성됩니다:</p>
+    <p>1. 폭염 단계별 안전 수칙 (관심/주의/경고/위험)</p>
+    <p>2. <strong>내일 예보</strong>: 날씨, 최고 체감온도, 시간대, 강수확률</p>
+    <p>3. "예보 기반 참고 정보" 안내 문구</p>
+    <p style="color:#4a5568;font-size:13px;margin-top:8px">예시: <em>"[체감온도 35도 이상, 폭염경보] ... [내일(06/11) 예보] 날씨: 구름많음(강수확률 40%) 체감 38.5도(경고) 14시경 예상"</em></p>
+    <p style="color:#b45309;font-size:12px;margin-top:4px">&#9888; LMS 요금: 건당 약 30원 (기존 SMS 4.4원 대비 증가)</p>
+</div>
+
+<h3>5-4. 발송 결과</h3>
 <div class="step">
     <span class="step-num">!</span>
-    <h4>발송 결과</h4>
+    <h4>발송 결과 확인</h4>
     <p>- 총 발송 / 성공 / 실패 건수</p>
     <p>- <strong>실패 원인</strong>: 에러코드 + 상세 사유</p>
     <p>- <strong>작업자별 상세</strong>: 현장명, 이름, 전화번호, 성공/실패, 사유</p>
@@ -207,15 +263,60 @@
     <span class="step-num">1</span>
     <h4>우측 상단 "모의 테스트" 클릭</h4>
     <p>10개 가상 현장, 20명 가상 작업자, 5개 단계별 가상 날씨 생성</p>
-    <p>모든 데이터에 <strong>(가상)</strong> 표시. 가상 번호(000-0000-XXXX)로 실제 발송 안 됨</p>
+    <p>모든 데이터에 <strong>(가상)</strong> 표시</p>
 </div>
 <div class="step">
     <span class="step-num">2</span>
+    <h4>SMS 발송 테스트 (실제 수신 가능)</h4>
+    <p><strong>방법 1 - SMS 테스트 패널:</strong> 수신번호 입력 &rarr; 단계별(관심/주의/경고/위험/전체) 버튼 클릭 &rarr; 실제 LMS 발송</p>
+    <p><strong>방법 2 - SMS 발송 리스트:</strong> 현장 선택 &rarr; "SMS 발송" 클릭 &rarr; 수신번호 입력 &rarr; 실제 LMS 발송</p>
+    <p>두 방법 모두 <strong>작업자가 받는 것과 동일한 내용</strong>(폭염 단계 문구 + 오늘 날씨 + 내일 예보)이 장문(LMS)으로 발송됩니다.</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>모의 테스트 시 현장 목록</h4>
+    <p>모의 테스트 모드에서 SMS 발송 리스트는 <strong>단계별 테스트 수신번호 1건씩</strong>만 표시됩니다.</p>
+    <p>예: 정상(1) / 관심(1) / 주의(1) / 경고(1) / 위험(1) &mdash; 모두 테스트 수신번호로 발송</p>
+    <p>실제 가상 작업자 전화번호가 아닌 <strong>SMS 테스트 패널에 입력한 수신번호</strong>로만 발송됩니다.</p>
+</div>
+<div class="step">
+    <span class="step-num">3</span>
     <h4>"모의 테스트" 다시 클릭 &rarr; OFF</h4>
     <p>실제 데이터로 복귀</p>
 </div>
 
-<h2 id="stages">7. 폭염 단계 기준</h2>
+<h2 id="stats">7. 발송 통계</h2>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>상단 "발송 통계" 클릭</h4>
+    <p>모든 SMS 발송 이력이 자동 기록됩니다. 모의 테스트 / 수동 발송 / 자동 발송 구분.</p>
+</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>통계 요약</h4>
+    <p>모의 테스트 / 수동 / 자동 발송 건수와 비용(LMS 건당 30원) 확인</p>
+    <p>성공 건만 과금, 실패 건은 비용 미발생</p>
+</div>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>날짜별 상세 조회</h4>
+    <p>날짜별 발송 현황 테이블에서 날짜 클릭 &rarr; 해당 일자의 상세 이력 표시</p>
+    <p>수신번호, 이름, 발송 시간, 유형(모의/수동/자동), 성공/실패, 비용 확인 가능</p>
+</div>
+<div class="step info">
+    <span class="step-num">4</span>
+    <h4>SMS 내용 확인</h4>
+    <p>상단 "SMS 내용확인" 버튼 클릭 &rarr; 오늘 실제 발송된 SMS 내용 + 단계별 기본 문구 확인</p>
+</div>
+<div class="step info">
+    <span class="step-num">5</span>
+    <h4>확인용 수신자 관리</h4>
+    <p>발송 통계 모달 하단 "확인용 수신자 관리" 버튼 클릭</p>
+    <p>시스템관리자, 안전담당자, 개발자 등을 등록하면 SMS 발송 시 동일한 문자가 함께 전송됩니다.</p>
+    <p>문자가 실제로 잘 도착하는지 확인하는 용도로 활용하세요.</p>
+</div>
+
+<h2 id="stages">8. 폭염 단계 기준</h2>
 <p>고용노동부 옥외작업자 온열질환 예방 가이드 기준</p>
 <table>
     <tr><th>단계</th><th>체감온도</th><th>색상</th><th>조치사항</th></tr>
@@ -225,7 +326,7 @@
     <tr><td><strong>위험</strong></td><td>38&#176;C 이상</td><td><span class="badge" style="background:#D32F2F">진빨강</span></td><td>옥외작업 전면 중지 (긴급/재해복구만 가능)</td></tr>
 </table>
 
-<h2 id="trouble">8. 문제 해결 (FAQ)</h2>
+<h2 id="trouble">9. 문제 해결 (FAQ)</h2>
 <table>
     <tr><th>증상</th><th>해결</th></tr>
     <tr><td>날씨 조회 실패</td><td>새로고침 재시도. 반복되면 서버 운영자에게 문의</td></tr>
@@ -234,6 +335,9 @@
     <tr><td>체감온도가 네이버와 다름</td><td>정상 (예보 vs 관측 차이). "검증" 버튼으로 확인</td></tr>
     <tr><td>페이지가 안 열림 (html 삭제)</td><td>서버 운영자에게 REPAIR.bat 실행 요청</td></tr>
     <tr><td>엑셀 업로드 안 됨</td><td>.xls/.xlsx/.csv 형식 확인. 파일이 열려있으면 닫고 재시도</td></tr>
+    <tr><td>작업자 이름/연락처 누락</td><td>엑셀 미리보기에서 "상태" 컬럼 확인. 누락 사유별 안내 표시됨</td></tr>
+    <tr><td>조회실패 현장이 많음</td><td>좌표 미설정(0,0) 또는 범위 이상. 주소 확인 후 재등록</td></tr>
+    <tr><td>내일 예보가 안 나옴</td><td>09:00 이전이거나 서버 재시작 직후. SMS 발송 시 자동 수집됨</td></tr>
 </table>
 
 </div><!-- /tab-user -->
@@ -273,7 +377,11 @@
 <h3>9-3. 일일 운영</h3>
 <table>
     <tr><th>시점</th><th>작업</th></tr>
-    <tr><td>출근</td><td>START.bat 실행</td></tr>
+    <tr><td>출근</td><td>START.bat 실행 (보안 삭제된 .html 자동 복원)</td></tr>
+    <tr><td>09:00</td><td>[자동] 내일 예보 수집 (기상청 단기예보)</td></tr>
+    <tr><td>10:00</td><td>[자동] 폭염 단계 SMS + 내일 예보 발송</td></tr>
+    <tr><td>13:00</td><td>[자동] 폭염 단계 SMS + 내일 예보 발송</td></tr>
+    <tr><td>매 15분</td><td>[자동] 전체 현장 날씨 갱신</td></tr>
     <tr><td>퇴근</td><td>STOP.bat 또는 창 닫기. DB에 데이터 영구 보존</td></tr>
 </table>
 
@@ -359,7 +467,7 @@
     <tr><td>날씨</td><td>기상청 단기예보 API (apihub.kma.go.kr)</td></tr>
     <tr><td>주소 변환</td><td>카카오 Maps API</td></tr>
     <tr><td>SMS</td><td>NHN Cloud SMS API v3.0</td></tr>
-    <tr><td>스케줄러</td><td>APScheduler (15분 간격)</td></tr>
+    <tr><td>스케줄러</td><td>APScheduler (15분 날씨 갱신 + 09:00 내일예보 + 10:00/13:00 SMS)</td></tr>
 </table>
 
 <h3>날씨 데이터 처리</h3>
