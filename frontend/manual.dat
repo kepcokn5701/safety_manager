@@ -129,8 +129,9 @@
 <div class="step">
     <span class="step-num">4</span>
     <h4>SMS 발송 (자동 + 수동)</h4>
-    <p><strong>자동:</strong> 매일 10시/13시에 폭염 단계별 SMS + 내일 예보가 자동 발송됩니다.</p>
+    <p><strong>자동:</strong> 매일 10시/13시에 폭염 단계별 SMS + 내일 예보가 자동 발송됩니다. (대상: 전원 또는 책임자만 선택 가능)</p>
     <p><strong>수동:</strong> 단계별 필터 &rarr; 대상 선택 &rarr; <strong>"SMS 발송"</strong></p>
+    <p><strong>17시 초기화:</strong> 매일 17시에 사전신고 데이터가 자동 초기화됩니다. (당일 외 작업현장에 알림이 계속 발송되는 것을 방지)</p>
 </div>
 <div class="flow-arrow">&#8595;</div>
 <div class="step">
@@ -144,9 +145,17 @@
     <tr><th>시간</th><th>동작</th></tr>
     <tr><td>매 15분</td><td>전체 현장 날씨 자동 갱신 (기상청 API)</td></tr>
     <tr><td>09:00</td><td>내일 시간대별 기온/날씨/강수확률 예보 수집</td></tr>
-    <tr><td>10:00</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송</td></tr>
+    <tr><td>10:00</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송 (대상: 설정에 따라 전원 또는 책임자)</td></tr>
     <tr><td>13:00</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송</td></tr>
+    <tr><td>17:00</td><td>사전신고 데이터 자동 초기화 (현장, 작업자 삭제 &mdash; 다음날 새로 업로드)</td></tr>
 </table>
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>자동발송 대상 설정</h4>
+    <p>상단 "자동발송 대상" 라디오 버튼에서 <b>전원</b> 또는 <b>책임자만</b>을 선택할 수 있습니다.</p>
+    <p>고압공사 등 작업자 전화번호를 읽어오지 못하는 경우, <b>책임자만</b>으로 설정하여 형평성 있게 발송할 수 있습니다.</p>
+    <p>설정은 즉시 반영되며, 다음 자동발송(10시/13시)부터 적용됩니다.</p>
+</div>
 <div class="step info">
     <span class="step-num">!</span>
     <h4>내일 예보란?</h4>

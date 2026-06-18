@@ -245,15 +245,14 @@ async function showSmsContentModal() {
             ${todayHtml}
 
             <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
-                <div style="font-weight:700;font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
-                    단계별 기본 문구
-                    <span style="font-size:11px;font-weight:400;color:#64748b">자동 발송: 매일 10시 / 13시</span>
-                </div>
+                <div style="font-weight:700;font-size:13px;margin-bottom:8px">단계별 기본 문구</div>
                 ${stageHtml}
             </div>
 
-            <div style="margin-top:10px;padding:8px 10px;background:#f0fdf4;border-radius:6px;font-size:11px;color:#166534;line-height:1.5">
-                <b>TIP:</b> 필터 버튼(관심/주의/경고/위험) 클릭 시 해당 문구가 SMS 입력창에 자동 입력됩니다.
+            <div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:11px;color:#333;line-height:1.7">
+                <div style="font-weight:700;margin-bottom:4px;color:#1565c0">자동 스케줄</div>
+                <b>09:00</b> 내일 예보 수집 &rarr; <b>10:00 / 13:00</b> SMS 자동 발송 &rarr; <b>17:00</b> 사전신고 데이터 초기화<br>
+                <span style="color:#64748b">자동발송 대상: <b>${scheduleData.auto_target === 'manager' ? '현장책임자만' : '작업자 전원'}</b> (상단에서 변경 가능)</span>
             </div>
         </div>
     </div>`;
@@ -269,7 +268,27 @@ async function loadAutoSmsStatus() {
                 ? '<span style="color:#16a34a;font-size:11px">&#10003; 활성</span>'
                 : '<span style="color:#dc2626;font-size:11px">&#10005; 미설정</span>';
         }
+        // 자동발송 대상 라디오 반영
+        const target = data.auto_target || 'all';
+        const radio = document.querySelector(`input[name="auto-sms-target"][value="${target}"]`);
+        if (radio) radio.checked = true;
     } catch (e) {}
+}
+
+async function setAutoSmsTarget(target) {
+    try {
+        const result = await api('/api/sms/auto-target', {
+            method: 'POST',
+            body: JSON.stringify({ target }),
+        });
+        if (result.error) {
+            showToast(result.error, 'warning');
+            return;
+        }
+        showToast(`자동발송 대상 변경: ${result.label}`, 'success');
+    } catch (e) {
+        showToast('설정 변경 실패: ' + e.message, 'error');
+    }
 }
 
 function showSmsPolicyGuide() {

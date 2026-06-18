@@ -186,11 +186,18 @@ async def lifespan(app: FastAPI):
             id="auto_sms",
             name="자동 SMS (10시/13시)",
         )
+        scheduler.add_job(
+            scheduled_daily_reset,
+            "cron",
+            hour="17",
+            id="daily_reset",
+            name="사전신고 데이터 초기화 (17시)",
+        )
         scheduler.start()
         logger.info(
             f"폭염 모니터링 스케줄러 시작 (간격: {settings.weather_check_interval_minutes}분)"
         )
-        logger.info("자동 SMS 스케줄 등록: 09:00 내일예보 수집, 10:00/13:00 SMS 발송")
+        logger.info("스케줄 등록: 09:00 내일예보, 10:00/13:00 SMS, 17:00 데이터 초기화")
 
     yield
 
@@ -318,6 +325,11 @@ async def scheduled_auto_sms():
     total_skipped = 0
     stage_order = ["stage_4_danger", "stage_3_warning", "stage_2_caution", "stage_1_interest"]
 
+    # 자동발송 대상 설정 확인
+    auto_target = await _get_system_setting("auto_sms_target", "all")
+    target_label = "현장책임자만" if auto_target == "manager" else "작업자 전원"
+    logger.info(f"[Auto SMS] 발송 대상: {target_label}")
+
     try:
         weather_provider = get_weather_provider()
         threshold_mgr = get_threshold_manager()
@@ -356,11 +368,19 @@ async def scheduled_auto_sms():
                     tomorrow_text = _build_tomorrow_text(tomorrow)
                     full_message = message + tomorrow_text
 
-                    workers = await site_repo.get_workers(site.id)
-                    workers_dicts = [
-                        {"name": w.name, "phone": w.phone, "site": site.name}
-                        for w in workers if w.phone
-                    ]
+                    # 대상 설정에 따라 작업자 필터링
+                    if auto_target == "manager":
+                        wr_list = await site_repo.get_workers_with_role(site.id)
+                        workers_dicts = [
+                            {"name": wr["worker"].name, "phone": wr["worker"].phone, "site": site.name}
+                            for wr in wr_list if wr["worker"].phone and wr["role"] == "manager"
+                        ]
+                    else:
+                        workers = await site_repo.get_workers(site.id)
+                        workers_dicts = [
+                            {"name": w.name, "phone": w.phone, "site": site.name}
+                            for w in workers if w.phone
+                        ]
                     if workers_dicts:
                         site_stage_data.append({
                             "site": site, "stage_key": stage_key, "stage_info": stage_info,
@@ -426,6 +446,60 @@ async def scheduled_auto_sms():
         f"[Auto SMS] 완료: 성공 {total_sent}, 실패 {total_failed}, "
         f"건너뜀 {total_skipped}, 중복제거 후 총 {len(sent_phones)}명"
     )
+
+
+async def scheduled_daily_reset():
+    """매일 17시 사전신고 데이터 초기화 (당일 외 작업 데이터에 알림 발송 방지)"""
+    from sqlalchemy import text
+    try:
+        async with async_session() as session:
+            r1 = await session.execute(text("SELECT COUNT(*) FROM work_sites"))
+            site_count = r1.scalar() or 0
+            r2 = await session.execute(text("SELECT COUNT(*) FROM workers"))
+            worker_count = r2.scalar() or 0
+
+            if site_count == 0:
+                logger.info("[17시 초기화] 데이터 없음 — 건너뜀")
+                return
+
+            await session.execute(text("DELETE FROM alert_logs"))
+            await session.execute(text("DELETE FROM weather_logs"))
+            await session.execute(text("DELETE FROM work_site_workers"))
+            await session.execute(text("DELETE FROM workers"))
+            await session.execute(text("DELETE FROM work_sites"))
+            await session.commit()
+            logger.info(f"[17시 초기화] 완료: {site_count}개 현장, {worker_count}명 작업자 삭제")
+    except Exception as e:
+        logger.error(f"[17시 초기화] 실패: {e}")
+
+
+async def _get_system_setting(key: str, default: str = "") -> str:
+    """시스템 설정값 조회"""
+    from backend.models.models import SystemSetting
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(SystemSetting).where(SystemSetting.key == key)
+            )
+            row = result.scalar_one_or_none()
+            return row.value if row else default
+    except Exception:
+        return default
+
+
+async def _set_system_setting(key: str, value: str):
+    """시스템 설정값 저장"""
+    from backend.models.models import SystemSetting
+    async with async_session() as session:
+        result = await session.execute(
+            select(SystemSetting).where(SystemSetting.key == key)
+        )
+        row = result.scalar_one_or_none()
+        if row:
+            row.value = value
+        else:
+            session.add(SystemSetting(key=key, value=value))
+        await session.commit()
 
 
 app = FastAPI(
@@ -701,10 +775,12 @@ async def sms_test(data: SmsTestRequest):
 async def sms_auto_schedule():
     """자동 SMS 발송 스케줄 및 단계별 메시지 조회"""
     configured = bool(settings.sms_app_key and settings.sms_secret_key and settings.sms_sender_phone)
+    auto_target = await _get_system_setting("auto_sms_target", "all")
     return {
         "enabled": configured,
-        "schedule": ["09:00 내일예보 수집", "10:00 SMS 발송", "13:00 SMS 발송"],
-        "description": "매일 9시 내일 예보 수집 → 10시/13시 폭염 단계별 SMS에 내일 예보 포함 발송",
+        "auto_target": auto_target,
+        "schedule": ["09:00 내일예보 수집", "10:00 SMS 발송", "13:00 SMS 발송", "17:00 데이터 초기화"],
+        "description": "매일 9시 내일 예보 수집 → 10시/13시 SMS 발송 → 17시 사전신고 데이터 초기화",
         "messages": {
             "관심 (31°C)": SMS_STAGE_MESSAGES["stage_1_interest"],
             "주의 (33°C)": SMS_STAGE_MESSAGES["stage_2_caution"],
@@ -712,6 +788,28 @@ async def sms_auto_schedule():
             "위험 (38°C)": SMS_STAGE_MESSAGES["stage_4_danger"],
         },
     }
+
+
+@app.get("/api/sms/auto-target")
+async def get_auto_target():
+    """자동발송 대상 설정 조회"""
+    target = await _get_system_setting("auto_sms_target", "all")
+    return {"target": target}
+
+
+class AutoTargetRequest(BaseModel):
+    target: str  # "all" or "manager"
+
+
+@app.post("/api/sms/auto-target")
+async def set_auto_target(data: AutoTargetRequest):
+    """자동발송 대상 설정 변경"""
+    if data.target not in ("all", "manager"):
+        return {"error": "올바르지 않은 대상입니다. 'all' 또는 'manager'만 가능합니다."}
+    await _set_system_setting("auto_sms_target", data.target)
+    label = "현장책임자만" if data.target == "manager" else "작업자 전원"
+    logger.info(f"[설정 변경] 자동발송 대상: {label}")
+    return {"target": data.target, "label": label}
 
 
 @app.get("/api/sms/stats")

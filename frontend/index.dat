@@ -102,11 +102,20 @@
         </div>
 
         <!-- 자동 발송 안내 -->
-        <div id="auto-sms-info" style="padding:8px 16px;background:linear-gradient(135deg,#f0f9ff,#e8f2ff);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:#1565c0">
+        <div id="auto-sms-info" style="padding:8px 16px;background:linear-gradient(135deg,#f0f9ff,#e8f2ff);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:#1565c0;flex-wrap:wrap">
             <span style="font-size:15px">&#9200;</span>
-            <div style="flex:1">
-                <b>자동 발송</b>: 매일 <b>오전 10시</b>, <b>오후 1시</b> 폭염 단계별 SMS 자동 발송
+            <div style="flex:1;min-width:200px">
+                <b>자동 발송</b>: 매일 10시/13시 SMS, 17시 데이터 초기화
                 <span id="auto-sms-status" style="margin-left:4px"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#333;background:white;padding:2px 8px;border-radius:4px;border:1px solid #e0e0e0">
+                <span style="color:#64748b;font-weight:600;white-space:nowrap">자동발송 대상:</span>
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;white-space:nowrap">
+                    <input type="radio" name="auto-sms-target" value="all" style="width:auto;margin:0" onchange="setAutoSmsTarget('all')"> 전원
+                </label>
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;white-space:nowrap">
+                    <input type="radio" name="auto-sms-target" value="manager" style="width:auto;margin:0" onchange="setAutoSmsTarget('manager')"> 책임자만
+                </label>
             </div>
             <button onclick="showSmsTestModal()" style="background:none;border:1px solid #a5d6a7;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">SMS 테스트</button>
             <button onclick="showSmsContentModal()" style="background:none;border:1px solid #90caf9;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">SMS 내용확인</button>
@@ -352,7 +361,7 @@
     </div>
 </div>
 
-<script src="/static/js/app.js?v=20260617h"></script>
+<script src="/static/js/app.js?v=20260618a"></script>
 <script>
     function updateClock() {
         const el = document.getElementById('current-time');
