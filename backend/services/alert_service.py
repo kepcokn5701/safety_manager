@@ -13,6 +13,14 @@ from backend.services.interfaces import NotificationSender, NotificationResult
 logger = logging.getLogger(__name__)
 
 
+def _mask_phone(phone: str) -> str:
+    """전화번호 마스킹: 01012345678 → 010****5678"""
+    digits = phone.replace("-", "")
+    if len(digits) >= 8:
+        return digits[:3] + "****" + digits[-4:]
+    return "****"
+
+
 class KakaoAlimTalkSender(NotificationSender):
     """
     카카오 알림톡 발송 구현체
@@ -115,16 +123,18 @@ class KakaoAlimTalkSender(NotificationSender):
         actions_text = "\n".join(f"  - {a}" for a in actions[:4])
 
         return (
-            f"[KEPCO 안전관리] 폭염 {stage_name} 단계\n"
+            f"[한국전력공사 경남본부]\n"
             f"━━━━━━━━━━━━━━━━\n"
             f"■ 대상자: {name}님\n"
             f"■ 현장: {work_site_name}\n"
             f"■ 체감온도: {temperature}°C\n"
+            f"■ 폭염단계: {stage_name}\n"
             f"■ 발령시각: {now}\n"
             f"━━━━━━━━━━━━━━━━\n"
             f"[조치사항]\n{actions_text}\n"
             f"━━━━━━━━━━━━━━━━\n"
-            f"안전이 최우선입니다. 건강에 유의하세요."
+            f"☞ 작업중지 요청:\n"
+            f"https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do"
         )
 
     def _get_template_code(self, stage_name: str) -> str:
@@ -169,10 +179,12 @@ class SmsSender(NotificationSender):
         site_id: int | None = None,
     ) -> NotificationResult:
         message = (
-            f"[KEPCO 안전관리] 폭염 {stage_name}\n"
-            f"현장: {work_site_name}\n"
-            f"체감온도: {temperature}°C\n"
-            f"{actions[0] if actions else '안전에 유의하세요.'}"
+            f"[한국전력공사 경남본부]\n"
+            f"현재 {work_site_name} 공사현장의 체감온도가 {temperature}°C로\n"
+            f"폭염 \"{stage_name}\" 단계입니다.\n"
+            f"{actions[0] if actions else '안전에 유의하세요.'}\n"
+            f"\n☞ 작업중지 요청:\n"
+            f"https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do"
         )
 
         if not self._app_key or not self._secret_key:
@@ -190,7 +202,7 @@ class SmsSender(NotificationSender):
                     "X-Secret-Key": self._secret_key,
                 },
                 json={
-                    "title": "[KEPCO 안전관리]",
+                    "title": "[한국전력공사 경남본부]",
                     "body": message,
                     "sendNo": self._sender.replace("-", ""),
                     "recipientList": [{"recipientNo": phone}],
@@ -199,9 +211,9 @@ class SmsSender(NotificationSender):
             data = response.json()
             ok = data.get("header", {}).get("isSuccessful", False)
             if ok:
-                logger.info(f"[SMS] {recipient_name}({phone}): 성공")
+                logger.info(f"[SMS] {recipient_name}({_mask_phone(phone)}): 성공")
             else:
-                logger.warning(f"[SMS] {recipient_name}({phone}): {data.get('header',{}).get('resultMessage','')}")
+                logger.warning(f"[SMS] {recipient_name}({_mask_phone(phone)}): {data.get('header',{}).get('resultMessage','')}")
             return NotificationResult(
                 success=ok, channel="sms", recipient=recipient_phone,
                 message_id=str(data.get("body", {}).get("data", {}).get("requestId", "")),
@@ -296,7 +308,7 @@ class SmsSender(NotificationSender):
                     "X-Secret-Key": self._secret_key,
                 },
                 json={
-                    "title": "[KEPCO 안전관리]",
+                    "title": "[한국전력공사 경남본부]",
                     "body": message,
                     "sendNo": self._sender.replace("-", ""),
                     "recipientList": recipients,

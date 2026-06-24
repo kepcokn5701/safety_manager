@@ -4,7 +4,8 @@ Pydantic 스키마 (API 요청/응답 모델)
 
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from backend.utils.masking import mask_phone
 
 
 # ── 작업자 ──
@@ -27,6 +28,11 @@ class WorkerResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="after")
+    def _mask_phone(self):
+        self.phone = mask_phone(self.phone)
+        return self
 
 
 # ── 작업현장 ──

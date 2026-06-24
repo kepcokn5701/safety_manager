@@ -11,6 +11,7 @@ from backend.models.schemas import (
     WorkSiteCreate, WorkSiteResponse,
 )
 from backend.services.repository import WorkerRepository, WorkSiteRepository
+from backend.utils.masking import mask_phone
 
 router = APIRouter(prefix="/api", tags=["작업자/현장 관리"])
 
@@ -129,7 +130,7 @@ async def get_site_workers(
         {
             "id": w.id,
             "name": w.name,
-            "phone": w.phone,
+            "phone": mask_phone(w.phone),
             "department": w.department,
             "team": w.team,
             "is_vulnerable": w.is_vulnerable,

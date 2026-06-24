@@ -19,6 +19,7 @@ from backend.services.weather_service import (
     ThresholdManager,
 )
 from backend.dependencies import get_weather_provider
+from backend.utils.masking import mask_phone
 
 router = APIRouter(prefix="/api/weather", tags=["날씨"])
 
@@ -190,7 +191,7 @@ async def get_all_weather_status(
             worker_list = []
             for wr in workers_with_role:
                 w = wr["worker"]
-                wdata = {"id": w.id, "name": w.name, "phone": w.phone, "is_vulnerable": w.is_vulnerable, "role": wr["role"]}
+                wdata = {"id": w.id, "name": w.name, "phone": mask_phone(w.phone), "is_vulnerable": w.is_vulnerable, "role": wr["role"]}
                 alert = latest_alerts.get(w.id)
                 if alert:
                     wdata["last_alert"] = {
@@ -890,7 +891,7 @@ async def get_all_weather_mock():
             {
                 "id": 9000 + i * 10 + j,
                 "name": w["name"],
-                "phone": w["phone"],
+                "phone": mask_phone(w["phone"]),
                 "is_vulnerable": w.get("vulnerable", False),
                 "last_alert": None,
             }

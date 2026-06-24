@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>KEPCO 안전관리 시스템</title>
+    <title>한국전력공사 경남본부 안전관리 시스템</title>
 
     <!-- PWA -->
     <link rel="manifest" href="/static/manifest.json">
@@ -21,7 +21,7 @@
 <div id="branch-select-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;justify-content:center;align-items:center">
     <div style="max-width:400px;width:90%;text-align:center">
         <div style="font-size:48px;margin-bottom:16px">K</div>
-        <h1 style="font-size:22px;margin-bottom:4px">KEPCO 안전관리</h1>
+        <h1 style="font-size:22px;margin-bottom:4px">한국전력공사 경남본부</h1>
         <p style="color:var(--text-dim);font-size:13px;margin-bottom:24px">담당 사업소를 선택하세요</p>
         <input list="branch-list" id="branch-select" placeholder="사업소명 입력 또는 선택" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin-bottom:12px;background:white">
         <datalist id="branch-list">
@@ -56,7 +56,7 @@
 <header class="header">
     <div class="header-left">
         <div class="header-logo">K</div>
-        <h1>KEPCO 안전관리</h1>
+        <h1>한국전력공사 경남본부</h1>
     </div>
     <div class="header-right">
         <a href="/manual" style="color:var(--text-dim);font-size:11px;text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px">사용방법</a>
@@ -361,7 +361,7 @@
     </div>
 </div>
 
-<script src="/static/js/app.js?v=20260618a"></script>
+<script src="/static/js/app.js?v=20260624a"></script>
 <script>
     function updateClock() {
         const el = document.getElementById('current-time');

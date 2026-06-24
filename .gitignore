@@ -30,3 +30,4 @@ logs/
 
 .vercel
 .claude/
+replacements.txt

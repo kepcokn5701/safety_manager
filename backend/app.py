@@ -28,6 +28,7 @@ from backend.dependencies import (
     cleanup,
 )
 from backend.scheduler.monitor import HeatWaveMonitor
+from backend.utils.masking import mask_phone
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level),
@@ -73,33 +74,60 @@ async def _log_sms(sms_type: str, details: list[dict], stage: str = "", message:
         logger.error(f"[SMS Log] 이력 저장 실패: {e}")
 
 
+def _mask_sms_result(result: dict) -> dict:
+    """SMS 발송 결과의 details 내 전화번호를 마스킹하여 API 응답용으로 변환"""
+    if "details" in result:
+        for d in result["details"]:
+            if "phone" in d:
+                d["phone"] = mask_phone(d["phone"])
+    return result
+
+
+WORK_STOP_LINK = "https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do"
+
 SMS_STAGE_MESSAGES = {
     "stage_1_interest": (
-        '[체감온도 31도 이상, 폭염 "관심" 단계]\n'
-        "폭염 시작입니다.\n"
-        "충분한 수분 섭취와\n"
-        "적절한 휴식을 취하세요!"
+        "[한국전력공사 경남본부]\n"
+        "현재 #{현장주소} 공사현장의 체감온도가 31도 이상으로 "
+        '폭염 "관심" 단계입니다.\n'
+        "폭염이 시작되니 충분한 수분 섭취와 적절한 휴식을 취하세요!"
     ),
     "stage_2_caution": (
-        "[체감온도 33도 이상, 폭염주의보]\n"
-        "더위가 더욱 강해집니다.\n"
-        "작업시간을 조정하시고,\n"
+        "[한국전력공사 경남본부]\n"
+        "현재 #{현장주소} 공사현장의 체감온도가 33도 이상으로 "
+        '폭염 "주의보" 단계입니다.\n'
+        "더위가 더욱 강해지니, 작업시간을 조정하시고 "
         "매 2시간 이내 20분 이상 휴식을 취하세요!"
     ),
     "stage_3_warning": (
-        "[체감온도 35도 이상, 폭염경보]\n"
-        "폭염 위험이 높습니다.\n"
-        "어지럼, 메스꺼움을 느끼면 즉시 작업을 멈추고 그늘로 가세요!\n"
+        "[한국전력공사 경남본부]\n"
+        "현재 #{현장주소} 공사현장의 체감온도가 35도 이상으로 "
+        '폭염 "경보" 단계입니다.\n'
+        "폭염 위험이 높습니다. 어지럼, 메스꺼움을 느끼면 "
+        "작업을 멈추고 그늘로 가세요!\n"
         "작업중지권 사용을 망설이지 마세요!"
     ),
     "stage_4_danger": (
-        "[체감온도 38도 이상, 폭염중대경보]\n"
-        "폭염 최고 단계입니다.\n"
-        "무리는 곧 사고!\n"
-        "재난 및 안전관리 등에 필요한 긴급조치 작업 외에는\n"
+        "[한국전력공사 경남본부]\n"
+        "현재 #{현장주소} 공사현장의 체감온도가 38도 이상으로 "
+        '폭염 "중대경보" 단계입니다.\n'
+        "폭염 최고 단계입니다. 무리는 곧 사고로 이어지니, "
+        "재난 및 안전관리 등에 필요한 긴급조치 작업 외에는 "
         "야외작업을 중지하세요!"
     ),
 }
+
+SMS_FOOTER = f"\n\n☞ 작업중지 요청: {WORK_STOP_LINK}"
+
+
+def _build_site_sms(stage_key: str, site_address: str, tomorrow_text: str = "") -> str:
+    """현장 주소를 치환한 SMS 메시지 생성"""
+    template = SMS_STAGE_MESSAGES.get(stage_key, "")
+    msg = template.replace("#{현장주소}", site_address or "해당 현장")
+    msg += SMS_FOOTER
+    if tomorrow_text:
+        msg += tomorrow_text
+    return msg
 
 
 @asynccontextmanager
@@ -334,8 +362,6 @@ async def scheduled_auto_sms():
         weather_provider = get_weather_provider()
         threshold_mgr = get_threshold_manager()
 
-        # 단계별로 발송할 작업자를 모음 (전화번호 중복제거: 가장 높은 단계만)
-        stage_recipients = {}  # stage_key -> {message, workers: [{name, phone, site}]}
         sent_phones = set()
 
         async with async_session() as session:
@@ -359,14 +385,13 @@ async def scheduled_auto_sms():
                         continue
 
                     stage_key = stage_info["key"]
-                    message = SMS_STAGE_MESSAGES.get(stage_key)
-                    if not message:
+                    if stage_key not in SMS_STAGE_MESSAGES:
                         total_skipped += 1
                         continue
 
                     tomorrow = _tomorrow_forecast_cache.get(site.id)
                     tomorrow_text = _build_tomorrow_text(tomorrow)
-                    full_message = message + tomorrow_text
+                    full_message = _build_site_sms(stage_key, site.address, tomorrow_text)
 
                     # 대상 설정에 따라 작업자 필터링
                     if auto_target == "manager":
@@ -385,54 +410,49 @@ async def scheduled_auto_sms():
                         site_stage_data.append({
                             "site": site, "stage_key": stage_key, "stage_info": stage_info,
                             "message": full_message, "workers": workers_dicts,
-                            "apparent_temp": apparent_temp, "has_tomorrow": bool(tomorrow),
+                            "apparent_temp": apparent_temp,
                         })
                     else:
                         total_skipped += 1
                 except Exception as e:
                     logger.error(f"[Auto SMS] {site.name} 처리 실패: {e}")
 
-            # 2단계: 높은 단계 우선으로 정렬 → 전화번호 중복제거
+            # 2단계: 높은 단계 우선으로 정렬
             site_stage_data.sort(key=lambda x: stage_order.index(x["stage_key"]) if x["stage_key"] in stage_order else 99)
-
-            for sd in site_stage_data:
-                sk = sd["stage_key"]
-                if sk not in stage_recipients:
-                    stage_recipients[sk] = {"message": sd["message"], "workers": []}
-                for w in sd["workers"]:
-                    phone_key = w["phone"].replace("-", "")
-                    if phone_key not in sent_phones:
-                        sent_phones.add(phone_key)
-                        stage_recipients[sk]["workers"].append(w)
 
             # 고정수신 멤버 로드
             fixed_recipients = (await session.execute(
                 select(SmsFixedRecipient).where(SmsFixedRecipient.is_active == True)
             )).scalars().all()
 
-            # 3단계: 단계별 일괄 발송 (가장 높은 단계에만 고정수신 추가)
-            fixed_added_to = None
-            for sk in stage_order:
-                if sk not in stage_recipients:
-                    continue
-                sr = stage_recipients[sk]
-                if not sr["workers"]:
-                    continue
-                # 고정수신 멤버는 가장 높은 단계 메시지에 1회만 포함
-                if fixed_added_to is None:
+            # 3단계: 현장별 발송 (전화번호 중복제거, 고정수신은 첫 발송에만 추가)
+            fixed_added = False
+            for sd in site_stage_data:
+                sk = sd["stage_key"]
+                # 현장별 전화번호 중복제거
+                unique_workers = []
+                for w in sd["workers"]:
+                    phone_key = w["phone"].replace("-", "")
+                    if phone_key not in sent_phones:
+                        sent_phones.add(phone_key)
+                        unique_workers.append(w)
+                # 고정수신 멤버는 가장 높은 단계의 첫 현장에 1회만 포함
+                if not fixed_added:
                     for fr in fixed_recipients:
                         pk = fr.phone.replace("-", "")
                         if pk not in sent_phones:
                             sent_phones.add(pk)
-                            sr["workers"].append({"name": fr.name, "phone": fr.phone, "site": f"[고정수신] {fr.role}"})
-                    fixed_added_to = sk
-                phone_list = [w["phone"] for w in sr["workers"]]
-                result = await sender.send_bulk(phone_list, sr["message"], workers=sr["workers"])
+                            unique_workers.append({"name": fr.name, "phone": fr.phone, "site": f"[확인용] {fr.role}"})
+                    fixed_added = True
+                if not unique_workers:
+                    continue
+                phone_list = [w["phone"] for w in unique_workers]
+                result = await sender.send_bulk(phone_list, sd["message"], workers=unique_workers)
                 total_sent += result.get("sent", 0)
                 total_failed += result.get("failed", 0)
-                await _log_sms("auto", result.get("details", []), stage=sk, message=sr["message"])
+                await _log_sms("auto", result.get("details", []), stage=sk, message=sd["message"])
                 logger.info(
-                    f"[Auto SMS] {sk} 단계 → "
+                    f"[Auto SMS] {sk} 단계 ({sd['site'].name}) → "
                     f"{result.get('sent', 0)}건 성공, "
                     f"{result.get('failed', 0)}건 실패"
                 )
@@ -503,8 +523,8 @@ async def _set_system_setting(key: str, value: str):
 
 
 app = FastAPI(
-    title="KEPCO 안전관리 시스템",
-    description="한전 폭염 안전관리 및 작업중지 알람 시스템",
+    title="한국전력공사 경남본부 안전관리 시스템",
+    description="폭염 안전관리 및 작업중지 알람 시스템",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -671,6 +691,7 @@ class SmsWorker(BaseModel):
     name: str = ""
     phone: str
     site: str = ""
+    address: str = ""
 
 
 class SmsRequest(BaseModel):
@@ -681,7 +702,7 @@ class SmsRequest(BaseModel):
 
 @app.post("/api/sms/send")
 async def send_sms(data: SmsRequest):
-    """SMS 일괄 발송 (NHN Cloud SMS API) — 동일 전화번호 자동 중복제거"""
+    """SMS 일괄 발송 (NHN Cloud SMS API) — 동일 전화번호 자동 중복제거, #{현장주소} 치환 지원"""
     from backend.services.alert_service import SmsSender
     sender = SmsSender()
     workers_dicts = [w.model_dump() for w in data.workers] if data.workers else None
@@ -721,16 +742,42 @@ async def send_sms(data: SmsRequest):
                 seen.add(phone_key)
                 phone_numbers.append(fr.phone)
                 if workers_dicts is not None:
-                    workers_dicts.append({"name": fr.name, "phone": fr.phone, "site": f"[고정수신] {fr.role}"})
+                    workers_dicts.append({"name": fr.name, "phone": fr.phone, "site": f"[확인용] {fr.role}", "address": ""})
                 fixed_added += 1
 
-        result = await sender.send_bulk(phone_numbers, data.message, workers=workers_dicts)
-        if deduped_count > 0:
-            result["deduped"] = deduped_count
-        if fixed_added > 0:
-            result["fixed_added"] = fixed_added
-        await _log_sms("real", result.get("details", []), message=data.message)
-        return result
+        # #{현장주소} 치환: 주소별 그룹핑 후 개별 발송
+        has_address_var = "#{현장주소}" in data.message
+        if has_address_var and workers_dicts:
+            address_groups = {}
+            for w in workers_dicts:
+                addr = w.get("address", "") or ""
+                if addr not in address_groups:
+                    address_groups[addr] = []
+                address_groups[addr].append(w)
+
+            total_result = {"sent": 0, "failed": 0, "details": []}
+            for addr, group_workers in address_groups.items():
+                substituted_msg = data.message.replace("#{현장주소}", addr or "해당 현장")
+                group_phones = [w["phone"] for w in group_workers]
+                result = await sender.send_bulk(group_phones, substituted_msg, workers=group_workers)
+                total_result["sent"] += result.get("sent", 0)
+                total_result["failed"] += result.get("failed", 0)
+                total_result["details"].extend(result.get("details", []))
+                await _log_sms("real", result.get("details", []), message=substituted_msg)
+
+            if deduped_count > 0:
+                total_result["deduped"] = deduped_count
+            if fixed_added > 0:
+                total_result["fixed_added"] = fixed_added
+            return _mask_sms_result(total_result)
+        else:
+            result = await sender.send_bulk(phone_numbers, data.message, workers=workers_dicts)
+            if deduped_count > 0:
+                result["deduped"] = deduped_count
+            if fixed_added > 0:
+                result["fixed_added"] = fixed_added
+            await _log_sms("real", result.get("details", []), message=data.message)
+            return _mask_sms_result(result)
     finally:
         await sender.close()
 
@@ -758,7 +805,7 @@ async def sms_test(data: SmsTestRequest):
     """SMS 테스트 발송 (1건)"""
     from backend.services.alert_service import SmsSender
     sender = SmsSender()
-    test_msg = data.message or "[KEPCO 안전관리] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다."
+    test_msg = data.message or "[한국전력공사 경남본부] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다."
     try:
         result = await sender.send_bulk(
             [data.phone], test_msg,
@@ -766,7 +813,7 @@ async def sms_test(data: SmsTestRequest):
         )
         sms_type = "mock" if data.is_mock else "real"
         await _log_sms(sms_type, result.get("details", []), message=test_msg)
-        return result
+        return _mask_sms_result(result)
     finally:
         await sender.close()
 
@@ -868,7 +915,7 @@ async def sms_stats(date: str = Query(default="", description="YYYY-MM-DD")):
                 detail_list.append({
                     "id": r.id,
                     "type": r.sms_type.value if hasattr(r.sms_type, "value") else r.sms_type,
-                    "phone": r.recipient_phone,
+                    "phone": mask_phone(r.recipient_phone),
                     "name": r.recipient_name,
                     "site": r.site_name,
                     "stage": r.stage,
@@ -934,7 +981,7 @@ async def get_fixed_recipients():
         rows = (await session.execute(
             select(SmsFixedRecipient).where(SmsFixedRecipient.is_active == True).order_by(SmsFixedRecipient.id)
         )).scalars().all()
-        return [{"id": r.id, "name": r.name, "phone": r.phone, "role": r.role} for r in rows]
+        return [{"id": r.id, "name": r.name, "phone": mask_phone(r.phone), "role": r.role} for r in rows]
 
 
 @app.post("/api/sms/fixed-recipients")
@@ -958,7 +1005,7 @@ async def add_fixed_recipient(data: FixedRecipientRequest):
         recipient = SmsFixedRecipient(name=data.name, phone=formatted, role=data.role)
         session.add(recipient)
         await session.commit()
-        return {"id": recipient.id, "name": recipient.name, "phone": formatted, "role": recipient.role}
+        return {"id": recipient.id, "name": recipient.name, "phone": mask_phone(formatted), "role": recipient.role}
 
 
 @app.delete("/api/sms/fixed-recipients/{recipient_id}")

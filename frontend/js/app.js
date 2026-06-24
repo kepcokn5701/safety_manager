@@ -1,15 +1,22 @@
 /**
- * KEPCO 안전관리 시스템 - 프론트엔드 JS
+ * 한국전력공사 경남본부 안전관리 시스템 - 프론트엔드 JS
  */
+
+/** XSS 방지: HTML 특수문자 이스케이프 */
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 const API_BASE = '';
 
 // ── 폭염 단계별 SMS 기본 문구 ──
+const WORK_STOP_LINK = 'https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do';
 const SMS_STAGE_MESSAGES = {
-    interest: '[체감온도 31도 이상, 폭염 "관심" 단계]\n폭염 시작입니다.\n충분한 수분 섭취와\n적절한 휴식을 취하세요!',
-    caution: '[체감온도 33도 이상, 폭염주의보]\n더위가 더욱 강해집니다.\n작업시간을 조정하시고,\n매 2시간 이내 20분 이상 휴식을 취하세요!',
-    warning: '[체감온도 35도 이상, 폭염경보]\n폭염 위험이 높습니다.\n어지럼, 메스꺼움을 느끼면 즉시 작업을 멈추고 그늘로 가세요!\n작업중지권 사용을 망설이지 마세요!',
-    danger: '[체감온도 38도 이상, 폭염중대경보]\n폭염 최고 단계입니다.\n무리는 곧 사고!\n재난 및 안전관리 등에 필요한 긴급조치 작업 외에는\n야외작업을 중지하세요!',
+    interest: '[한국전력공사 경남본부]\n현재 #{현장주소} 공사현장의 체감온도가 31도 이상으로 폭염 "관심" 단계입니다.\n폭염이 시작되니 충분한 수분 섭취와 적절한 휴식을 취하세요!\n\n☞ 작업중지 요청: ' + WORK_STOP_LINK,
+    caution: '[한국전력공사 경남본부]\n현재 #{현장주소} 공사현장의 체감온도가 33도 이상으로 폭염 "주의보" 단계입니다.\n더위가 더욱 강해지니, 작업시간을 조정하시고 매 2시간 이내 20분 이상 휴식을 취하세요!\n\n☞ 작업중지 요청: ' + WORK_STOP_LINK,
+    warning: '[한국전력공사 경남본부]\n현재 #{현장주소} 공사현장의 체감온도가 35도 이상으로 폭염 "경보" 단계입니다.\n폭염 위험이 높습니다. 어지럼, 메스꺼움을 느끼면 작업을 멈추고 그늘로 가세요!\n작업중지권 사용을 망설이지 마세요!\n\n☞ 작업중지 요청: ' + WORK_STOP_LINK,
+    danger: '[한국전력공사 경남본부]\n현재 #{현장주소} 공사현장의 체감온도가 38도 이상으로 폭염 "중대경보" 단계입니다.\n폭염 최고 단계입니다. 무리는 곧 사고로 이어지니, 재난 및 안전관리 등에 필요한 긴급조치 작업 외에는 야외작업을 중지하세요!\n\n☞ 작업중지 요청: ' + WORK_STOP_LINK,
 };
 
 // ── 상태 관리 ──
@@ -55,7 +62,7 @@ async function showBranchSelect() {
         const data = await api('/api/branch-offices');
         const sel = document.getElementById('branch-select');
         data.offices.forEach(office => {
-            sel.innerHTML += `<option value="${office}">${office}</option>`;
+            sel.innerHTML += `<option value="${escHtml(office)}">${escHtml(office)}</option>`;
         });
     } catch (e) {}
 }
@@ -77,7 +84,7 @@ function changeBranch() {
 function startApp() {
     // 헤더에 사업소 표시
     const h1 = document.querySelector('.header h1');
-    if (h1 && state.branchOffice) h1.textContent = `KEPCO 안전관리 - ${state.branchOffice}`;
+    if (h1 && state.branchOffice) h1.textContent = `한국전력공사 경남본부 - ${state.branchOffice}`;
 
     // 본부(전체)만 엑셀 등록/초기화 가능
     const isHQ = !state.branchOffice;
@@ -134,7 +141,7 @@ async function sendSmsToSiteWorkers(siteIds, message, targetRole) {
         (s.workers || []).forEach(w => {
             if (!w.phone) return;
             if (targetRole === 'manager' && w.role !== 'manager') return;
-            workers.push({ name: w.name || '', phone: w.phone, site: s.site_name || '' });
+            workers.push({ name: w.name || '', phone: w.phone, site: s.site_name || '', address: s.address || '' });
         });
     });
     if (workers.length === 0) throw new Error('발송 대상 작업자가 없습니다 (전화번호 없음)');
@@ -222,12 +229,14 @@ async function showSmsContentModal() {
 
     // 단계별 기본 문구
     const stageList = scheduleData.messages || {};
+    const addressNote = '<span style="display:inline-block;background:#e3f2fd;color:#1565c0;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700">[현장 주소]</span>';
     const stageHtml = Object.entries(stageList).map(([stage, msg]) => {
         const colors = {'관심': '#FFC107', '주의': '#FF9800', '경고': '#FF5722', '위험': '#D32F2F'};
         const color = Object.entries(colors).find(([k]) => stage.includes(k))?.[1] || '#666';
+        const displayMsg = msg.replace(/#{현장주소}/g, addressNote);
         return `<div style="margin-bottom:6px;padding:8px 10px;border-left:3px solid ${color};background:white;border-radius:0 6px 6px 0">
             <div style="font-weight:600;font-size:11px;color:${color};margin-bottom:3px">${stage}</div>
-            <div style="font-size:11px;line-height:1.5;white-space:pre-line;color:#333">${msg}</div>
+            <div style="font-size:11px;line-height:1.5;white-space:pre-line;color:#333">${displayMsg}</div>
         </div>`;
     }).join('');
 
@@ -477,10 +486,10 @@ async function showSmsStatsModal(selectedDate = '') {
             const badge = typeBadges[d.type] || d.type;
             const icon = d.status === 'sent' ? '<span style="color:#16a34a">O</span>' : '<span style="color:#dc2626">X</span>';
             rows += '<tr style="border-top:1px solid #f1f5f9">'
-                + '<td style="padding:5px 6px">' + d.sent_at + '</td>'
+                + '<td style="padding:5px 6px">' + escHtml(d.sent_at) + '</td>'
                 + '<td style="padding:5px 6px">' + badge + '</td>'
-                + '<td style="padding:5px 6px">' + d.phone + '</td>'
-                + '<td style="padding:5px 6px">' + (d.name || '-') + '</td>'
+                + '<td style="padding:5px 6px">' + escHtml(d.phone) + '</td>'
+                + '<td style="padding:5px 6px">' + escHtml(d.name || '-') + '</td>'
                 + '<td style="padding:5px 6px;text-align:center">' + icon + '</td>'
                 + '<td style="padding:5px 6px;text-align:right">' + (d.cost > 0 ? cf(d.cost) : '-') + '</td>'
                 + '</tr>';
@@ -580,9 +589,9 @@ async function showFixedRecipientsModal() {
                 + '</tr></thead><tbody>';
             recipients.forEach(r => {
                 listHtml += `<tr style="border-top:1px solid #f1f5f9">
-                    <td style="padding:7px 8px;font-weight:500">${r.name}</td>
-                    <td style="padding:7px 8px;font-family:monospace">${r.phone}</td>
-                    <td style="padding:7px 8px;color:#64748b">${r.role || '-'}</td>
+                    <td style="padding:7px 8px;font-weight:500">${escHtml(r.name)}</td>
+                    <td style="padding:7px 8px;font-family:monospace">${escHtml(r.phone)}</td>
+                    <td style="padding:7px 8px;color:#64748b">${escHtml(r.role || '-')}</td>
                     <td style="padding:7px 8px;text-align:center"><button class="fixed-del-btn" data-id="${r.id}" style="background:none;border:1px solid #fecaca;color:#dc2626;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer">삭제</button></td>
                 </tr>`;
             });
@@ -675,12 +684,14 @@ async function showFixedRecipientsModal() {
 
 
 // ── SMS 테스트 발송 ──
+let _currentTestStage = null;
+
 function showSmsTestModal() {
     const modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
     modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
     modal.innerHTML = `
-    <div style="background:white;border-radius:12px;max-width:420px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
+    <div style="background:white;border-radius:12px;max-width:480px;width:100%;padding:0;box-shadow:0 20px 60px rgba(0,0,0,0.2)">
         <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
             <div style="font-size:15px;font-weight:700">SMS 테스트 발송</div>
             <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">&times;</button>
@@ -689,13 +700,30 @@ function showSmsTestModal() {
             <div id="sms-test-status" style="padding:10px;border-radius:8px;margin-bottom:12px;font-size:12px;background:#f8fafc;color:#64748b;text-align:center">
                 SMS 설정 상태 확인 중...
             </div>
+            <div style="margin-bottom:10px">
+                <label style="font-size:12px;font-weight:600;color:#333;display:block;margin-bottom:6px">문구 선택</label>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button onclick="selectTestStage(null)" class="test-stage-btn test-stage-active" style="padding:6px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer;background:#1976d2;color:white;font-weight:600">연동 테스트</button>
+                    <button onclick="selectTestStage('interest')" class="test-stage-btn" style="padding:6px 12px;border:1px solid #FFC107;border-radius:6px;font-size:11px;cursor:pointer;background:white;color:#F57F17;font-weight:600">관심</button>
+                    <button onclick="selectTestStage('caution')" class="test-stage-btn" style="padding:6px 12px;border:1px solid #FF9800;border-radius:6px;font-size:11px;cursor:pointer;background:white;color:#E65100;font-weight:600">주의</button>
+                    <button onclick="selectTestStage('warning')" class="test-stage-btn" style="padding:6px 12px;border:1px solid #FF5722;border-radius:6px;font-size:11px;cursor:pointer;background:white;color:#BF360C;font-weight:600">경고</button>
+                    <button onclick="selectTestStage('danger')" class="test-stage-btn" style="padding:6px 12px;border:1px solid #D32F2F;border-radius:6px;font-size:11px;cursor:pointer;background:white;color:#B71C1C;font-weight:600">위험</button>
+                </div>
+            </div>
+            <div id="sms-test-address-wrap" style="margin-bottom:10px;display:none">
+                <label style="font-size:12px;font-weight:600;color:#333;display:block;margin-bottom:4px">테스트 현장 주소</label>
+                <input type="text" id="sms-test-address" placeholder="예: 진주시 충무공동 123" value="경남 진주시 테스트 현장" oninput="selectTestStage(_currentTestStage)" style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;box-sizing:border-box">
+            </div>
             <div style="margin-bottom:12px">
                 <label style="font-size:12px;font-weight:600;color:#333;display:block;margin-bottom:4px">수신 전화번호</label>
                 <input type="tel" id="sms-test-phone" placeholder="010-1234-5678" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box">
             </div>
             <div style="margin-bottom:14px">
-                <label style="font-size:12px;font-weight:600;color:#333;display:block;margin-bottom:4px">테스트 메시지</label>
-                <textarea id="sms-test-msg" rows="3" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:none;line-height:1.5;box-sizing:border-box">[KEPCO 안전관리] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다.</textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                    <label style="font-size:12px;font-weight:600;color:#333">테스트 메시지</label>
+                    <span id="sms-test-bytes" style="font-size:11px;color:#94a3b8">0 bytes</span>
+                </div>
+                <textarea id="sms-test-msg" rows="7" oninput="updateTestMsgBytes()" style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:none;line-height:1.5;box-sizing:border-box">[한국전력공사 경남본부] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다.</textarea>
             </div>
             <button id="sms-test-btn" onclick="executeSmsTest()" style="width:100%;padding:12px;font-size:14px;font-weight:700;background:linear-gradient(135deg,#2e7d32,#1b5e20);color:white;border:none;border-radius:8px;cursor:pointer">테스트 발송</button>
             <div id="sms-test-result" style="display:none;margin-top:12px;padding:12px;border-radius:8px;font-size:12px;line-height:1.6"></div>
@@ -703,6 +731,50 @@ function showSmsTestModal() {
     </div>`;
     document.body.appendChild(modal);
     loadSmsTestStatus();
+    updateTestMsgBytes();
+}
+
+function selectTestStage(stage) {
+    _currentTestStage = stage;
+    const textarea = document.getElementById('sms-test-msg');
+    const addrWrap = document.getElementById('sms-test-address-wrap');
+    if (!textarea) return;
+
+    // 버튼 스타일 토글
+    document.querySelectorAll('.test-stage-btn').forEach((btn, i) => {
+        const stages = [null, 'interest', 'caution', 'warning', 'danger'];
+        const colors = ['#1976d2', '#F57F17', '#E65100', '#BF360C', '#B71C1C'];
+        const bgColors = ['#1976d2', '#FFC107', '#FF9800', '#FF5722', '#D32F2F'];
+        if (stages[i] === stage) {
+            btn.style.background = bgColors[i];
+            btn.style.color = 'white';
+            btn.classList.add('test-stage-active');
+        } else {
+            btn.style.background = 'white';
+            btn.style.color = colors[i];
+            btn.classList.remove('test-stage-active');
+        }
+    });
+
+    if (stage && SMS_STAGE_MESSAGES[stage]) {
+        const addr = document.getElementById('sms-test-address')?.value || '경남 진주시 테스트 현장';
+        textarea.value = SMS_STAGE_MESSAGES[stage].replace(/#{현장주소}/g, addr);
+        if (addrWrap) addrWrap.style.display = '';
+    } else {
+        textarea.value = '[한국전력공사 경남본부] SMS 테스트 발송입니다.\n본 메시지가 수신되면 SMS 연동이 정상입니다.';
+        if (addrWrap) addrWrap.style.display = 'none';
+    }
+    updateTestMsgBytes();
+}
+
+function updateTestMsgBytes() {
+    const textarea = document.getElementById('sms-test-msg');
+    const bytesEl = document.getElementById('sms-test-bytes');
+    if (!textarea || !bytesEl) return;
+    const bytes = new TextEncoder().encode(textarea.value).length;
+    const type = bytes <= 90 ? 'SMS' : 'LMS';
+    const color = bytes <= 90 ? '#10b981' : bytes <= 2000 ? '#3b82f6' : '#ef4444';
+    bytesEl.innerHTML = `<span style="color:${color}">${bytes} bytes (${type})</span>`;
 }
 
 async function loadSmsTestStatus() {
@@ -713,7 +785,7 @@ async function loadSmsTestStatus() {
         if (data.configured) {
             el.style.background = '#f0fdf4';
             el.style.color = '#166534';
-            el.innerHTML = `<b>&#10003; SMS 연동 설정 완료</b><br>발신번호: ${data.sender_phone} | AppKey: ${data.app_key_preview}`;
+            el.innerHTML = `<b>&#10003; SMS 연동 설정 완료</b><br>발신번호: ${escHtml(data.sender_phone)} | AppKey: ${escHtml(data.app_key_preview)}`;
         } else {
             el.style.background = '#fef2f2';
             el.style.color = '#991b1b';
@@ -762,13 +834,13 @@ async function executeSmsTest() {
             resultEl.style.color = '#991b1b';
             const errMsg = data.error || '발송 실패';
             const detail = data.details?.[0]?.error || '';
-            resultEl.innerHTML = `<b>&#10005; 발송 실패</b><br>${errMsg}${detail ? '<br><br><b>상세:</b> ' + detail : ''}`;
+            resultEl.innerHTML = `<b>&#10005; 발송 실패</b><br>${escHtml(errMsg)}${detail ? '<br><br><b>상세:</b> ' + escHtml(detail) : ''}`;
         }
     } catch (e) {
         resultEl.style.display = 'block';
         resultEl.style.background = '#fef2f2';
         resultEl.style.color = '#991b1b';
-        resultEl.innerHTML = `<b>&#10005; 오류 발생</b><br>${e.message}`;
+        resultEl.innerHTML = `<b>&#10005; 오류 발생</b><br>${escHtml(e.message)}`;
     } finally {
         btn.disabled = false;
         btn.textContent = '테스트 발송';
@@ -890,10 +962,10 @@ function showInAppAlert(data) {
             <img src="${colors.icon}" alt="" style="width:48px;height:48px;border-radius:12px;flex-shrink:0">
             <div style="flex:1;min-width:0">
                 <div style="font-size:16px;font-weight:800;color:${colors.text};margin-bottom:4px">
-                    ${data.title}
+                    ${escHtml(data.title)}
                 </div>
-                <div style="font-size:13px;color:#333;line-height:1.5;white-space:pre-line">${data.body}</div>
-                ${data.actions?.length ? `<div style="font-size:12px;color:${colors.text};margin-top:6px;opacity:0.8">${data.actions[0]}</div>` : ''}
+                <div style="font-size:13px;color:#333;line-height:1.5;white-space:pre-line">${escHtml(data.body)}</div>
+                ${data.actions?.length ? `<div style="font-size:12px;color:${colors.text};margin-top:6px;opacity:0.8">${escHtml(data.actions[0])}</div>` : ''}
             </div>
             <button onclick="this.closest('#inapp-alert').remove()" style="
                 background:none; border:none; font-size:22px; color:${colors.text};
@@ -1080,7 +1152,7 @@ function showToast(message, type = 'info', duration = 4000) {
     toast.innerHTML = `
         <span style="flex-shrink:0;width:22px;height:22px;border-radius:50%;background:${c.border};color:white;
             display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">${c.icon}</span>
-        <div style="flex:1;color:${c.text};white-space:pre-line">${message}</div>
+        <div style="flex:1;color:${c.text};white-space:pre-line">${escHtml(message)}</div>
         <button onclick="this.parentElement.remove()" style="background:none;border:none;color:${c.text};opacity:0.5;cursor:pointer;font-size:16px">&times;</button>
     `;
     document.body.appendChild(toast);
@@ -1123,8 +1195,8 @@ function showGuideModal(title, message) {
     modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px';
     modal.innerHTML = `
         <div style="background:#fff;border-radius:16px;max-width:380px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.15)">
-            <div style="font-size:18px;font-weight:700;margin-bottom:12px;color:#1a1a2e">${title}</div>
-            <div style="font-size:14px;line-height:1.8;color:#4a5568;white-space:pre-line;text-align:left;margin-bottom:20px">${message}</div>
+            <div style="font-size:18px;font-weight:700;margin-bottom:12px;color:#1a1a2e">${escHtml(title)}</div>
+            <div style="font-size:14px;line-height:1.8;color:#4a5568;white-space:pre-line;text-align:left;margin-bottom:20px">${escHtml(message)}</div>
             <button onclick="this.closest('#guide-modal').remove()" style="width:100%;padding:12px;background:#0066cc;color:white;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer">확인</button>
         </div>
     `;
@@ -1163,8 +1235,8 @@ function renderSitesBasicList() {
     container.innerHTML = state.sites.map(site => `
         <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="selectSiteFromOverview(${site.id})">
             <div style="flex:1;min-width:0">
-                <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${site.name}</div>
-                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+                <div style="font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHtml(site.name)}</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${escHtml(site.address || '')}</div>
             </div>
             <div style="font-size:12px;color:var(--text-dim)">날씨 조회 중...</div>
         </div>
@@ -1189,8 +1261,8 @@ function renderSiteList() {
         <div class="site-item" onclick="selectSite(${site.id})"
              style="${state.selectedSiteId === site.id ? 'background:var(--bg-card-hover)' : ''}">
             <div>
-                <div class="site-name">${site.name}</div>
-                <div style="font-size:12px;color:var(--text-secondary)">${site.address || ''}</div>
+                <div class="site-name">${escHtml(site.name)}</div>
+                <div style="font-size:12px;color:var(--text-secondary)">${escHtml(site.address || '')}</div>
             </div>
             <div id="site-badge-${site.id}"></div>
         </div>
@@ -1277,7 +1349,7 @@ async function loadAllSitesWeather() {
     } catch (e) {
         console.error('전체 현장 날씨 조회 실패:', e);
         if (progressEl) {
-            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:4px">날씨 조회 실패: ${e.message}</div>`;
+            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px;padding:4px">날씨 조회 실패: ${escHtml(e.message)}</div>`;
             setTimeout(() => { progressEl.style.display = 'none'; }, 8000);
         }
         // 날씨 실패해도 기본 현장 목록은 유지
@@ -1286,8 +1358,8 @@ async function loadAllSitesWeather() {
             container.innerHTML = state.sites.map(site => `
                 <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
                     <div style="flex:1;min-width:0">
-                        <div style="font-weight:600;font-size:14px">${site.name}</div>
-                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+                        <div style="font-weight:600;font-size:14px">${escHtml(site.name)}</div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${escHtml(site.address || '')}</div>
                     </div>
                     <div style="font-size:12px;color:var(--text-dim)">날씨 조회 실패</div>
                 </div>
@@ -1309,8 +1381,8 @@ function renderAllSitesOverview(sites) {
             container.innerHTML = state.sites.map(site => `
                 <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="selectSiteFromOverview(${site.id})">
                     <div style="flex:1;min-width:0">
-                        <div style="font-weight:600;font-size:14px">${site.name}</div>
-                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${site.address || ''}</div>
+                        <div style="font-weight:600;font-size:14px">${escHtml(site.name)}</div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${escHtml(site.address || '')}</div>
                     </div>
                     <div style="font-size:12px;color:var(--text-dim)">날씨 조회 중...</div>
                 </div>
@@ -1329,12 +1401,12 @@ function renderAllSitesOverview(sites) {
             return `<div style="padding:12px 16px;border-bottom:1px solid var(--border-light,#edf2f7);border-left:3px solid ${iconColor}">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                     <div style="flex:1;min-width:0">
-                        <div style="font-weight:600;font-size:14px;color:var(--text,#1a1a2e)">${s.site_name}</div>
-                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${s.address || ''}</div>
+                        <div style="font-weight:600;font-size:14px;color:var(--text,#1a1a2e)">${escHtml(s.site_name)}</div>
+                        <div style="font-size:11px;color:var(--text-dim);margin-top:2px">${escHtml(s.address || '')}</div>
                     </div>
                     <span style="flex-shrink:0;padding:2px 8px;background:#fef2f2;color:#dc2626;border-radius:12px;font-size:11px;font-weight:600">조회 실패</span>
                 </div>
-                <div style="margin-top:6px;padding:8px 10px;background:#fff5f5;border-radius:6px;font-size:11px;line-height:1.6;color:#991b1b">${errMsg}</div>
+                <div style="margin-top:6px;padding:8px 10px;background:#fff5f5;border-radius:6px;font-size:11px;line-height:1.6;color:#991b1b">${escHtml(errMsg)}</div>
             </div>`;
         }
 
@@ -1355,8 +1427,8 @@ function renderAllSitesOverview(sites) {
             ">
                 <div style="display:flex;justify-content:space-between;align-items:center">
                     <div style="flex:1;min-width:0">
-                        <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e)">${s.site_name}</div>
-                        <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
+                        <div style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e)">${escHtml(s.site_name)}</div>
+                        <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${escHtml(s.address || '')}</div>
                     </div>
                     <div style="font-size:12px;color:var(--text-dim)">날씨 정보 없음</div>
                 </div>
@@ -1375,10 +1447,10 @@ function renderAllSitesOverview(sites) {
                 <div style="flex:1;min-width:0">
                     <div style="display:flex;align-items:center;gap:6px">
                         <input type="checkbox" class="site-check" data-site-id="${s.site_id}" onclick="event.stopPropagation();updateSelectedCount()" style="width:auto;display:none">
-                        <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${s.site_name}</span>
-                        ${s.branch_office ? `<span style="flex-shrink:0;font-size:10px;padding:1px 6px;background:rgba(0,102,204,0.08);color:var(--kepco,#0066cc);border-radius:4px;font-weight:600;border:1px solid rgba(0,102,204,0.15)">${s.branch_office}</span>` : ''}
+                        <span style="font-weight:600;font-size:14px;color:var(--text, #1a1a2e);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">${escHtml(s.site_name)}</span>
+                        ${s.branch_office ? `<span style="flex-shrink:0;font-size:10px;padding:1px 6px;background:rgba(0,102,204,0.08);color:var(--kepco,#0066cc);border-radius:4px;font-weight:600;border:1px solid rgba(0,102,204,0.15)">${escHtml(s.branch_office)}</span>` : ''}
                     </div>
-                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${s.address || ''}</div>
+                    <div style="font-size:11px;color:var(--text-dim, #8896a6);margin-top:2px">${escHtml(s.address || '')}</div>
                     ${s.worker_count > 0 ? (() => {
                         const total = s.workers?.length || 0;
                         const sent = s.workers?.filter(w => w.last_alert?.status === 'sent').length || 0;
@@ -1403,7 +1475,7 @@ function renderAllSitesOverview(sites) {
                     <button onclick="event.stopPropagation();verifyWeather(${s.site_id})" style="flex-shrink:0;padding:2px 6px;background:var(--bg-hover,#f7f9fb);border:1px solid var(--border,#e2e8f0);border-radius:4px;font-size:10px;color:var(--text-dim,#8896a6);cursor:pointer" title="날씨 데이터 검증">검증</button>
                 </div>
             </div>
-            ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color}">${stg.work_restriction}</div>` : ''}
+            ${stg && stg.key !== 'stage_1_interest' ? `<div style="margin-top:6px;font-size:12px;color:${color}">${escHtml(stg.work_restriction)}</div>` : ''}
             ${s.workers?.length > 0 && isSelected ? `<div style="margin-top:8px;padding:8px;background:var(--bg-card,#f8fafc);border-radius:6px;font-size:12px">
                 <div style="font-weight:600;margin-bottom:4px;color:var(--text-dim)">배정 작업자 (${s.workers.length}명)</div>
                 ${s.workers.map(w => {
@@ -1414,8 +1486,8 @@ function renderAllSitesOverview(sites) {
                     const alertTime = a ? new Date(a.sent_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
                     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border-light,#edf2f7)">
                     <div style="display:flex;align-items:center;gap:6px">
-                        <span style="font-weight:500">${w.name}</span>
-                        <span style="color:var(--text-faint);font-size:11px">${w.phone}</span>
+                        <span style="font-weight:500">${escHtml(w.name)}</span>
+                        <span style="color:var(--text-faint);font-size:11px">${escHtml(w.phone)}</span>
                         ${w.is_vulnerable ? '<span style="font-size:9px;padding:1px 4px;background:rgba(231,76,60,0.12);color:#e74c3c;border-radius:4px">취약</span>' : ''}
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;font-size:11px">
@@ -1532,9 +1604,9 @@ async function verifyAllWeather() {
         let rowsHtml = results.map(r => {
             if (r.error) {
                 return `<tr style="background:#fef2f2">
-                    <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${r.site_name}</td>
-                    <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:10px;color:#64748b">${r.grid}</td>
-                    <td colspan="6" style="padding:6px 8px;border-bottom:1px solid #f1f5f9;color:#dc2626">${r.error}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${escHtml(r.site_name)}</td>
+                    <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:10px;color:#64748b">${escHtml(r.grid)}</td>
+                    <td colspan="6" style="padding:6px 8px;border-bottom:1px solid #f1f5f9;color:#dc2626">${escHtml(r.error)}</td>
                 </tr>`;
             }
             const kma = r.kma_raw || {};
@@ -1546,7 +1618,7 @@ async function verifyAllWeather() {
             const rowBg = (tempOk === false || humOk === false) ? '#fffbeb' : '';
 
             return `<tr style="background:${rowBg}">
-                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.site_name}</td>
+                <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(r.site_name)}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:10px;color:#64748b;text-align:center">${r.grid}</td>
                 <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${kma.temperature}°</td>
                 <td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;text-align:center">${sys?.temperature != null ? sys.temperature + '°' : '<span style="color:#94a3b8">-</span>'}</td>
@@ -1702,7 +1774,7 @@ async function verifyWeather(siteId) {
             <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:white;border-radius:12px 12px 0 0;z-index:1">
                 <div>
                     <div style="font-size:15px;font-weight:700">&#128269; 날씨 데이터 검증</div>
-                    <div style="font-size:11px;color:#64748b">${v.site?.name || ''} | ${v.timestamp ? new Date(v.timestamp).toLocaleString('ko-KR') : ''}</div>
+                    <div style="font-size:11px;color:#64748b">${escHtml(v.site?.name || '')} | ${v.timestamp ? new Date(v.timestamp).toLocaleString('ko-KR') : ''}</div>
                 </div>
                 <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;padding:4px 8px">&times;</button>
             </div>
@@ -1810,7 +1882,7 @@ function renderAlertBanner(stage, weather, siteName) {
             <div class="alert-icon">V</div>
             <div class="alert-content">
                 <h2>정상 - 안전 작업 가능</h2>
-                <p>${siteName} | 체감 ${weather.apparent_temperature}°C</p>
+                <p>${escHtml(siteName)} | 체감 ${weather.apparent_temperature}°C</p>
             </div>`;
         return;
     }
@@ -1819,8 +1891,8 @@ function renderAlertBanner(stage, weather, siteName) {
     banner.innerHTML = `
         <div class="alert-icon">${iconMap[stage.stage_key] || 'V'}</div>
         <div class="alert-content">
-            <h2>폭염 ${stage.stage_name} 단계</h2>
-            <p>${siteName} | 체감 ${weather.apparent_temperature}°C | ${stage.work_restriction}</p>
+            <h2>폭염 ${escHtml(stage.stage_name)} 단계</h2>
+            <p>${escHtml(siteName)} | 체감 ${weather.apparent_temperature}°C | ${escHtml(stage.work_restriction)}</p>
         </div>
         ${stage.stage_key === 'stage_4_danger' ? '<button class="btn btn-danger btn-sm" onclick="triggerMonitoring()">긴급 알림</button>' : ''}`;
 }
@@ -1851,9 +1923,9 @@ function renderActions(stage) {
 
     el.innerHTML = `
         <ul class="action-list">
-            ${stage.actions.map(a => `<li>${a}</li>`).join('')}
+            ${stage.actions.map(a => `<li>${escHtml(a)}</li>`).join('')}
         </ul>
-        <div class="rest-badge"><strong>휴식:</strong> ${stage.rest_guideline}</div>
+        <div class="rest-badge"><strong>휴식:</strong> ${escHtml(stage.rest_guideline)}</div>
     `;
 }
 
@@ -1950,7 +2022,7 @@ async function triggerMonitoring(siteIds = null) {
         // SMS 동시 발송
         let smsMsg = '';
         if (document.getElementById('sms-enabled')?.checked) {
-            const smsResult = await sendSmsToSiteWorkers(siteIds, `[KEPCO 안전관리] 폭염 경보\n${result.sites_checked}개 현장 알림 발송됨. 앱에서 상세 확인하세요.`);
+            const smsResult = await sendSmsToSiteWorkers(siteIds, `[한국전력공사 경남본부] 폭염 경보\n${result.sites_checked}개 현장 알림 발송됨. 안전수칙을 준수해주세요.\n\n☞ 작업중지 요청: ${WORK_STOP_LINK}`);
             if (smsResult) smsMsg = ` | SMS ${smsResult.sent}건`;
         }
         showToast(`발송 완료 - ${msg}${smsMsg}`, 'success');
@@ -1958,7 +2030,7 @@ async function triggerMonitoring(siteIds = null) {
         loadStats();
     } catch (e) {
         if (progressEl) {
-            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">발송 실패: ${e.message}</div>`;
+            progressEl.innerHTML = `<div style="color:var(--danger);font-size:13px">발송 실패: ${escHtml(e.message)}</div>`;
         }
         showToast('발송 실패: ' + e.message, 'error');
     }
@@ -2055,7 +2127,7 @@ async function uploadExcelFile(file) {
         area.innerHTML = `
             <div style="color:var(--stage-danger);padding:20px">
                 <div style="font-size:15px;font-weight:600;margin-bottom:4px">파일 처리 실패</div>
-                <div style="font-size:13px">${e.message}</div>
+                <div style="font-size:13px">${escHtml(e.message)}</div>
                 <button class="btn btn-sm" style="margin-top:12px;background:var(--kepco-light);color:white" onclick="resetExcelUpload()">다시 시도</button>
             </div>`;
     }
@@ -2079,7 +2151,7 @@ function renderExcelPreview(filename) {
     mappingEl.innerHTML = fields.map(f => {
         const matchedCol = Object.entries(excelData.mapped_columns).find(([, v]) => v === f.key);
         const options = excelData.columns.map(c =>
-            `<option value="${c}" ${matchedCol && matchedCol[0] === c ? 'selected' : ''}>${c}</option>`
+            `<option value="${escHtml(c)}" ${matchedCol && matchedCol[0] === c ? 'selected' : ''}>${escHtml(c)}</option>`
         ).join('');
         return `
             <div style="display:flex;align-items:center;gap:6px">
@@ -2099,7 +2171,7 @@ function renderExcelPreview(filename) {
     cols.forEach(c => {
         const mapped = excelData.mapped_columns[c];
         const highlight = mapped ? 'background:rgba(41,128,185,0.3)' : 'background:rgba(41,128,185,0.2)';
-        html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${c}${mapped ? ' *' : ''}</th>`;
+        html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${escHtml(c)}${mapped ? ' *' : ''}</th>`;
     });
     html += '</tr></thead><tbody>';
 
@@ -2108,7 +2180,7 @@ function renderExcelPreview(filename) {
         html += `<td style="padding:4px 8px;border:1px solid var(--border-color);text-align:center"><input type="checkbox" class="row-check" data-idx="${i}" checked></td>`;
         cols.forEach(c => {
             const val = row[c] || '';
-            html += `<td style="padding:4px 8px;border:1px solid var(--border-color);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${val}">${val}</td>`;
+            html += `<td style="padding:4px 8px;border:1px solid var(--border-color);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(val)}">${escHtml(val)}</td>`;
         });
         html += '</tr>';
     });
@@ -2136,9 +2208,9 @@ function renderExcelPreview(filename) {
                         <th style="padding:4px 8px;background:rgba(39,174,96,0.15);border:1px solid var(--border);text-align:center">역할</th>
                     </tr></thead>
                     <tbody>${workers.map(w => `<tr>
-                        <td style="padding:3px 8px;border:1px solid var(--border)">${w.name}</td>
-                        <td style="padding:3px 8px;border:1px solid var(--border)">${w.phone}</td>
-                        <td style="padding:3px 8px;border:1px solid var(--border)">${w.source}</td>
+                        <td style="padding:3px 8px;border:1px solid var(--border)">${escHtml(w.name)}</td>
+                        <td style="padding:3px 8px;border:1px solid var(--border)">${escHtml(w.phone)}</td>
+                        <td style="padding:3px 8px;border:1px solid var(--border)">${escHtml(w.source)}</td>
                         <td style="padding:3px 8px;border:1px solid var(--border);text-align:center">${w.role === 'manager' ? '<span style="color:#1565c0;font-weight:600">책임자</span>' : '작업자'}</td>
                     </tr>`).join('')}</tbody>
                 </table>
@@ -2353,7 +2425,7 @@ async function uploadWorkerExcelFile(file) {
         area.innerHTML = `
             <div style="color:var(--stage-danger);padding:20px">
                 <div style="font-size:15px;font-weight:600;margin-bottom:4px">파일 처리 실패</div>
-                <div style="font-size:13px">${e.message}</div>
+                <div style="font-size:13px">${escHtml(e.message)}</div>
                 <button class="btn btn-sm" style="margin-top:12px;background:var(--kepco-light);color:white" onclick="resetWorkerExcelUpload()">다시 시도</button>
             </div>`;
     }
@@ -2405,7 +2477,7 @@ function _updateWorkerValidationSummary() {
             if (statusTd) statusTd.innerHTML = '<span style="color:#27ae60">OK</span>';
             tr.style.opacity = '1';
         } else {
-            if (statusTd) statusTd.innerHTML = `<span style="color:#e74c3c" title="${issues.join(', ')}">${issues[0]}</span>`;
+            if (statusTd) statusTd.innerHTML = `<span style="color:#e74c3c" title="${escHtml(issues.join(', '))}">${escHtml(issues[0])}</span>`;
             tr.style.opacity = '0.6';
             issueRows.push({ idx: i + 1, issues });
         }
@@ -2437,7 +2509,7 @@ function renderWorkerExcelPreview(filename) {
     mappingEl.innerHTML = fields.map(f => {
         const matchedCol = Object.entries(workerExcelData.mapped_columns).find(([, v]) => v === f.key);
         const options = workerExcelData.columns.map(c =>
-            `<option value="${c}" ${matchedCol && matchedCol[0] === c ? 'selected' : ''}>${c}</option>`
+            `<option value="${escHtml(c)}" ${matchedCol && matchedCol[0] === c ? 'selected' : ''}>${escHtml(c)}</option>`
         ).join('');
         return `
             <div style="display:flex;align-items:center;gap:6px">
@@ -2470,7 +2542,7 @@ function renderWorkerExcelPreview(filename) {
     cols.forEach(c => {
         const mapped = workerExcelData.mapped_columns[c];
         const highlight = mapped ? 'background:rgba(41,128,185,0.3)' : 'background:rgba(41,128,185,0.2)';
-        html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${c}${mapped ? ' *' : ''}</th>`;
+        html += `<th style="padding:6px 8px;${highlight};border:1px solid var(--border-color);font-size:11px;white-space:nowrap">${escHtml(c)}${mapped ? ' *' : ''}</th>`;
     });
     html += '<th style="padding:6px 8px;background:rgba(41,128,185,0.2);border:1px solid var(--border-color);font-size:11px;white-space:nowrap;min-width:80px">상태</th>';
     html += '</tr></thead><tbody>';
@@ -2488,9 +2560,9 @@ function renderWorkerExcelPreview(filename) {
             if (isNameCol && !val.trim()) cellStyle += ';background:rgba(231,76,60,0.15)';
             if (isPhoneCol && val.trim() && !/^01[0-9]/.test(val.replace(/[^0-9]/g, ''))) cellStyle += ';background:rgba(231,76,60,0.15)';
             if (isPhoneCol && !val.trim()) cellStyle += ';background:rgba(231,76,60,0.15)';
-            html += `<td style="${cellStyle}" title="${val}">${val || '<span style="color:#e74c3c;font-size:10px">빈값</span>'}</td>`;
+            html += `<td style="${cellStyle}" title="${escHtml(val)}">${val ? escHtml(val) : '<span style="color:#e74c3c;font-size:10px">빈값</span>'}</td>`;
         });
-        html += `<td class="worker-row-status" style="padding:4px 8px;border:1px solid var(--border-color);font-size:10px;white-space:nowrap">${hasIssue ? `<span style="color:#e74c3c" title="${issues.join(', ')}">${issues[0]}</span>` : '<span style="color:#27ae60">OK</span>'}</td>`;
+        html += `<td class="worker-row-status" style="padding:4px 8px;border:1px solid var(--border-color);font-size:10px;white-space:nowrap">${hasIssue ? `<span style="color:#e74c3c" title="${escHtml(issues.join(', '))}">${escHtml(issues[0])}</span>` : '<span style="color:#27ae60">OK</span>'}</td>`;
         html += '</tr>';
     });
     html += '</tbody>';
@@ -2641,8 +2713,8 @@ async function loadWorkers() {
             ${workers.map(w => `
                 <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
                     <div>
-                        <span style="font-weight:600">${w.name}</span>
-                        <span style="color:var(--text-dim);margin-left:6px;font-size:11px">${w.phone}</span>
+                        <span style="font-weight:600">${escHtml(w.name)}</span>
+                        <span style="color:var(--text-dim);margin-left:6px;font-size:11px">${escHtml(w.phone)}</span>
                     </div>
                     ${w.is_vulnerable ? '<span style="font-size:10px;padding:1px 6px;background:rgba(231,76,60,0.15);color:#e74c3c;border-radius:8px">취약</span>' : ''}
                 </div>
@@ -2769,7 +2841,7 @@ async function loadMockWeather() {
     } catch (e) {
         console.error('모의 테스트 실패:', e);
         if (progressEl) {
-            progressEl.innerHTML = '<div style="color:var(--danger);font-size:13px">모의 테스트 실패: ' + e.message + '</div>';
+            progressEl.innerHTML = '<div style="color:var(--danger);font-size:13px">모의 테스트 실패: ' + escHtml(e.message) + '</div>';
             setTimeout(() => { progressEl.style.display = 'none'; }, 5000);
         }
     }
@@ -2857,14 +2929,14 @@ async function sendMockSmsTest(stage) {
         } else {
             const errMsg = data.details?.[0]?.error || data.error || '발송 실패';
             resultEl.innerHTML = `<div style="padding:8px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca">
-                <span style="color:#dc2626;font-weight:700">&#10005; ${label.name} 단계 발송 실패</span>
-                <div style="color:#991b1b;font-size:11px;margin-top:4px">${errMsg}</div>
+                <span style="color:#dc2626;font-weight:700">&#10005; ${escHtml(label.name)} 단계 발송 실패</span>
+                <div style="color:#991b1b;font-size:11px;margin-top:4px">${escHtml(errMsg)}</div>
             </div>`;
         }
     } catch (e) {
         resultEl.innerHTML = `<div style="padding:8px;background:#fef2f2;border-radius:6px;border:1px solid #fecaca">
             <span style="color:#dc2626;font-weight:700">&#10005; 오류</span>
-            <div style="color:#991b1b;font-size:11px;margin-top:4px">${e.message}</div>
+            <div style="color:#991b1b;font-size:11px;margin-top:4px">${escHtml(e.message)}</div>
         </div>`;
     } finally {
         btns.forEach(b => { b.disabled = false; b.style.opacity = '1'; });
@@ -2937,7 +3009,7 @@ function renderMockSmsResults(results) {
             <span style="color:${r.success ? '#16a34a' : '#dc2626'};font-weight:700">${r.success ? '&#10003;' : '&#10005;'}</span>
             <span style="font-weight:600;color:${r.label.color}">${r.label.name}</span>
             <span style="color:${r.success ? '#16a34a' : '#dc2626'}">${r.success ? '발송 성공' : '실패'}</span>
-            ${!r.success && r.error ? `<span style="color:#991b1b;font-size:10px">(${r.error})</span>` : ''}
+            ${!r.success && r.error ? `<span style="color:#991b1b;font-size:10px">(${escHtml(r.error)})</span>` : ''}
         </div>`).join('')}
     </div>`;
 }
@@ -3214,19 +3286,19 @@ function renderAlertSendList() {
         const temp = s.weather ? s.weather.apparent_temperature : '-';
         const workers = targetRole === 'manager' ? (s.workers || []).filter(w => w.role === 'manager') : (s.workers || []);
         totalWorkerCount += workers.length;
-        const workerStr = workers.map(w => `${w.name}`).join(', ');
-        const phoneStr = workers.map(w => w.phone).join(', ');
+        const workerStr = workers.map(w => escHtml(w.name)).join(', ');
+        const phoneStr = workers.map(w => escHtml(w.phone)).join(', ');
 
         return `<tr style="border-bottom:1px solid #f0f0f0" title="${workerStr}\n${phoneStr}">
             <td style="padding:5px 4px;text-align:center"><input type="checkbox" class="alert-site-check" data-site-id="${s.site_id}" onchange="updateAlertSelectedCount()" style="width:auto" checked></td>
             <td style="padding:5px 2px;text-align:center;font-size:10px;color:#b0b0b0">${idx + 1}</td>
             <td style="padding:5px 4px;text-align:center"><span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;color:#fff;background:${color}">${label}</span></td>
-            <td style="padding:5px 8px;font-weight:500;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.site_name}</td>
-            <td style="padding:5px 8px;font-size:11px;color:var(--kepco,#0066cc)">${s.branch_office || ''}</td>
+            <td style="padding:5px 8px;font-weight:500;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(s.site_name)}</td>
+            <td style="padding:5px 8px;font-size:11px;color:var(--kepco,#0066cc)">${escHtml(s.branch_office || '')}</td>
             <td style="padding:5px 4px;text-align:center;font-size:10px;font-weight:600;color:#64748b">${workers.length}</td>
             <td style="padding:5px 8px;font-size:11px;color:#555;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${workers.map(w => {
-                const tag = w.role === 'manager' ? '<b style="color:#1565c0">'+w.name+'</b>' : w.name;
-                return tag + ' <span style="color:#aaa">' + w.phone + '</span>';
+                const tag = w.role === 'manager' ? '<b style="color:#1565c0">'+escHtml(w.name)+'</b>' : escHtml(w.name);
+                return tag + ' <span style="color:#aaa">' + escHtml(w.phone) + '</span>';
             }).join(', ')}</td>
             <td style="padding:5px 4px;text-align:right;font-weight:700;color:${color};white-space:nowrap">${temp}°</td>
         </tr>`;
@@ -3332,7 +3404,7 @@ async function sendSelectedSms() {
     }
     const workerCount = getAlertSelectedWorkerCount();
     const customMsg = document.getElementById('sms-message')?.value?.trim();
-    const msg = customMsg || `[KEPCO 안전관리] 폭염 알림\n선택된 ${siteIds.length}개 현장에 폭염 주의 알림이 발송되었습니다. 안전수칙을 준수해주세요.`;
+    const msg = customMsg || `[한국전력공사 경남본부] 폭염 알림\n선택된 ${siteIds.length}개 현장에 폭염 주의 알림이 발송되었습니다. 안전수칙을 준수해주세요.\n\n☞ 작업중지 요청: ${WORK_STOP_LINK}`;
 
     // 모의 테스트 모드: 관리자 번호로 실제 발송 (작업자와 동일한 내용)
     if (mockMode) {
@@ -3481,9 +3553,9 @@ async function sendSelectedSms() {
             if (result.error) {
                 resultHtml += `<div style="background:white;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin:8px 0;font-size:12px;color:#991b1b;line-height:1.6">
                     <div style="font-weight:600;margin-bottom:4px">
-                        &#128680; 실패 원인${result.error_code ? ' <span style="font-weight:400;color:#b91c1c;font-size:11px">[' + result.error_code + ']</span>' : ''}
+                        &#128680; 실패 원인${result.error_code ? ' <span style="font-weight:400;color:#b91c1c;font-size:11px">[' + escHtml(result.error_code) + ']</span>' : ''}
                     </div>
-                    <div>${result.error}</div>
+                    <div>${escHtml(result.error)}</div>
                 </div>`;
             }
 
@@ -3514,19 +3586,19 @@ async function sendSelectedSms() {
                 failedDetails.forEach(d => {
                     resultHtml += `<tr style="background:#fef2f2">
                         <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9"><span style="color:#dc2626;font-weight:700">&#10005; 실패</span></td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${d.site || '-'}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${d.name || '-'}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace">${d.phone || '-'}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#dc2626">${d.error || '알 수 없는 오류'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${escHtml(d.site || '-')}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${escHtml(d.name || '-')}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace">${escHtml(d.phone || '-')}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#dc2626">${escHtml(d.error || '알 수 없는 오류')}</td>
                     </tr>`;
                 });
                 // 성공 건
                 sentDetails.forEach(d => {
                     resultHtml += `<tr>
                         <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9"><span style="color:#16a34a">&#10003; 성공</span></td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${d.site || '-'}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${d.name || '-'}</td>
-                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace">${d.phone || '-'}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9">${escHtml(d.site || '-')}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-weight:500">${escHtml(d.name || '-')}</td>
+                        <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;font-family:monospace">${escHtml(d.phone || '-')}</td>
                         <td style="padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#16a34a">발송 완료</td>
                     </tr>`;
                 });
@@ -3575,7 +3647,7 @@ async function sendSelectedSms() {
             </div>
             <div style="background:white;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:12px;color:#991b1b;line-height:1.6">
                 <div style="font-weight:600;margin-bottom:4px">&#128680; 오류 사유:</div>
-                <div>${e.message}</div>
+                <div>${escHtml(e.message)}</div>
                 <div style="margin-top:8px;color:var(--text-dim);font-size:11px">
                     SMS API 설정을 확인해주세요.<br>
                     (.env 파일의 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE)

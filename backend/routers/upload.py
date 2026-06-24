@@ -16,6 +16,7 @@ from backend.models.database import get_db
 from backend.services.excel_parser import parse_excel, parse_worker_excel, extract_workers_from_site_data
 from backend.services.geocoding import geocode_address
 from backend.services.repository import WorkSiteRepository, WorkerRepository
+from backend.utils.masking import mask_phone
 
 logger = logging.getLogger(__name__)
 
@@ -291,7 +292,7 @@ async def import_workers(
 
     for item in data.workers:
         if not item.name or not item.name.strip():
-            errors.append({"name": "(빈값)", "error": "이름 누락", "phone": item.phone})
+            errors.append({"name": "(빈값)", "error": "이름 누락", "phone": mask_phone(item.phone)})
             continue
 
         phone = _normalize_phone(item.phone)
@@ -299,13 +300,13 @@ async def import_workers(
             errors.append({"name": item.name, "error": "연락처 누락"})
             continue
         if not re.match(r"^01[0-9]-?\d{3,4}-?\d{4}$", phone):
-            errors.append({"name": item.name, "error": f"연락처 형식 오류: {item.phone} (올바른 형식: 010-XXXX-XXXX)"})
+            errors.append({"name": item.name, "error": f"연락처 형식 오류: {mask_phone(item.phone)} (올바른 형식: 010-XXXX-XXXX)"})
             continue
 
         try:
             existing = await repo.get_by_phone(phone)
             if existing:
-                skipped.append({"name": item.name, "phone": phone, "reason": "이미 등록된 전화번호"})
+                skipped.append({"name": item.name, "phone": mask_phone(phone), "reason": "이미 등록된 전화번호"})
                 continue
 
             worker = await repo.create(
