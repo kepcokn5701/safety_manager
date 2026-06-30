@@ -36,9 +36,24 @@ class Base(DeclarativeBase):
 
 
 async def init_db():
-    """DB 테이블 생성 (앱 시작 시 호출)"""
+    """DB 테이블 생성 + 컬럼 마이그레이션 (앱 시작 시 호출)"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        # 기존 테이블에 새 컬럼 추가 (없으면 추가, 있으면 무시)
+        _migrations = [
+            ("weather_logs", "kma_base_time", "VARCHAR(20)"),
+            ("alert_logs", "weather_base_time", "VARCHAR(20)"),
+        ]
+        for table, col, col_type in _migrations:
+            try:
+                await conn.execute(
+                    __import__("sqlalchemy").text(
+                        f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"
+                    )
+                )
+            except Exception:
+                pass
 
 
 async def get_db() -> AsyncSession:

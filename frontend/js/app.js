@@ -10,6 +10,47 @@ function escHtml(str) {
 
 const API_BASE = '';
 
+/** 개인정보 처리 안내 패널 토글 */
+function togglePrivacyNotice() {
+    const panel = document.getElementById('privacy-panel');
+    if (!panel) return;
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translateY(-8px)';
+        requestAnimationFrame(() => {
+            panel.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            panel.style.opacity = '1';
+            panel.style.transform = 'translateY(0)';
+        });
+    } else {
+        panel.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        panel.style.opacity = '0';
+        panel.style.transform = 'translateY(-8px)';
+        setTimeout(() => { panel.style.display = 'none'; }, 200);
+    }
+}
+
+/** 개인정보 안내 아코디언 항목 토글 */
+function togglePrvItem(btn) {
+    const body = btn.nextElementSibling;
+    const arrow = btn.querySelector('.prv-arrow');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        body.style.opacity = '0';
+        requestAnimationFrame(() => {
+            body.style.transition = 'opacity 0.25s ease';
+            body.style.opacity = '1';
+        });
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+    } else {
+        body.style.transition = 'opacity 0.15s ease';
+        body.style.opacity = '0';
+        setTimeout(() => { body.style.display = 'none'; }, 150);
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+    }
+}
+
 // ── 폭염 단계별 SMS 기본 문구 ──
 const WORK_STOP_LINK = 'https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do';
 const SMS_STAGE_MESSAGES = {
@@ -133,26 +174,18 @@ async function checkSmsStatus() {
 }
 
 async function sendSmsToSiteWorkers(siteIds, message, targetRole) {
-    // 선택 현장 작업자에게 SMS 발송 (이름/현장 포함)
+    // 선택 현장 작업자에게 SMS 발송
+    // site_ids를 백엔드에 전달 → 백엔드가 DB에서 원본 전화번호 조회 후 발송
     // targetRole: 'all' = 전원, 'manager' = 현장책임자만
-    const workers = [];
-    const sites = state.allSitesWeather || [];
-    sites.filter(s => !siteIds || siteIds.includes(s.site_id)).forEach(s => {
-        (s.workers || []).forEach(w => {
-            if (!w.phone) return;
-            if (targetRole === 'manager' && w.role !== 'manager') return;
-            workers.push({ name: w.name || '', phone: w.phone, site: s.site_name || '', address: s.address || '' });
-        });
-    });
-    if (workers.length === 0) throw new Error('발송 대상 작업자가 없습니다 (전화번호 없음)');
+    if (!siteIds || siteIds.length === 0) throw new Error('발송 대상 현장이 없습니다');
     try {
         return await api('/api/sms/send', {
             method: 'POST',
-            body: JSON.stringify({ message, workers, phone_numbers: workers.map(w => w.phone) }),
+            body: JSON.stringify({ message, site_ids: siteIds, target_role: targetRole || 'all' }),
         });
     } catch (e) {
         console.error('SMS 발송 실패:', e);
-        return { sent: 0, failed: workers.length, error: e.message };
+        return { sent: 0, failed: 0, error: e.message };
     }
 }
 
@@ -260,7 +293,7 @@ async function showSmsContentModal() {
 
             <div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:11px;color:#333;line-height:1.7">
                 <div style="font-weight:700;margin-bottom:4px;color:#1565c0">자동 스케줄</div>
-                <b>09:00</b> 내일 예보 수집 &rarr; <b>10:00 / 13:00</b> SMS 자동 발송 &rarr; <b>17:00</b> 사전신고 데이터 초기화<br>
+                <b>09:00</b> 내일 예보 수집 &rarr; <b>10:00 / 14:20</b> SMS 자동 발송 &rarr; <b>17:00</b> 사전신고 데이터 초기화<br>
                 <span style="color:#64748b">자동발송 대상: <b>${scheduleData.auto_target === 'manager' ? '현장책임자만' : '작업자 전원'}</b> (상단에서 변경 가능)</span>
             </div>
         </div>
@@ -1300,7 +1333,10 @@ async function loadAllSitesWeather() {
         const statusEl = document.getElementById('weather-status');
         const firstWithTime = data.sites.find(s => s.checked_at);
         if (timeEl && firstWithTime) {
-            timeEl.textContent = `${new Date(firstWithTime.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} 기준`;
+            const checkedStr = new Date(firstWithTime.checked_at).toLocaleString('ko-KR', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+            const kmaBase = firstWithTime.weather?.kma_base_time || '';
+            const kmaLabel = kmaBase ? ` | 기상청 ${kmaBase.slice(11,16)} 발표 기준` : '';
+            timeEl.textContent = `${checkedStr} 조회${kmaLabel}`;
         }
         if (statusEl) {
             const ok = data.weather_success || 0;
@@ -1955,6 +1991,8 @@ function renderAlertHistory() {
         const name = stageNames[log.stage] || log.stage;
         const color = stageColors[log.stage] || 'var(--text-dim)';
         const ok = log.status === 'sent';
+        const baseTime = log.weather_base_time || '';
+        const baseLabel = baseTime ? `기상청 ${baseTime.slice(11,16)} 발표` : '';
         return `
             <div class="log-item">
                 <div class="time">${new Date(log.sent_at).toLocaleString('ko-KR')}</div>
@@ -1962,6 +2000,7 @@ function renderAlertHistory() {
                     <span style="color:${ok ? 'var(--safe)' : 'var(--danger)'}">${ok ? 'V' : 'X'}</span>
                     <strong style="color:${color}">${name}</strong>
                     체감 ${log.apparent_temperature}°C
+                    ${baseLabel ? `<span style="color:#64748b;font-size:11px;margin-left:4px">(${escHtml(baseLabel)})</span>` : ''}
                 </div>
             </div>`;
     }).join('');

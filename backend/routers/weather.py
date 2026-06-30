@@ -181,6 +181,7 @@ async def get_all_weather_status(
                 humidity=weather.humidity, wind_speed=weather.wind_speed,
                 apparent_temperature=apparent_temp, wbgt_estimated=wbgt,
                 stage=stage_info["key"] if stage_info else None,
+                kma_base_time=weather.kma_base_time or "",
             )
 
             # 작업자 + 역할 + 알림 상태
@@ -222,6 +223,7 @@ async def get_all_weather_status(
                     "wind_speed": weather.wind_speed,
                     "apparent_temperature": apparent_temp,
                     "wbgt_estimated": wbgt,
+                    "kma_base_time": weather.kma_base_time or "",
                 },
                 "stage": {
                     "key": stage_info["key"],

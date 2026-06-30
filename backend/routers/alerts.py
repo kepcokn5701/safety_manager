@@ -31,6 +31,7 @@ async def get_alert_history(
             "message": l.message,
             "channel": l.channel,
             "status": l.status.value if l.status else None,
+            "weather_base_time": l.weather_base_time or "",
             "sent_at": l.sent_at.isoformat(),
         }
         for l in logs

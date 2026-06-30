@@ -106,6 +106,7 @@ class WeatherLog(Base):
     apparent_temperature = Column(Float) # 체감온도 (°C)
     wbgt_estimated = Column(Float)       # WBGT 추정값 (°C)
     stage = Column(Enum(AlertStage), nullable=True)
+    kma_base_time = Column(String(20), nullable=True)  # 기상청 발표시각 (예: "2026-06-30 05:00")
     recorded_at = Column(DateTime, default=datetime.utcnow)
 
     work_site = relationship("WorkSite", back_populates="weather_logs")
@@ -125,6 +126,7 @@ class AlertLog(Base):
     channel = Column(String(50), default="kakao_alimtalk")  # 발송 채널
     status = Column(Enum(AlertStatus), default=AlertStatus.PENDING)
     error_message = Column(Text, nullable=True)
+    weather_base_time = Column(String(20), nullable=True)  # 기상청 발표시각 (예: "2026-06-30 14:00")
     sent_at = Column(DateTime, default=datetime.utcnow)
 
     worker = relationship("Worker", back_populates="alert_logs")

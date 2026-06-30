@@ -215,12 +215,14 @@ class KmaProvider(WeatherProvider):
         # 기상청 API는 체감온도를 직접 제공하지 않으므로
         # HeatIndexCalculator에서 계산 (weather_service.py)
         # 여기서는 기온을 apparent_temperature로 임시 설정
+        kma_base_str = f"{base_date[:4]}-{base_date[4:6]}-{base_date[6:8]} {base_time[:2]}:{base_time[2:4]}"
         return WeatherResult(
             temperature=temperature,
             humidity=humidity,
             wind_speed=wind_speed,
             apparent_temperature=temperature,
             provider="kma",
+            kma_base_time=kma_base_str,
         )
 
     async def get_tomorrow_forecast(

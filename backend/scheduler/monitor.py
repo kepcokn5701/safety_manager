@@ -85,6 +85,7 @@ class HeatWaveMonitor:
         """개별 현장 알림 처리"""
         log_repo = WeatherLogRepository(session)
 
+        kma_base = ""
         if use_cached_weather:
             # DB에서 최근 날씨 기록 사용 (날씨 API 호출 안 함)
             latest = await log_repo.get_latest_by_site(site.id)
@@ -92,6 +93,7 @@ class HeatWaveMonitor:
                 return  # 날씨 기록 없으면 스킵
             apparent_temp = latest.apparent_temperature
             wbgt = latest.wbgt_estimated
+            kma_base = latest.kma_base_time or ""
         else:
             # 날씨 API 조회 + DB 저장
             weather = await self._weather.get_current_weather(
@@ -103,6 +105,7 @@ class HeatWaveMonitor:
             wbgt = HeatIndexCalculator.estimate_wbgt_outdoor(
                 weather.temperature, weather.humidity, weather.wind_speed
             )
+            kma_base = weather.kma_base_time or ""
             await log_repo.create(
                 work_site_id=site.id,
                 temperature=weather.temperature,
@@ -111,6 +114,7 @@ class HeatWaveMonitor:
                 apparent_temperature=apparent_temp,
                 wbgt_estimated=wbgt,
                 stage=self._thresholds.determine_stage(apparent_temp)["key"] if self._thresholds.determine_stage(apparent_temp) else None,
+                kma_base_time=kma_base,
             )
 
         stage_info = self._thresholds.determine_stage(apparent_temp)
@@ -187,6 +191,7 @@ class HeatWaveMonitor:
                 channel=",".join(channels),
                 status=AlertStatus.SENT if push_ok else AlertStatus.FAILED,
                 error_message=notif_result.error_message,
+                weather_base_time=kma_base,
             )
             result["alerts_sent"] += 1
 

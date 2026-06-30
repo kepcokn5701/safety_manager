@@ -210,9 +210,18 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(
             scheduled_auto_sms,
             "cron",
-            hour="10,13",
-            id="auto_sms",
-            name="자동 SMS (10시/13시)",
+            hour="10",
+            minute="0",
+            id="auto_sms_morning",
+            name="자동 SMS (10시)",
+        )
+        scheduler.add_job(
+            scheduled_auto_sms,
+            "cron",
+            hour="14",
+            minute="20",
+            id="auto_sms_afternoon",
+            name="자동 SMS (14시20분 — 14시 발표 날씨 반영)",
         )
         scheduler.add_job(
             scheduled_daily_reset,
@@ -337,8 +346,9 @@ def _build_tomorrow_text(forecast: dict | None) -> str:
 
 
 async def scheduled_auto_sms():
-    """오전 10시 / 오후 1시 자동 SMS 발송 (폭염 단계별 메시지 + 내일 예보)
-    동일 전화번호는 가장 높은 단계 메시지 1건만 발송 (중복제거)"""
+    """오전 10시 / 오후 2시 20분 자동 SMS 발송 (폭염 단계별 메시지 + 내일 예보)
+    동일 전화번호는 가장 높은 단계 메시지 1건만 발송 (중복제거)
+    14:20 발송 = 기상청 14시 발표 데이터 반영 (발표 후 약 10~15분 소요)"""
     from backend.services.alert_service import SmsSender
     from backend.services.repository import WorkSiteRepository
     from backend.services.weather_service import HeatIndexCalculator
@@ -411,6 +421,7 @@ async def scheduled_auto_sms():
                             "site": site, "stage_key": stage_key, "stage_info": stage_info,
                             "message": full_message, "workers": workers_dicts,
                             "apparent_temp": apparent_temp,
+                            "kma_base_time": weather.kma_base_time or "",
                         })
                     else:
                         total_skipped += 1
@@ -698,14 +709,39 @@ class SmsRequest(BaseModel):
     message: str
     phone_numbers: list[str] = []  # ["010-1234-5678"] (하위 호환)
     workers: list[SmsWorker] = []  # [{name, phone, site}] (상세 결과용)
+    site_ids: list[int] = []  # 현장 ID 목록 (DB에서 원본 번호 조회)
+    target_role: str = "all"  # "all" | "manager"
 
 
 @app.post("/api/sms/send")
 async def send_sms(data: SmsRequest):
     """SMS 일괄 발송 (NHN Cloud SMS API) — 동일 전화번호 자동 중복제거, #{현장주소} 치환 지원"""
     from backend.services.alert_service import SmsSender
+    from backend.services.repository import WorkSiteRepository
     sender = SmsSender()
-    workers_dicts = [w.model_dump() for w in data.workers] if data.workers else None
+
+    # site_ids가 전달되면 DB에서 원본 전화번호 조회 (마스킹 우회)
+    if data.site_ids:
+        workers_dicts = []
+        async with async_session() as session:
+            site_repo = WorkSiteRepository(session)
+            for sid in data.site_ids:
+                site = await site_repo.get_by_id(sid)
+                if not site:
+                    continue
+                if data.target_role == "manager":
+                    wr_list = await site_repo.get_workers_with_role(sid)
+                    for wr in wr_list:
+                        w = wr["worker"]
+                        if w.phone and wr["role"] == "manager":
+                            workers_dicts.append({"name": w.name, "phone": w.phone, "site": site.name, "address": site.address or ""})
+                else:
+                    ws = await site_repo.get_workers(sid)
+                    for w in ws:
+                        if w.phone:
+                            workers_dicts.append({"name": w.name, "phone": w.phone, "site": site.name, "address": site.address or ""})
+    else:
+        workers_dicts = [w.model_dump() for w in data.workers] if data.workers else None
 
     # 전화번호 중복제거 (같은 번호가 여러 현장에 있을 수 있음)
     if workers_dicts:
@@ -826,8 +862,8 @@ async def sms_auto_schedule():
     return {
         "enabled": configured,
         "auto_target": auto_target,
-        "schedule": ["09:00 내일예보 수집", "10:00 SMS 발송", "13:00 SMS 발송", "17:00 데이터 초기화"],
-        "description": "매일 9시 내일 예보 수집 → 10시/13시 SMS 발송 → 17시 사전신고 데이터 초기화",
+        "schedule": ["09:00 내일예보 수집", "10:00 SMS 발송", "14:20 SMS 발송 (14시 날씨 반영)", "17:00 데이터 초기화"],
+        "description": "매일 9시 내일 예보 수집 → 10시/14시20분 SMS 발송 → 17시 사전신고 데이터 초기화",
         "messages": {
             "관심 (31°C)": SMS_STAGE_MESSAGES["stage_1_interest"],
             "주의 (33°C)": SMS_STAGE_MESSAGES["stage_2_caution"],

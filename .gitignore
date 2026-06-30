@@ -31,3 +31,10 @@ logs/
 .vercel
 .claude/
 replacements.txt
+
+# Build
+_build_portable/
+_portable_output/
+_cache/
+_build_portable.py
+_read_docx.py

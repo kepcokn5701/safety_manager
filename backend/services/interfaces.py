@@ -18,6 +18,7 @@ class WeatherResult:
     wind_speed: float         # 풍속 (m/s)
     apparent_temperature: float  # 체감온도 (°C)
     provider: str             # 데이터 제공자 (예: "open_meteo", "kma")
+    kma_base_time: str = ""   # 기상청 발표시각 (예: "2026-06-30 14:00")
 
 
 @dataclass
