@@ -346,7 +346,7 @@ def _build_tomorrow_text(forecast: dict | None) -> str:
 
 
 async def scheduled_auto_sms():
-    """오전 10시 / 오후 2시 20분 자동 SMS 발송 (폭염 단계별 메시지 + 내일 예보)
+    """오전 10시 / 오후 2시 20분 자동 SMS 발송 (폭염 단계별 메시지)
     동일 전화번호는 가장 높은 단계 메시지 1건만 발송 (중복제거)
     14:20 발송 = 기상청 14시 발표 데이터 반영 (발표 후 약 10~15분 소요)"""
     from backend.services.alert_service import SmsSender
@@ -399,9 +399,7 @@ async def scheduled_auto_sms():
                         total_skipped += 1
                         continue
 
-                    tomorrow = _tomorrow_forecast_cache.get(site.id)
-                    tomorrow_text = _build_tomorrow_text(tomorrow)
-                    full_message = _build_site_sms(stage_key, site.address, tomorrow_text)
+                    full_message = _build_site_sms(stage_key, site.address)
 
                     # 대상 설정에 따라 작업자 필터링
                     if auto_target == "manager":

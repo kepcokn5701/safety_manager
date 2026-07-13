@@ -7,7 +7,7 @@ Repository 패턴 - DB 접근 추상화
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -80,10 +80,18 @@ class WorkSiteRepository:
     async def get_by_id(self, site_id: int) -> Optional[WorkSite]:
         return await self._session.get(WorkSite, site_id)
 
+    # 경남본부직할 선택 시 전력사업처/전력관리처 공사도 포함
+    _HQ_ALIASES = ["경남본부직할", "전력사업처", "전력관리처"]
+
+    def _branch_filter(self, branch_office: str):
+        if branch_office == "경남본부직할":
+            return WorkSite.branch_office.in_(self._HQ_ALIASES)
+        return WorkSite.branch_office == branch_office
+
     async def get_all_active(self, branch_office: str | None = None) -> list[WorkSite]:
         q = select(WorkSite).where(WorkSite.is_active == True)
         if branch_office:
-            q = q.where(WorkSite.branch_office == branch_office)
+            q = q.where(self._branch_filter(branch_office))
         result = await self._session.execute(q)
         return list(result.scalars().all())
 
@@ -91,7 +99,7 @@ class WorkSiteRepository:
         """활성 옥외 작업현장 조회 (폭염 모니터링 대상)"""
         conditions = [WorkSite.is_active == True, WorkSite.is_outdoor == True]
         if branch_office:
-            conditions.append(WorkSite.branch_office == branch_office)
+            conditions.append(self._branch_filter(branch_office))
         result = await self._session.execute(
             select(WorkSite).where(and_(*conditions))
         )
