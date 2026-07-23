@@ -54,10 +54,41 @@ safety_manager/
 │   └── *.dat                  # HTML 백업 (보안SW 삭제 대응)
 ├── config/thresholds.json     # 폭염 단계 기준값 (31/33/35/38°C)
 ├── START.bat / STOP.bat       # 서버 실행/종료
-├── INSTALL.bat / REPAIR.bat   # 설치/복구
+├── REPAIR.bat                 # .html 수동 복구
+├── WATCHDOG.bat               # 상시구동 감시 (작업스케줄러가 3분마다 실행)
+├── build.py / build.bat       # 포터블 배포판 빌드
+├── runtime/python/            # 임베디드 Python (git 제외, 빌드 입력)
+├── dist/                      # 빌드 산출물 (git 제외)
 ├── .env.example               # 환경변수 템플릿
 └── requirements.txt           # Python 의존성
 ```
+
+## 개발 / 배포 구조
+
+이 저장소는 **개발용 소스**다. 운영자에게는 여기서 빌드한 포터블 zip을 전달한다.
+
+| | 개발 (이 폴더) | 배포 (운영자 PC) |
+|---|---|---|
+| Python | `runtime/python/` | 동봉된 `python/` |
+| 설치 | 불필요 | 불필요 (압축만 해제) |
+| 실행 | `runtime\python\python.exe -m uvicorn backend.app:app --port 8000` | `START.bat` 더블클릭 |
+| DB | 로컬 `safety_mgr.db` | 각자 보유 (배포판에 미포함) |
+
+### 배포판 빌드
+
+```bash
+build.bat            # 버전 자동 (yyMMdd_v1)
+build.bat 260723_v3  # 버전 직접 지정
+```
+
+`dist/safety_manager_portable_<버전>.zip` 생성 (약 40MB).
+`__pycache__`, `*.pyc`, `*.bak` 등 개발 흔적은 자동 제외된다.
+
+**`safety_mgr.db`는 일부러 빌드에 넣지 않는다.** 운영자가 기존 폴더에 덮어쓰기로
+압축을 풀 때 등록된 현장/작업자 데이터가 날아가지 않게 하기 위함이다.
+전달 시 "기존 폴더에 덮어쓰기로 해제"를 반드시 안내할 것.
+
+주의: `.env`가 있으면 빌드에 포함된다 (실제 API 키가 배포판에 들어감).
 
 ## DB 스키마 (7개 테이블)
 
@@ -143,16 +174,32 @@ WEATHER_CHECK_INTERVAL_MINUTES=15
 ## 로컬 실행
 
 ```bash
-INSTALL.bat     # 최초 1회: venv + 패키지 + .env
 START.bat       # 서버 시작 (포트 8000) + 브라우저 자동 열림
 STOP.bat        # 서버 종료
 ```
 
+`.env`는 최초 1회 `.env.example`을 복사해 작성한다. 패키지 설치는 불필요하다
+(임베디드 런타임에 이미 포함).
+
 ## 보안 대응
 
-- 사내 보안 소프트웨어가 .html 파일을 삭제하는 문제 → `.dat` 백업 + 자동 복원
-- START.bat에서 매 실행 시 복원 체크
-- REPAIR.bat으로 수동 복구 가능
+사내 보안 소프트웨어가 `.html` 파일을 삭제한다. `.dat` 백업 + 다층 복원으로 대응:
+
+| 시점 | 위치 |
+|---|---|
+| 서버 기동 전 | `START.bat` |
+| 앱 시작 시 | `app.py` lifespan |
+| **HTTP 요청 시** | **`app.py` `_file()`** |
+| 3분마다 | `WATCHDOG.bat` (작업스케줄러 등록 시) |
+
+**요청 시점 복원이 핵심이다.** 2026-07-23 운영자 PC에서, 서버가 떠 있는 동안
+`index.html`이 삭제되어 `GET /`가 계속 500을 반환한 장애가 있었다. 당시 복원은
+기동 시 1회뿐이라 재시작 전까지 자체 복구가 불가능했다. 현재는 `_file()`이
+요청마다 존재를 확인해 `.dat`에서 복원하고, 응답을 디스크가 아닌 메모리에서
+내보내므로 서빙 직전 삭제돼도 안전하다. `.html`/`.dat` 모두 없으면 500이 아닌
+404를 반환한다.
+
+수동 복구는 `REPAIR.bat`.
 
 ## 알려진 제약사항
 
