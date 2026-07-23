@@ -39,6 +39,9 @@ if %RESTORED% GTR 0 (
 )
 
 REM -- 2) 상시구동 등록 (최초 1회만) --------------------------
+REM 폴더를 옮기면 옛 경로를 가리킨 채 남는다. 그래서 운영자에게는
+REM "기존 폴더에 덮어쓰기로 해제"를 안내한다. 폴더를 옮겼다면
+REM 해제_상시구동.bat 실행 후 START.bat 을 다시 누르면 재등록된다.
 schtasks /Query /TN "%TASK%" >nul 2>&1
 if not errorlevel 1 (
     echo   [확인] 24시간 자동 감시 켜져 있음
