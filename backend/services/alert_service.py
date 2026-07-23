@@ -1,0 +1,493 @@
+"""
+알림 서비스 - 카카오 알림톡 구현체 + 콘솔 출력(개발용)
+"""
+
+import logging
+from datetime import datetime
+
+import httpx
+
+from backend.config import settings
+from backend.services.interfaces import NotificationSender, NotificationResult
+
+logger = logging.getLogger(__name__)
+
+
+def _mask_phone(phone: str) -> str:
+    """전화번호 마스킹: 01012345678 → 010****5678"""
+    digits = phone.replace("-", "")
+    if len(digits) >= 8:
+        return digits[:3] + "****" + digits[-4:]
+    return "****"
+
+
+class KakaoAlimTalkSender(NotificationSender):
+    """
+    카카오 알림톡 발송 구현체
+
+    사전 준비:
+    1. 카카오 비즈니스 채널 개설
+    2. 알림톡 발신 프로필 등록
+    3. 메시지 템플릿 등록 (폭염 단계별)
+    4. .env에 API 키 설정
+    """
+
+    SEND_URL = "https://kapi.kakao.com/v2/api/talk/memo/default/send"
+    BIZ_SEND_URL = "https://kapi.kakao.com/v1/api/talk/friends/message/default/send"
+
+    def __init__(self):
+        proxy_config = settings.get_proxy_dict()
+        self._client = httpx.AsyncClient(
+            timeout=10.0,
+            proxy=proxy_config.get("https://") or proxy_config.get("http://"),
+            verify=False,
+        )
+        self._api_key = settings.kakao_rest_api_key
+        self._sender_key = settings.kakao_sender_key
+
+    async def send(
+        self,
+        recipient_phone: str,
+        recipient_name: str,
+        stage_name: str,
+        temperature: float,
+        work_site_name: str,
+        actions: list[str],
+        site_id: int | None = None,
+    ) -> NotificationResult:
+        """카카오 알림톡으로 폭염 경보 발송"""
+
+        message_text = self._build_message(
+            recipient_name, stage_name, temperature, work_site_name, actions
+        )
+
+        # 알림톡 비즈 메시지 API 호출
+        template_code = self._get_template_code(stage_name)
+
+        payload = {
+            "senderkey": self._sender_key,
+            "template_code": template_code,
+            "receiver_num": recipient_phone.replace("-", ""),
+            "message": message_text,
+        }
+
+        headers = {
+            "Authorization": f"KakaoAK {self._api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            response = await self._client.post(
+                self.BIZ_SEND_URL,
+                json=payload,
+                headers=headers,
+            )
+
+            if response.status_code == 200:
+                result_data = response.json()
+                return NotificationResult(
+                    success=True,
+                    channel="kakao_alimtalk",
+                    recipient=recipient_phone,
+                    message_id=str(result_data.get("result_code", "")),
+                )
+            else:
+                error_msg = f"HTTP {response.status_code}: {response.text}"
+                logger.error(f"카카오 알림톡 발송 실패: {error_msg}")
+                return NotificationResult(
+                    success=False,
+                    channel="kakao_alimtalk",
+                    recipient=recipient_phone,
+                    error_message=error_msg,
+                )
+
+        except httpx.RequestError as e:
+            error_msg = f"네트워크 오류: {str(e)}"
+            logger.error(f"카카오 알림톡 발송 실패: {error_msg}")
+            return NotificationResult(
+                success=False,
+                channel="kakao_alimtalk",
+                recipient=recipient_phone,
+                error_message=error_msg,
+            )
+
+    def _build_message(
+        self,
+        name: str,
+        stage_name: str,
+        temperature: float,
+        work_site_name: str,
+        actions: list[str],
+    ) -> str:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        actions_text = "\n".join(f"  - {a}" for a in actions[:4])
+
+        return (
+            f"[한국전력공사 경남본부]\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"■ 대상자: {name}님\n"
+            f"■ 현장: {work_site_name}\n"
+            f"■ 체감온도: {temperature}°C\n"
+            f"■ 폭염단계: {stage_name}\n"
+            f"■ 발령시각: {now}\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"[조치사항]\n{actions_text}\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"☞ 작업중지 요청:\n"
+            f"https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do"
+        )
+
+    def _get_template_code(self, stage_name: str) -> str:
+        mapping = {
+            "주의": settings.kakao_template_code_caution,
+            "경고": settings.kakao_template_code_warning,
+            "위험": settings.kakao_template_code_danger,
+        }
+        return mapping.get(stage_name, settings.kakao_template_code_caution)
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+
+class SmsSender(NotificationSender):
+    """
+    LMS(장문) 발송 - NHN Cloud SMS API v3.0
+    https://docs.nhncloud.com/ko/Notification/SMS/ko/api-guide/
+
+    API: POST https://sms.api.nhncloudservice.com/sms/v3.0/appKeys/{appKey}/sender/mms
+    Header: X-Secret-Key
+    Body: {"title":"제목","body":"메시지","sendNo":"발신번호","recipientList":[{"recipientNo":"수신번호"}]}
+    LMS: 최대 2000바이트 (한글 약 1000자). 건당 약 30원 (SMS 4.4원 대비 증가)
+    """
+
+    BASE_URL = "https://sms.api.nhncloudservice.com/sms/v3.0/appKeys"
+
+    def __init__(self):
+        self._app_key = settings.sms_app_key
+        self._secret_key = settings.sms_secret_key
+        self._sender = settings.sms_sender_phone
+        self._client = httpx.AsyncClient(timeout=10.0, verify=False)
+
+    async def send(
+        self,
+        recipient_phone: str,
+        recipient_name: str,
+        stage_name: str,
+        temperature: float,
+        work_site_name: str,
+        actions: list[str],
+        site_id: int | None = None,
+    ) -> NotificationResult:
+        message = (
+            f"[한국전력공사 경남본부]\n"
+            f"현재 {work_site_name} 공사현장의 체감온도가 {temperature}°C로\n"
+            f"폭염 \"{stage_name}\" 단계입니다.\n"
+            f"{actions[0] if actions else '안전에 유의하세요.'}\n"
+            f"\n☞ 작업중지 요청:\n"
+            f"https://www.kepco.co.kr/home/customer/safety/report/stop-work/guide.do"
+        )
+
+        if not self._app_key or not self._secret_key:
+            return NotificationResult(
+                success=False, channel="sms", recipient=recipient_phone,
+                error_message="NHN Cloud SMS 미설정",
+            )
+
+        phone = recipient_phone.replace("-", "")
+        try:
+            response = await self._client.post(
+                f"{self.BASE_URL}/{self._app_key}/sender/mms",
+                headers={
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "X-Secret-Key": self._secret_key,
+                },
+                json={
+                    "title": "[한국전력공사 경남본부]",
+                    "body": message,
+                    "sendNo": self._sender.replace("-", ""),
+                    "recipientList": [{"recipientNo": phone}],
+                },
+            )
+            data = response.json()
+            ok = data.get("header", {}).get("isSuccessful", False)
+            if ok:
+                logger.info(f"[SMS] {recipient_name}({_mask_phone(phone)}): 성공")
+            else:
+                logger.warning(f"[SMS] {recipient_name}({_mask_phone(phone)}): {data.get('header',{}).get('resultMessage','')}")
+            return NotificationResult(
+                success=ok, channel="sms", recipient=recipient_phone,
+                message_id=str(data.get("body", {}).get("data", {}).get("requestId", "")),
+                error_message=None if ok else data.get("header", {}).get("resultMessage", "발송 실패"),
+            )
+        except Exception as e:
+            logger.error(f"[SMS] 발송 실패: {e}")
+            return NotificationResult(
+                success=False, channel="sms", recipient=recipient_phone,
+                error_message=str(e)[:100],
+            )
+
+    async def send_bulk(self, phone_numbers: list[str], message: str,
+                        workers: list[dict] | None = None) -> dict:
+        """여러 번호에 일괄 발송 (최대 1000명)
+
+        workers: [{"name": "홍길동", "phone": "010-1234-5678", "site": "현장A"}, ...]
+        workers가 주어지면 phone_numbers 대신 workers 기준으로 발송
+        """
+        # NHN Cloud 에러 메시지 → 안전담당자가 이해할 수 있는 한글 변환
+        def _friendly(msg: str, code: int = 0) -> str:
+            """영문 에러 메시지를 한글로 변환"""
+            if not msg:
+                return f"알 수 없는 오류 (코드: {code})" if code else "알 수 없는 오류"
+            m = msg.lower().strip().rstrip(".")
+            mapping = {
+                "not regist sendno": "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 발신번호 등록을 요청하세요.",
+                "not registered sendno": "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 발신번호 등록을 요청하세요.",
+                "invalid phonenumber": "전화번호 형식이 올바르지 않습니다.\n→ 작업자 전화번호를 확인하세요 (예: 010-1234-5678)",
+                "invalid phone number": "전화번호 형식이 올바르지 않습니다.\n→ 작업자 전화번호를 확인하세요 (예: 010-1234-5678)",
+                "recipient number is empty": "수신번호가 비어있습니다.\n→ 작업자에게 전화번호가 등록되어 있는지 확인하세요.",
+                "blocked number": "차단된 전화번호입니다.\n→ 수신자가 SMS 수신을 거부했거나 차단 목록에 있습니다.",
+                "exceed daily limit": "일일 발송 한도를 초과했습니다.\n→ 내일 다시 시도하거나 NHN Cloud에서 한도를 늘려주세요.",
+                "exceed monthly limit": "월간 발송 한도를 초과했습니다.\n→ NHN Cloud 콘솔에서 한도를 확인하세요.",
+                "insufficient balance": "NHN Cloud 잔액이 부족합니다.\n→ NHN Cloud 콘솔에서 잔액을 충전하세요.",
+                "sms service is not activated": "SMS 서비스가 비활성화 상태입니다.\n→ NHN Cloud 콘솔에서 SMS 서비스를 활성화하세요.",
+                "authentication failed": "인증 실패.\n→ .env 파일의 SMS_APP_KEY, SMS_SECRET_KEY를 확인하세요.",
+                "duplicate message": "동일한 메시지가 중복 발송되었습니다.\n→ 잠시 후 다시 시도하세요.",
+                "message is empty": "SMS 메시지 내용이 비어있습니다.\n→ 발송할 메시지를 입력하세요.",
+            }
+            for eng, kor in mapping.items():
+                if eng in m:
+                    return kor
+            return msg
+
+        # workers 목록이 있으면 그걸 기준으로 사용
+        if workers:
+            phone_list = [w.get("phone", "") for w in workers if w.get("phone")]
+        else:
+            phone_list = [p for p in phone_numbers if p]
+
+        # 이름/현장 매핑 (상세 결과용)
+        phone_to_info = {}
+        if workers:
+            for w in workers:
+                phone = w.get("phone", "").replace("-", "")
+                phone_to_info[phone] = {
+                    "name": w.get("name", ""),
+                    "site": w.get("site", ""),
+                }
+
+        if not self._app_key or not self._secret_key:
+            sender_phone = self._sender or "(미설정)"
+            details = []
+            for p in phone_list:
+                pn = p.replace("-", "")
+                info = phone_to_info.get(pn, {})
+                details.append({
+                    "phone": p,
+                    "name": info.get("name", ""),
+                    "site": info.get("site", ""),
+                    "status": "failed",
+                    "error": "SMS API 미설정",
+                })
+            return {
+                "sent": 0,
+                "failed": len(phone_list),
+                "error": "NHN Cloud SMS 미설정 — .env 파일에서 SMS_APP_KEY, SMS_SECRET_KEY, SMS_SENDER_PHONE 값을 확인하세요.",
+                "error_code": "CONFIG_MISSING",
+                "details": details,
+            }
+
+        recipients = [{"recipientNo": p.replace("-", "")} for p in phone_list]
+        if not recipients:
+            return {"sent": 0, "failed": 0, "details": []}
+
+        try:
+            response = await self._client.post(
+                f"{self.BASE_URL}/{self._app_key}/sender/mms",
+                headers={
+                    "Content-Type": "application/json;charset=UTF-8",
+                    "X-Secret-Key": self._secret_key,
+                },
+                json={
+                    "title": "[한국전력공사 경남본부]",
+                    "body": message,
+                    "sendNo": self._sender.replace("-", ""),
+                    "recipientList": recipients,
+                },
+            )
+            data = response.json()
+            header = data.get("header", {})
+            ok = header.get("isSuccessful", False)
+            result_code = header.get("resultCode", -1)
+            result_message = header.get("resultMessage", "알 수 없는 오류")
+
+            details = []
+
+            if ok:
+                # 성공 시 sendResultList에서 개별 수신자 결과 파싱
+                send_result_list = data.get("body", {}).get("data", {}).get("sendResultList", [])
+                sent_count = 0
+                fail_count = 0
+                for i, r in enumerate(send_result_list):
+                    recipient_no = r.get("recipientNo", "")
+                    recipient_seq = r.get("resultCode", 0)
+                    recipient_msg = r.get("resultMessage", "")
+                    info = phone_to_info.get(recipient_no, {})
+
+                    # NHN Cloud: resultCode 0 = 성공
+                    if recipient_seq == 0:
+                        sent_count += 1
+                        details.append({
+                            "phone": recipient_no,
+                            "name": info.get("name", ""),
+                            "site": info.get("site", ""),
+                            "status": "sent",
+                        })
+                    else:
+                        fail_count += 1
+                        details.append({
+                            "phone": recipient_no,
+                            "name": info.get("name", ""),
+                            "site": info.get("site", ""),
+                            "status": "failed",
+                            "error": _friendly(recipient_msg, recipient_seq),
+                        })
+
+                # sendResultList가 비어있으면 전체 성공으로 간주
+                if not send_result_list:
+                    sent_count = len(recipients)
+                    for rec in recipients:
+                        pn = rec["recipientNo"]
+                        info = phone_to_info.get(pn, {})
+                        details.append({
+                            "phone": pn,
+                            "name": info.get("name", ""),
+                            "site": info.get("site", ""),
+                            "status": "sent",
+                        })
+
+                result = {"sent": sent_count, "failed": fail_count, "details": details}
+                if fail_count > 0:
+                    result["error"] = f"{fail_count}건 발송 실패 (상세 내역 확인)"
+                return result
+            else:
+                # API 자체 실패 — 전체 실패
+                # 주요 에러코드 한글 매핑
+                error_reasons = {
+                    -1000: "필수 설정값이 누락되었습니다.\n→ 서버 운영자에게 .env 파일의 SMS 설정을 확인 요청하세요.",
+                    -1001: "잘못된 설정값이 있습니다.\n→ 서버 운영자에게 .env 파일 점검을 요청하세요.",
+                    -2000: "SMS 인증에 실패했습니다.\n→ 서버 운영자에게 SMS_SECRET_KEY 확인을 요청하세요.",
+                    -2001: "SMS 서비스 권한이 없습니다.\n→ NHN Cloud 콘솔에서 SMS 서비스가 활성화되어 있는지 확인하세요.",
+                    -2312: "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 발신번호 등록을 요청하세요.",
+                    -3000: "발신번호가 NHN Cloud에 등록되지 않았습니다.\n→ 서버 운영자에게 SMS_SENDER_PHONE 등록 확인을 요청하세요.",
+                    -3001: "발신번호가 비활성화되었습니다.\n→ NHN Cloud 콘솔에서 발신번호 상태를 확인하세요.",
+                    -4000: "일일 발송 한도를 초과했습니다.\n→ 내일 다시 시도하거나, NHN Cloud에서 한도를 늘려주세요.",
+                    -5000: "NHN Cloud 서버에 일시적 오류가 발생했습니다.\n→ 5분 후 다시 시도해 주세요.",
+                }
+                friendly_msg = error_reasons.get(result_code, _friendly(result_message, result_code))
+                error_detail = f"[코드: {result_code}] {friendly_msg}"
+
+                for rec in recipients:
+                    pn = rec["recipientNo"]
+                    info = phone_to_info.get(pn, {})
+                    details.append({
+                        "phone": pn,
+                        "name": info.get("name", ""),
+                        "site": info.get("site", ""),
+                        "status": "failed",
+                        "error": _friendly(friendly_msg),
+                    })
+
+                logger.error(f"[SMS] 일괄 발송 실패: {error_detail}")
+                return {
+                    "sent": 0,
+                    "failed": len(recipients),
+                    "error": error_detail,
+                    "error_code": str(result_code),
+                    "details": details,
+                }
+        except httpx.ConnectError as e:
+            error_msg = f"네트워크 연결 실패 — 인터넷 연결 또는 프록시 설정을 확인하세요. ({str(e)[:80]})"
+            logger.error(f"[SMS] {error_msg}")
+            details = []
+            for rec in recipients:
+                pn = rec["recipientNo"]
+                info = phone_to_info.get(pn, {})
+                details.append({
+                    "phone": pn, "name": info.get("name", ""),
+                    "site": info.get("site", ""),
+                    "status": "failed", "error": "네트워크 연결 실패",
+                })
+            return {"sent": 0, "failed": len(recipients), "error": error_msg,
+                    "error_code": "NETWORK_ERROR", "details": details}
+        except httpx.TimeoutException:
+            error_msg = "API 응답 시간 초과 (10초) — NHN Cloud 서버가 응답하지 않습니다. 잠시 후 재시도해 주세요."
+            logger.error(f"[SMS] {error_msg}")
+            details = []
+            for rec in recipients:
+                pn = rec["recipientNo"]
+                info = phone_to_info.get(pn, {})
+                details.append({
+                    "phone": pn, "name": info.get("name", ""),
+                    "site": info.get("site", ""),
+                    "status": "failed", "error": "응답 시간 초과",
+                })
+            return {"sent": 0, "failed": len(recipients), "error": error_msg,
+                    "error_code": "TIMEOUT", "details": details}
+        except Exception as e:
+            error_msg = f"예기치 않은 오류: {type(e).__name__} — {str(e)[:120]}"
+            logger.error(f"[SMS] {error_msg}")
+            details = []
+            for rec in recipients:
+                pn = rec["recipientNo"]
+                info = phone_to_info.get(pn, {})
+                details.append({
+                    "phone": pn, "name": info.get("name", ""),
+                    "site": info.get("site", ""),
+                    "status": "failed", "error": str(e)[:60],
+                })
+            return {"sent": 0, "failed": len(recipients), "error": error_msg,
+                    "error_code": "UNKNOWN", "details": details}
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
+
+class ConsoleSender(NotificationSender):
+    """
+    콘솔 출력용 알림 발송자 (개발/테스트용)
+    실제 API 호출 없이 콘솔에 메시지 출력
+    """
+
+    async def send(
+        self,
+        recipient_phone: str,
+        recipient_name: str,
+        stage_name: str,
+        temperature: float,
+        work_site_name: str,
+        actions: list[str],
+        site_id: int | None = None,
+    ) -> NotificationResult:
+        now = datetime.now().strftime("%Y-%m-%d %H:%M")
+        actions_text = "\n".join(f"    - {a}" for a in actions)
+
+        print(
+            f"\n{'='*50}\n"
+            f"  [콘솔 알림] 폭염 {stage_name} 단계\n"
+            f"  대상: {recipient_name} ({recipient_phone})\n"
+            f"  현장: {work_site_name}\n"
+            f"  체감온도: {temperature}°C\n"
+            f"  시각: {now}\n"
+            f"  조치사항:\n{actions_text}\n"
+            f"{'='*50}\n"
+        )
+
+        return NotificationResult(
+            success=True,
+            channel="console",
+            recipient=recipient_phone,
+            message_id=f"console_{now}",
+        )
+
+    async def close(self) -> None:
+        pass

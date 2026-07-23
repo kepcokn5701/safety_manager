@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FF7043"/>
+      <stop offset="100%" stop-color="#FF5722"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <!-- warning triangle with exclamation -->
+  <g transform="translate(96,85)">
+    <path d="M0-55 L55,42 L-55,42 Z" fill="#fff" opacity="0.95" stroke="#BF360C" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="-5" y="-30" width="10" height="36" rx="3" fill="#BF360C"/>
+    <circle cx="0" cy="22" r="6" fill="#BF360C"/>
+    <!-- fire/heat -->
+    <g fill="#fff" opacity="0.85">
+      <path d="M-35,-50 Q-30,-65 -25,-50 Q-20,-38 -15,-55 Q-10,-40 -5,-50" fill="none" stroke="#fff" stroke-width="3.5"/>
+      <path d="M5,-50 Q10,-65 15,-50 Q20,-38 25,-55 Q30,-40 35,-50" fill="none" stroke="#fff" stroke-width="3.5"/>
+    </g>
+  </g>
+  <text x="96" y="175" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#fff">WARNING</text>
+</svg>

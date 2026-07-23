@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>한국전력공사 경남본부 안전관리 시스템</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="안전관리">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.svg">
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ── 사업소 선택 (로그인 대체) ── -->
+<div id="branch-select-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;justify-content:center;align-items:center">
+    <div style="max-width:400px;width:90%;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">K</div>
+        <h1 style="font-size:22px;margin-bottom:4px">한국전력공사 경남본부</h1>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:24px">담당 사업소를 선택하세요</p>
+        <input list="branch-list" id="branch-select" placeholder="사업소명 입력 또는 선택" style="width:100%;padding:14px 16px;border:1px solid var(--border);border-radius:10px;font-size:15px;margin-bottom:12px;background:white">
+        <datalist id="branch-list">
+            <option value="전체 (경남본부)">
+            <option value="경남본부직할">
+            <option value="진주지사">
+            <option value="마산지사">
+            <option value="거제지사">
+            <option value="밀양지사">
+            <option value="사천지사">
+            <option value="통영지사">
+            <option value="함안의령지사">
+            <option value="거창지사">
+            <option value="창녕지사">
+            <option value="합천지사">
+            <option value="진해지사">
+            <option value="하동지사">
+            <option value="고성지사">
+            <option value="산청지사">
+            <option value="남해지사">
+            <option value="함양지사">
+            <option value="진주전력지사">
+            <option value="통영전력지사">
+            <option value="함안전력지사">
+        </datalist>
+        <button onclick="enterBranch()" style="width:100%;padding:14px;background:var(--kepco);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer">접속</button>
+        <p style="color:var(--text-faint);font-size:11px;margin-top:16px">경남본부 안전재난부 | 폭염 안전관리 시스템</p>
+
+        <!-- 개인정보 처리 안내 (점진적 폭로) -->
+        <div style="margin-top:12px">
+            <button id="privacy-toggle" onclick="togglePrivacyNotice()" style="background:none;border:none;color:var(--text-faint);font-size:11px;cursor:pointer;text-decoration:underline;padding:4px 8px">
+                🔒 개인정보 처리 안내
+            </button>
+            <div id="privacy-panel" style="display:none;text-align:left;margin-top:8px;background:white;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);max-height:60vh;overflow-y:auto;transition:all 0.3s ease">
+
+                <p style="font-size:12px;color:#4a5568;margin:0 0 12px;line-height:1.6">
+                    본 시스템은 <b>산업안전보건법</b>에 따른 폭염 안전관리 의무 이행을 위해<br>
+                    최소한의 개인정보를 처리합니다.
+                </p>
+
+                <!-- 아코디언 항목들 -->
+                <div class="prv-item" style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px">
+                    <button onclick="togglePrvItem(this)" style="width:100%;padding:10px 12px;background:#f8fafc;border:none;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#1a1a2e">
+                        <span>📋 수집 항목 및 목적</span>
+                        <span class="prv-arrow" style="transition:transform 0.2s;font-size:10px">▼</span>
+                    </button>
+                    <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
+                        <table style="width:100%;border-collapse:collapse;font-size:11px">
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600;width:35%">수집 항목</td><td style="padding:4px 0">이름, 전화번호, 소속, 현장주소</td></tr>
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600">수집 목적</td><td style="padding:4px 0">폭염 경보 SMS 발송 (안전관리)</td></tr>
+                            <tr><td style="padding:4px 0;font-weight:600">수집 출처</td><td style="padding:4px 0">사전신고시스템 엑셀 자료</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="prv-item" style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px">
+                    <button onclick="togglePrvItem(this)" style="width:100%;padding:10px 12px;background:#f8fafc;border:none;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#1a1a2e">
+                        <span>⚖️ 법적 근거</span>
+                        <span class="prv-arrow" style="transition:transform 0.2s;font-size:10px">▼</span>
+                    </button>
+                    <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
+                        <p style="margin:0 0 4px"><b>산업안전보건법 제3조</b> (사업주의 의무)</p>
+                        <p style="margin:0 0 4px;padding-left:8px">- 근로자의 안전·보건을 유지·증진하기 위한 조치 의무</p>
+                        <p style="margin:0 0 4px"><b>산업안전보건법 제24조</b> (보건조치)</p>
+                        <p style="margin:0 0 4px;padding-left:8px">- 근로자의 건강을 유지·증진하기 위한 보건조치 의무</p>
+                        <p style="margin:0 0 4px"><b>개인정보보호법 제15조</b> (수집·이용)</p>
+                        <p style="margin:0;padding-left:8px">- 수집 목적 범위 내 이용 (안전관리 목적으로 수집된 정보의 안전관리 활용)</p>
+                    </div>
+                </div>
+
+                <div class="prv-item" style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px">
+                    <button onclick="togglePrvItem(this)" style="width:100%;padding:10px 12px;background:#f8fafc;border:none;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#1a1a2e">
+                        <span>🔄 처리 위탁 및 제3자 제공</span>
+                        <span class="prv-arrow" style="transition:transform 0.2s;font-size:10px">▼</span>
+                    </button>
+                    <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
+                        <table style="width:100%;border-collapse:collapse;font-size:11px">
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600;width:35%">위탁 업체</td><td style="padding:4px 0">NHN Cloud (SMS 발송)</td></tr>
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600">위탁 내용</td><td style="padding:4px 0">폭염 경보 SMS 전송 대행</td></tr>
+                            <tr><td style="padding:4px 0;font-weight:600">제3자 제공</td><td style="padding:4px 0">없음 (동일 기관 내부 활용)</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="prv-item" style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px">
+                    <button onclick="togglePrvItem(this)" style="width:100%;padding:10px 12px;background:#f8fafc;border:none;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#1a1a2e">
+                        <span>🗑️ 보관 및 파기</span>
+                        <span class="prv-arrow" style="transition:transform 0.2s;font-size:10px">▼</span>
+                    </button>
+                    <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
+                        <table style="width:100%;border-collapse:collapse;font-size:11px">
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600;width:35%">현장·작업자</td><td style="padding:4px 0">매일 17시 자동 삭제</td></tr>
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600">발송 이력</td><td style="padding:4px 0">전화번호 마스킹 저장 (010-****-5678)</td></tr>
+                            <tr><td style="padding:4px 0;font-weight:600">파기 방법</td><td style="padding:4px 0">DB에서 완전 삭제 (복구 불가)</td></tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="prv-item" style="border:1px solid #e2e8f0;border-radius:8px">
+                    <button onclick="togglePrvItem(this)" style="width:100%;padding:10px 12px;background:#f8fafc;border:none;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:600;color:#1a1a2e">
+                        <span>🛡️ 보호 조치</span>
+                        <span class="prv-arrow" style="transition:transform 0.2s;font-size:10px">▼</span>
+                    </button>
+                    <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
+                        <p style="margin:0 0 3px">• 전화번호 마스킹 처리 (API 응답·로그)</p>
+                        <p style="margin:0 0 3px">• 사내 인터넷망(DMZ) 내부에서만 운영</p>
+                        <p style="margin:0 0 3px">• 매일 17시 작업자 데이터 자동 파기</p>
+                        <p style="margin:0">• XSS 등 웹 보안 취약점 조치 적용</p>
+                    </div>
+                </div>
+
+                <p style="font-size:10px;color:#94a3b8;margin:10px 0 0;text-align:center;line-height:1.5">
+                    문의: 경남본부 안전재난부<br>
+                    본 안내는 개인정보보호법 제15조 및 산업안전보건법에 근거합니다.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 헤더 ── -->
+<header class="header">
+    <div class="header-left">
+        <div class="header-logo">K</div>
+        <h1>한국전력공사 경남본부</h1>
+    </div>
+    <div class="header-right">
+        <a href="/manual" style="color:var(--text-dim);font-size:11px;text-decoration:none;padding:3px 8px;border:1px solid var(--border);border-radius:4px">사용방법</a>
+        <button style="background:none;border:1px solid #e74c3c;color:#e74c3c;font-size:11px;cursor:pointer;padding:3px 8px;border-radius:4px" id="mock-toggle-btn" onclick="toggleMockWeather()">모의 테스트</button>
+        <button style="background:none;border:1px solid var(--border);color:var(--text-dim);font-size:11px;cursor:pointer;padding:3px 8px;border-radius:4px" onclick="changeBranch()">로그아웃</button>
+        <div class="live-dot"></div>
+        <span id="current-time"></span>
+    </div>
+</header>
+
+<!-- ── 메인 ── -->
+<div class="main">
+
+    <!-- 전체 공사현장 현황 -->
+    <div class="card" style="margin-bottom:12px">
+        <div class="card-header">
+            <div>
+                <h3 style="margin:0">전체 공사현장 현황</h3>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span id="weather-checked-time" style="font-size:11px;color:var(--text-faint)"></span>
+                    <span id="weather-next-refresh" style="font-size:10px;color:var(--text-faint)"></span>
+                    <span id="weather-status" style="font-size:10px"></span>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm" onclick="loadAllSitesWeather()">새로고침</button>
+                <button class="btn btn-ghost btn-sm" onclick="runSystemDiagnostics()" style="color:var(--kepco,#0066cc);font-size:11px;font-weight:600">🩺 시스템 진단</button>
+                <button class="btn btn-ghost btn-sm" onclick="verifyAllWeather()" style="color:var(--text-dim);font-size:11px">전체 검증</button>
+                <button class="btn btn-ghost btn-sm" id="btn-reset" style="color:var(--text-faint);display:none" onclick="resetAllData()">초기화</button>
+                <button class="btn btn-primary btn-sm" id="btn-excel-upload" onclick="openModal('site-modal')" style="display:none">사전신고 엑셀파일 등록</button>
+            </div>
+        </div>
+        <div id="all-sites-overview" style="max-height:400px;overflow-y:auto">
+            <p style="padding:24px;text-align:center;color:var(--text-dim)">현장을 등록하면 날씨가 표시됩니다</p>
+        </div>
+        <div id="send-progress" style="display:none;padding:12px 16px;background:var(--kepco-lighter,#f4f8ff);border-top:1px solid var(--border)"></div>
+    </div>
+
+    <!-- SMS 발송 -->
+    <div class="card" style="margin-bottom:12px">
+        <div class="card-header" style="padding-bottom:8px">
+            <h3>SMS 발송</h3>
+            <span id="alert-selected-count" style="color:var(--kepco);font-weight:600;font-size:13px"></span>
+        </div>
+
+        <!-- 자동 발송 안내 -->
+        <div id="auto-sms-info" style="padding:8px 16px;background:linear-gradient(135deg,#f0f9ff,#e8f2ff);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:#1565c0;flex-wrap:wrap">
+            <span style="font-size:15px">&#9200;</span>
+            <div style="flex:1;min-width:200px">
+                <b>자동 발송</b>: 매일 10시/14시 SMS, 17시 데이터 초기화
+                <span id="auto-sms-status" style="margin-left:4px"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#333;background:white;padding:2px 8px;border-radius:4px;border:1px solid #e0e0e0">
+                <span style="color:#64748b;font-weight:600;white-space:nowrap">자동발송 대상:</span>
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;white-space:nowrap">
+                    <input type="radio" name="auto-sms-target" value="all" style="width:auto;margin:0" onchange="setAutoSmsTarget('all')"> 전원
+                </label>
+                <label style="display:flex;align-items:center;gap:2px;cursor:pointer;white-space:nowrap">
+                    <input type="radio" name="auto-sms-target" value="manager" style="width:auto;margin:0" onchange="setAutoSmsTarget('manager')"> 책임자만
+                </label>
+            </div>
+            <button onclick="showSmsTestModal()" style="background:none;border:1px solid #a5d6a7;color:#2e7d32;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">SMS 테스트</button>
+            <button onclick="showSmsContentModal()" style="background:none;border:1px solid #90caf9;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">SMS 내용확인</button>
+            <button onclick="showSmsStatsModal()" style="background:none;border:1px solid #ce93d8;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">발송 통계</button>
+        </div>
+
+        <!-- 6단계 필터 (왼→오: 정상→위험) -->
+        <div style="padding:6px 16px 8px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+            <button class="stage-filter active" data-filter-group="alert" data-stage="all" data-label="전체" onclick="filterAlertList('all')">전체</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="safe" data-label="정상" onclick="filterAlertList('safe')" style="--fc:#10b981">정상</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="interest" data-label="관심" data-temp="31" onclick="filterAlertList('interest')" style="--fc:#FFC107">관심 31°</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="caution" data-label="주의" data-temp="33" onclick="filterAlertList('caution')" style="--fc:#FF9800">주의 33°</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="warning" data-label="경고" data-temp="35" onclick="filterAlertList('warning')" style="--fc:#FF5722">경고 35°</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="danger" data-label="위험" data-temp="38" onclick="filterAlertList('danger')" style="--fc:#D32F2F">위험 38°</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="error" data-label="조회실패" onclick="filterAlertList('error')" style="--fc:#9e9e9e">조회실패</button>
+            <span id="alert-filter-count" style="font-size:11px;color:var(--text-dim);margin-left:auto"></span>
+        </div>
+
+        <!-- 전체 선택 바 -->
+        <div style="padding:6px 16px;border-bottom:1px solid var(--border-light,#edf2f7);display:flex;justify-content:space-between;align-items:center">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="checkbox" id="alert-select-all" onchange="toggleAlertSelectAll(this)" style="width:auto">
+                <span style="color:var(--text-dim)">전체 선택</span>
+            </label>
+            <span id="alert-selected-count-bottom" style="color:var(--text-dim);font-size:12px"></span>
+        </div>
+
+        <!-- 발송 대상 목록 -->
+        <div id="alert-send-list" style="max-height:320px;overflow-y:auto">
+            <p style="padding:24px;text-align:center;color:var(--text-dim);font-size:13px">날씨 조회 후 표시됩니다</p>
+        </div>
+
+        <!-- SMS 발송 대상 선택 -->
+        <div id="sms-target-selector" style="padding:6px 16px;border-top:1px solid var(--border-light,#edf2f7);display:flex;gap:16px;align-items:center;background:#f8fafc">
+            <span style="font-size:11px;font-weight:600;color:var(--text-dim);white-space:nowrap">발송 대상:</span>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="radio" name="sms-target" value="all" checked style="width:auto;margin:0"> 작업자 전원
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                <input type="radio" name="sms-target" value="manager" style="width:auto;margin:0"> 현장책임자만
+            </label>
+            <span id="sms-target-count" style="font-size:11px;color:var(--text-faint);margin-left:auto"></span>
+        </div>
+
+        <!-- SMS 입력 + 발송 (인라인) -->
+        <div style="padding:10px 16px;border-top:2px solid var(--border);background:var(--bg-card,#fafbfc);display:flex;gap:8px;align-items:stretch">
+            <textarea id="sms-message" rows="1" placeholder="SMS 내용 입력 (미입력 시 기본 문구)" style="flex:1;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;resize:none;line-height:1.4;background:white;transition:border-color 0.2s;min-height:42px" onfocus="this.style.borderColor='var(--kepco)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+            <button style="padding:10px 24px;font-size:14px;font-weight:700;background:linear-gradient(135deg,#0066cc,#0052a3);color:white;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;transition:opacity 0.2s;box-shadow:0 2px 8px rgba(0,102,204,0.25);flex-shrink:0" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onclick="sendSelectedSms()">SMS 발송</button>
+        </div>
+
+        <div class="card-body" id="stats-content">
+            <p style="color:var(--text-dim);text-align:center">로딩 중...</p>
+        </div>
+    </div>
+
+    <!-- 알림 이력 -->
+    <div class="card" style="margin-top:12px">
+        <div class="card-header">
+            <h3>최근 알림</h3>
+        </div>
+        <div class="card-body" id="alert-history">
+            <p style="color:var(--text-dim);text-align:center">알림 이력이 없습니다</p>
+        </div>
+    </div>
+</div>
+
+<!-- ── 앱 설치 배너 ── -->
+<div id="install-banner" style="display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg-card);border-top:1px solid var(--border);padding:14px 16px;z-index:999">
+    <div style="max-width:540px;margin:0 auto;display:flex;align-items:center;gap:12px">
+        <img src="/static/icons/icon-72.svg" alt="" style="width:40px;height:40px;border-radius:10px">
+        <div style="flex:1">
+            <div style="font-weight:700;font-size:14px">앱으로 설치하기</div>
+            <div style="font-size:12px;color:var(--text-dim)">알림을 받으려면 앱 설치가 필요합니다</div>
+        </div>
+        <button onclick="installApp()" class="btn btn-primary btn-sm">설치</button>
+        <button onclick="dismissInstall()" style="background:none;border:none;color:var(--text-faint);font-size:18px;cursor:pointer">&times;</button>
+    </div>
+</div>
+
+<!-- ── 작업현장 등록 모달 ── -->
+<div class="modal-overlay" id="site-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>작업현장 등록</h3>
+            <button class="modal-close" onclick="closeModal('site-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 탭 -->
+            <div style="display:flex;gap:0;margin-bottom:16px">
+                <button class="btn btn-sm" id="tab-manual" onclick="switchSiteTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">직접 입력</button>
+                <button class="btn btn-sm" id="tab-excel" onclick="switchSiteTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--kepco);color:white">엑셀 업로드</button>
+            </div>
+
+            <div id="site-tab-manual" style="display:none">
+                <form onsubmit="submitSite(event)">
+                    <div class="form-group">
+                        <label>현장명 *</label>
+                        <input type="text" name="site_name" required placeholder="예: 강남변전소 증설공사">
+                    </div>
+                    <div class="form-group">
+                        <label>주소</label>
+                        <input type="text" name="site_address" placeholder="예: 서울시 강남구 역삼동">
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <div class="form-group" style="flex:1">
+                            <label>위도 *</label>
+                            <input type="number" step="0.000001" name="site_lat" id="site_lat" required placeholder="37.5665">
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>경도 *</label>
+                            <input type="number" step="0.000001" name="site_lng" id="site_lng" required placeholder="126.9780">
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="getCurrentLocation()" style="align-self:flex-end;margin-bottom:14px">내 위치</button>
+                    </div>
+                    <div class="form-group">
+                        <label>작업강도</label>
+                        <select name="site_intensity">
+                            <option value="light">경작업 (계기점검, 감시)</option>
+                            <option value="moderate" selected>중등작업 (배전선로 점검)</option>
+                            <option value="heavy">중작업 (전주작업, 케이블)</option>
+                            <option value="very_heavy">초중작업 (굴착, 건주)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">등록</button>
+                </form>
+            </div>
+
+            <div id="site-tab-excel">
+                <div id="excel-upload-area" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer" onclick="document.getElementById('excel-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--kepco)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleExcelDrop(event)">
+                    <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
+                    <div style="font-size:14px;font-weight:600">사전신고정보 파일 선택</div>
+                    <div style="font-size:12px;color:var(--text-faint);margin-top:4px">.xls .xlsx .csv</div>
+                    <input type="file" id="excel-file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleExcelUpload(this)">
+                </div>
+                <div id="excel-preview" style="display:none;margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <span id="excel-info" style="font-size:12px;color:var(--text-dim)"></span>
+                        <button class="btn btn-ghost btn-sm" onclick="resetExcelUpload()">다시 선택</button>
+                    </div>
+                    <div id="excel-mapping" style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm)">
+                        <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">컬럼 매핑</div>
+                        <div id="mapping-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+                    </div>
+                    <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+                        <table id="excel-table" style="width:100%;border-collapse:collapse;font-size:11px"></table>
+                    </div>
+                    <div style="margin-top:10px;padding:10px;background:rgba(21,101,192,0.08);border-radius:var(--radius-sm)">
+                        <div style="font-size:12px;font-weight:600;margin-bottom:6px">위치 설정</div>
+                        <div style="display:flex;gap:6px;align-items:center">
+                            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                                <input type="radio" name="location-mode" value="auto" checked onchange="toggleLocationMode()" style="width:auto"> 주소에서 자동 변환
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+                                <input type="radio" name="location-mode" value="manual" onchange="toggleLocationMode()" style="width:auto"> 좌표 직접 입력
+                            </label>
+                        </div>
+                        <div id="location-auto" style="margin-top:6px;font-size:11px;color:var(--text-dim)">
+                            주소 컬럼의 값으로 각 현장의 좌표를 자동 변환합니다 (카카오 Maps)
+                        </div>
+                        <div id="location-manual" style="display:none;margin-top:6px">
+                            <div style="display:flex;gap:6px">
+                                <input type="number" step="0.000001" id="bulk-lat" value="37.5665" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px" placeholder="위도">
+                                <input type="number" step="0.000001" id="bulk-lng" value="126.9780" style="flex:1;padding:6px 8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px" placeholder="경도">
+                                <button type="button" class="btn btn-ghost btn-sm" onclick="getCurrentLocationBulk()">내 위치</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="extracted-workers" style="display:none;margin-top:10px;padding:10px;background:rgba(39,174,96,0.06);border:1px solid rgba(39,174,96,0.2);border-radius:var(--radius-sm)"></div>
+                    <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:12px;font-size:15px" onclick="importSelectedSites()">일괄 등록</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 작업자 등록 모달 ── -->
+<div class="modal-overlay" id="worker-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>작업자 등록</h3>
+            <button class="modal-close" onclick="closeModal('worker-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- 탭 -->
+            <div style="display:flex;gap:0;margin-bottom:16px">
+                <button class="btn btn-sm" id="worker-tab-manual-btn" onclick="switchWorkerTab('manual')" style="flex:1;border-radius:var(--radius-sm) 0 0 var(--radius-sm);background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--border)">직접 입력</button>
+                <button class="btn btn-sm" id="worker-tab-excel-btn" onclick="switchWorkerTab('excel')" style="flex:1;border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--kepco);color:white">엑셀 업로드</button>
+            </div>
+
+            <div id="worker-tab-manual" style="display:none">
+                <form onsubmit="submitWorker(event)">
+                    <div class="form-group">
+                        <label>이름 *</label>
+                        <input type="text" name="worker_name" required placeholder="홍길동">
+                    </div>
+                    <div class="form-group">
+                        <label>전화번호 *</label>
+                        <input type="tel" name="worker_phone" required placeholder="010-1234-5678">
+                    </div>
+                    <div class="form-group">
+                        <label>소속 부서</label>
+                        <input type="text" name="worker_dept" placeholder="배전건설부">
+                    </div>
+                    <div class="form-group">
+                        <label>작업반</label>
+                        <input type="text" name="worker_team" placeholder="1공구 3반">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+                        <input type="checkbox" name="worker_vulnerable" id="worker_vulnerable" style="width:auto">
+                        <label for="worker_vulnerable" style="margin:0;font-size:13px;color:var(--text)">취약 작업자 (65세 이상, 기저질환)</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width:100%;padding:12px;font-size:15px">등록</button>
+                </form>
+            </div>
+
+            <div id="worker-tab-excel">
+                <div id="worker-excel-upload-area" style="border:2px dashed var(--border);border-radius:var(--radius);padding:32px 20px;text-align:center;cursor:pointer" onclick="document.getElementById('worker-excel-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--kepco)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleWorkerExcelDrop(event)">
+                    <div style="font-size:32px;margin-bottom:8px;opacity:0.3">+</div>
+                    <div style="font-size:14px;font-weight:600">작업자 명단 파일 선택</div>
+                    <div style="font-size:12px;color:var(--text-faint);margin-top:4px">.xls .xlsx .csv</div>
+                    <input type="file" id="worker-excel-file" accept=".xls,.xlsx,.csv" style="display:none" onchange="handleWorkerExcelUpload(this)">
+                </div>
+                <div id="worker-excel-preview" style="display:none;margin-top:12px">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <span id="worker-excel-info" style="font-size:12px;color:var(--text-dim)"></span>
+                        <button class="btn btn-ghost btn-sm" onclick="resetWorkerExcelUpload()">다시 선택</button>
+                    </div>
+                    <div id="worker-excel-mapping" style="margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm)">
+                        <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">컬럼 매핑</div>
+                        <div id="worker-mapping-fields" style="display:grid;grid-template-columns:1fr 1fr;gap:6px"></div>
+                    </div>
+                    <div style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">
+                        <table id="worker-excel-table" style="width:100%;border-collapse:collapse;font-size:11px"></table>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px;background:rgba(255,255,255,0.02);border-radius:var(--radius-sm)">
+                        <input type="checkbox" id="worker-bulk-vulnerable" style="width:auto">
+                        <label for="worker-bulk-vulnerable" style="margin:0;font-size:13px;color:var(--text)">전체 취약 작업자로 지정</label>
+                    </div>
+                    <button class="btn btn-primary" style="width:100%;margin-top:10px;padding:12px;font-size:15px" onclick="importSelectedWorkers()">선택한 작업자 일괄 등록</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/app.js?v=20260624a"></script>
+<script>
+    function updateClock() {
+        const el = document.getElementById('current-time');
+        if (el) {
+            const now = new Date();
+            el.textContent = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+</script>
+</body>
+</html>

@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>한국전력공사 경남본부 안전관리 시스템 - 사용 매뉴얼</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f8fafc; color:#1a1a2e; line-height:1.7; }
+        .header { background:#0066cc; color:white; padding:16px 20px; position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; align-items:center; }
+        .header h1 { font-size:16px; }
+        .header a { color:rgba(255,255,255,0.8); text-decoration:none; font-size:13px; }
+        .container { max-width:800px; margin:0 auto; padding:20px; }
+        h2 { font-size:20px; color:#0066cc; margin:24px 0 12px; padding-bottom:8px; border-bottom:2px solid #e2e8f0; }
+        h2.dev-title { color:#7c3aed; border-bottom-color:#7c3aed; }
+        h3 { font-size:16px; color:#1a1a2e; margin:20px 0 8px; }
+        p { margin:8px 0; font-size:14px; color:#4a5568; }
+        .step { background:white; border-radius:12px; padding:16px 20px; margin:12px 0; box-shadow:0 1px 3px rgba(0,0,0,0.06); border-left:4px solid #0066cc; }
+        .step-num { display:inline-block; width:28px; height:28px; background:#0066cc; color:white; border-radius:50%; text-align:center; line-height:28px; font-size:13px; font-weight:700; margin-right:8px; }
+        .step h4 { display:inline; vertical-align:middle; }
+        .step p { margin-left:36px; }
+        .warn { border-left-color:#f97316; }
+        .warn .step-num { background:#f97316; }
+        .info { background:#eff6ff; border-left-color:#3b82f6; }
+        .info .step-num { background:#3b82f6; }
+        .dev { background:#f5f3ff; border-left-color:#7c3aed; }
+        .dev .step-num { background:#7c3aed; }
+        table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }
+        th, td { padding:10px 12px; border:1px solid #e2e8f0; text-align:left; }
+        th { background:#f8fafc; font-weight:600; }
+        .flow-arrow { color:#0066cc; font-size:18px; margin-left:14px; }
+        code { background:#e2e8f0; padding:2px 8px; border-radius:4px; font-family:'Consolas',monospace; font-size:12px; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; color:white; }
+
+        /* Tab buttons */
+        .tab-bar { display:flex; gap:0; margin:20px 0 0; }
+        .tab-btn { flex:1; padding:14px; font-size:15px; font-weight:700; border:none; cursor:pointer; transition:all 0.2s; border-radius:12px 12px 0 0; }
+        .tab-btn.user-tab { background:#e8f2ff; color:#0066cc; }
+        .tab-btn.dev-tab { background:#ede9fe; color:#7c3aed; }
+        .tab-btn.active.user-tab { background:#0066cc; color:white; box-shadow:0 -2px 8px rgba(0,102,204,0.2); }
+        .tab-btn.active.dev-tab { background:#7c3aed; color:white; box-shadow:0 -2px 8px rgba(124,58,237,0.2); }
+        .tab-content { display:none; animation:fadeIn 0.3s; }
+        .tab-content.active { display:block; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+        /* TOC inside each tab */
+        .toc { background:white; border-radius:0 0 12px 12px; padding:16px 20px; margin:0 0 20px; box-shadow:0 1px 3px rgba(0,0,0,0.06); border-top:3px solid #0066cc; }
+        .toc.dev-toc { border-top-color:#7c3aed; }
+        .toc a { color:#0066cc; text-decoration:none; font-size:14px; display:block; padding:4px 0; }
+        .toc.dev-toc a { color:#7c3aed; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>한국전력공사 경남본부 안전관리 시스템 - 사용 매뉴얼</h1>
+    <a href="/">메인으로</a>
+</div>
+
+<div class="container">
+
+<!-- Tab Buttons -->
+<div class="tab-bar">
+    <button class="tab-btn user-tab active" onclick="switchTab('user')">안전관리자용</button>
+    <button class="tab-btn dev-tab" onclick="switchTab('dev')">개발자 / 운영자용</button>
+</div>
+
+<!-- ════════════════════════════════════ -->
+<!--   안전관리자용                        -->
+<!-- ════════════════════════════════════ -->
+<div id="tab-user" class="tab-content active">
+
+<div class="toc">
+    <a href="#overview">1. 시스템 개요</a>
+    <a href="#workflow">2. 일일 업무 흐름</a>
+    <a href="#sites">3. 사전신고 엑셀 등록</a>
+    <a href="#weather">4. 날씨 조회 및 검증</a>
+    <a href="#sms">5. SMS 발송</a>
+    <a href="#mock">6. 모의 테스트</a>
+    <a href="#stats">7. 발송 통계</a>
+    <a href="#stages">8. 폭염 단계 기준</a>
+    <a href="#trouble">9. 문제 해결 (FAQ)</a>
+    <a href="#server-move">10. 서버 PC 변경하기</a>
+</div>
+
+<h2 id="overview">1. 시스템 개요</h2>
+<p>KEPCO 경남본부 안전재난부에서 운영하는 <strong>폭염 안전관리 시스템</strong>입니다.</p>
+<p>기상청 날씨 데이터를 기반으로 옥외 공사현장의 폭염 위험도를 모니터링하고, 작업자에게 <strong>SMS</strong>로 경보를 발송합니다.</p>
+
+<table>
+    <tr><th>구분</th><th>내용</th></tr>
+    <tr><td>사용자</td><td>안전재난부 + 각 지사 담당자</td></tr>
+    <tr><td>주요 기능</td><td>사업소별 현장 필터링, 날씨 조회, 폭염 단계 판정, SMS 경보 발송(대상 선택), 내일 예보 안내</td></tr>
+    <tr><td>알림 채널</td><td>SMS (NHN Cloud)</td></tr>
+    <tr><td>날씨 데이터</td><td>기상청 단기예보 API (5km 격자)</td></tr>
+    <tr><td>접속 방법</td><td>사내 서버 PC (별도 안내된 URL)</td></tr>
+</table>
+
+<h3>화면 구성</h3>
+<table>
+    <tr><th>영역</th><th>설명</th></tr>
+    <tr><td>상단 헤더</td><td>사용방법, 모의 테스트, SMS 테스트, NHN 정책, 발송 통계, 로그아웃</td></tr>
+    <tr><td>전체 공사현장 현황</td><td>등록된 현장 목록 + 실시간 날씨/체감온도/단계 표시</td></tr>
+    <tr><td>SMS 발송</td><td>7개 필터(전체/정상/관심/주의/경고/위험/조회실패)로 대상 선택 후 SMS 일괄 발송</td></tr>
+    <tr><td>최근 알림</td><td>발송 이력 확인</td></tr>
+</table>
+
+<h2 id="workflow">2. 일일 업무 흐름</h2>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>사업소 선택 (로그인)</h4>
+    <p>담당 사업소 선택 후 접속. <strong>해당 사업소에 등록된 공사만</strong> 목록/날씨/SMS 발송에 표시됩니다.</p>
+    <p>"전체 (경남본부)" 선택 시 모든 사업소의 공사가 조회됩니다.</p>
+</div>
+<div class="flow-arrow">&#8595;</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>사전신고 엑셀 등록</h4>
+    <p><strong>"사전신고 엑셀파일 등록"</strong> &rarr; 엑셀 업로드 &rarr; 컬럼 매핑 &rarr; 일괄 등록</p>
+    <p>작업자 이름/연락처 누락 시 행별로 사유가 표시됩니다. (이름 누락, 연락처 형식 오류 등)</p>
+</div>
+<div class="flow-arrow">&#8595;</div>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>날씨 조회</h4>
+    <p><strong>"새로고침"</strong> 클릭 &rarr; 각 현장 날씨 + 폭염 단계 자동 판정</p>
+    <p>조회 실패 시 원인이 상세하게 표시됩니다. (좌표 미설정, 범위 이상, API 오류 등)</p>
+</div>
+<div class="flow-arrow">&#8595;</div>
+<div class="step">
+    <span class="step-num">4</span>
+    <h4>SMS 발송 (자동 + 수동)</h4>
+    <p><strong>자동:</strong> 매일 10시/14시에 폭염 단계별 SMS + 내일 예보가 자동 발송됩니다. (14시 발송은 기상청 14시 발표 날씨 반영, 대상: 전원 또는 책임자만 선택 가능)</p>
+    <p><strong>수동:</strong> 단계별 필터 &rarr; 대상 선택 &rarr; <strong>"SMS 발송"</strong></p>
+    <p><strong>&#128197; 작업예정일 검증 발송:</strong> 사전신고의 <b>작업예정일시</b>를 읽어 <b>작업예정일이 오늘인 현장에만</b> SMS를 발송합니다. 금요일에 금/토/일 작업을 미리 업로드해두면, 서버를 켜둔 상태에서 <b>토·일에는 그날 작업분만</b> 자동 발송됩니다. 발송 화면에서 각 현장에 <span style="color:#16a34a;font-weight:700">오늘</span>/<span style="color:#2563eb;font-weight:700">예정</span>/<span style="color:#94a3b8;font-weight:700">종료</span>/<span style="color:#dc2626;font-weight:700">날짜미인식</span> 배지가 표시되며, <b>오늘 작업만 기본 선택</b>됩니다. 날짜미인식(엑셀에 작업예정일시가 없거나 형식 오류) 현장은 발송에서 제외되니 엑셀을 확인 후 다시 업로드하세요.</p>
+</div>
+<div class="flow-arrow">&#8595;</div>
+<div class="step">
+    <span class="step-num">5</span>
+    <h4>결과 확인</h4>
+    <p>작업자별 성공/실패 상세 사유 확인</p>
+</div>
+
+<h3>자동 스케줄 (서버가 켜져 있으면 자동 실행)</h3>
+<table>
+    <tr><th>시간</th><th>동작</th></tr>
+    <tr><td>매 15분</td><td>전체 현장 날씨 자동 갱신 (기상청 API)</td></tr>
+    <tr><td>09:00</td><td>내일 시간대별 기온/날씨/강수확률 예보 수집</td></tr>
+    <tr><td>10:00</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송 (대상: 설정에 따라 전원 또는 책임자)</td></tr>
+    <tr><td>14:20</td><td>오늘 폭염 단계 SMS + 내일 예보 자동 발송 (14시 발표 날씨 반영)</td></tr>
+</table>
+<div class="step info">
+    <span class="step-num">i</span>
+    <h4>17시 자동 초기화 &rarr; 폐지 (작업예정일 검증으로 대체)</h4>
+    <p>이전에는 매일 17시에 사전신고 데이터를 자동 삭제했으나, <b>작업예정일 검증 발송</b>이 적용되어 <b>17시 자동 초기화는 제거</b>되었습니다.</p>
+    <p>이제 <b>주말·연휴 작업분을 미리 업로드해도 자동 삭제되지 않으며</b>, 매일 그날(오늘) 작업 현장에만 SMS가 발송됩니다. 데이터를 지우려면 상단 <b>"초기화"</b> 버튼으로 직접 삭제하세요.</p>
+</div>
+<div class="step info">
+    <span class="step-num">i</span>
+    <h4>🔌 상시구동 (24시간 자동 · 주말 무인 발송)</h4>
+    <p>주말·연휴에 담당자가 출근하지 않아도 문자가 나가려면 서버 PC를 켜두고 <b>상시구동</b>을 설치하세요.
+    <b>「설치_상시구동.bat」을 마우스 우클릭 → "관리자 권한으로 실행"</b> 한 번이면 됩니다.</p>
+    <p>등록 후에는 Windows 작업스케줄러가 <b>3분마다 서버 상태를 점검해 꺼져 있으면 자동 재시작</b>하고, 보안SW가 지운 <b>.html도 자동 복원</b>합니다. <b>PC를 재부팅해도(로그인 없이) 자동으로 다시 켜집니다.</b></p>
+    <p>핵심: <b>SMS 발송·스케줄러는 백엔드(파이썬)에서 동작</b>하므로, 보안SW가 .html 화면 파일을 지워도 <b>백엔드만 살아있으면 문자는 정상 발송</b>됩니다. 상시구동은 그 백엔드를 24시간 살려두는 장치입니다.</p>
+    <p>서버가 예약시각(10시/14시20분)에 잠깐 재시작 중이었어도, 되살아나면 <b>놓친 발송을 자동 보정(catch-up)</b>합니다. 상시구동을 끄려면 <b>「해제_상시구동.bat」</b>을 관리자 권한으로 실행하세요.</p>
+</div>
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>자동발송 대상 설정</h4>
+    <p>상단 "자동발송 대상" 라디오 버튼에서 <b>전원</b> 또는 <b>책임자만</b>을 선택할 수 있습니다.</p>
+    <p>고압공사 등 작업자 전화번호를 읽어오지 못하는 경우, <b>책임자만</b>으로 설정하여 형평성 있게 발송할 수 있습니다.</p>
+    <p>설정은 즉시 반영되며, 다음 자동발송(10시/14시)부터 적용됩니다.</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>내일 예보란?</h4>
+    <p>내일의 최고 체감온도, 해당 시간대, 날씨(맑음/구름/비), 강수확률을 미리 안내합니다.</p>
+    <p>작업자가 다음 날 작업을 사전에 대비할 수 있도록 하는 <strong>참고용 예보 정보</strong>입니다.</p>
+    <p style="color:#e65100">&#8251; 예보는 실제와 다를 수 있으므로 참고용으로 활용해 주세요.</p>
+</div>
+
+<h2 id="sites">3. 사전신고 엑셀 등록</h2>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>"사전신고 엑셀파일 등록" 클릭</h4>
+    <p>우측 상단의 파란 버튼 (경남본부 로그인 시에만 표시)</p>
+</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>엑셀 파일 선택</h4>
+    <p>.xls, .xlsx, .csv 파일을 드래그앤드롭 또는 클릭하여 업로드</p>
+</div>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>컬럼 매핑 + 일괄 등록</h4>
+    <p>현장명/주소 컬럼 매핑. 작업자(이름/전화번호)는 자동 추출. "일괄 등록" 클릭</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>초기화</h4>
+    <p>"초기화" 버튼으로 기존 데이터 전체 삭제 후 재등록 가능 (경남본부 전용)</p>
+</div>
+
+<h2 id="weather">4. 날씨 조회 및 검증</h2>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>"새로고침" 클릭</h4>
+    <p>기상청에서 기온/습도/풍속 조회 &rarr; 체감온도 계산 &rarr; 폭염 단계 자동 판정</p>
+</div>
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>검증 기능</h4>
+    <p><strong>"검증"</strong> 버튼 (각 현장): 기상청 원시 데이터, 체감온도 계산 과정, 네이버/기상청 비교 링크</p>
+    <p><strong>"전체 검증"</strong> 버튼: 모든 현장의 시스템 값 vs KMA 원시 값 일괄 비교</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>네이버 날씨와 차이가 있나요?</h4>
+    <p>본 시스템은 기상청 <strong>단기예보</strong>, 네이버는 <strong>관측값(실황)</strong>을 사용합니다. 1~3&#176;C 차이는 정상입니다.</p>
+</div>
+
+<h2 id="sms">5. SMS 발송</h2>
+<h3>5-1. 대상 선택</h3>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>단계별 필터</h4>
+    <p>7개 필터 (왼쪽 안전 &rarr; 오른쪽 위험):</p>
+    <p><span class="badge" style="background:#64748b">전체</span> <span class="badge" style="background:#10b981">정상</span> <span class="badge" style="background:#FFC107;color:#333">관심 31&#176;</span> <span class="badge" style="background:#FF9800">주의 33&#176;</span> <span class="badge" style="background:#FF5722">경고 35&#176;</span> <span class="badge" style="background:#D32F2F">위험 38&#176;</span> <span class="badge" style="background:#9e9e9e">조회실패</span></p>
+    <p>단계 필터 클릭 시 해당 단계의 SMS 문구가 자동 입력됩니다.</p>
+    <p>"조회실패" 필터: 좌표 오류, API 오류 등으로 날씨 조회에 실패한 현장만 표시됩니다.</p>
+</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>체크박스로 발송 대상 선택</h4>
+    <p>"전체 선택" 또는 개별 현장 선택. 선택 현장 수/작업자 수가 표시됩니다.</p>
+</div>
+
+<h3>5-2. 발송 대상 선택</h3>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>현장책임자 / 작업자 전원 선택</h4>
+    <p>SMS 발송 영역 하단에서 발송 대상을 선택합니다:</p>
+    <p><strong>작업자 전원</strong> &mdash; 선택된 현장의 모든 작업자에게 발송 (기본값)</p>
+    <p><strong>현장책임자만</strong> &mdash; 현장책임자(관리자/감독자/담당자 등)로 등록된 작업자에게만 발송</p>
+    <p>선택한 옵션에 따라 발송 예상 인원과 비용이 실시간으로 표시됩니다.</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>역할 자동 구분</h4>
+    <p>엑셀의 <strong>"현장책임자", "감독자", "관리자", "담당자"</strong> 등의 컬럼에 있는
+    작업자는 <strong>현장책임자</strong>로, 나머지는 <strong>작업자</strong>로 자동 분류됩니다.</p>
+    <p>이미 등록된 현장과 동일한 이름의 현장을 다시 업로드하면, 중복 생성 없이
+    <strong>작업자 역할만 갱신</strong>됩니다.</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>전화번호 중복 자동 제거</h4>
+    <p>같은 작업자가 여러 공사 현장에 등록되어 있어도, SMS 발송 시 <strong>동일 전화번호는 1건만 발송</strong>됩니다.</p>
+    <p>공사 목록에서는 모든 현장에 작업자가 그대로 표시되며, 발송 시에만 중복이 제거됩니다.</p>
+    <p>중복 제거된 건수는 발송 확인 팝업과 결과에 표시됩니다.</p>
+</div>
+
+<h3>5-3. SMS 내용 (LMS 장문)</h3>
+<div class="step">
+    <span class="step-num">4</span>
+    <h4>자동 구성되는 LMS</h4>
+    <p>문자는 <strong>LMS(장문, 최대 2000바이트)</strong>로 발송되어 내용이 잘리지 않습니다.</p>
+    <p>SMS 내용은 <strong>자동 발송 시</strong> 다음과 같이 구성됩니다:</p>
+    <p>1. <strong>① 타이틀</strong>: [한국전력공사 경남본부]</p>
+    <p>2. <strong>② 현장주소</strong>: 각 현장 주소가 자동 삽입됩니다</p>
+    <p>3. <strong>③ 단계별 안내</strong>: 폭염 단계별 안전 수칙 (관심/주의/경고/위험)</p>
+    <p>4. <strong>④ 작업중지 링크</strong>: 한국전력공사 작업중지 요청 페이지</p>
+    <p>5. <strong>⑤ 내일 예보</strong>: 날씨, 최고 체감온도, 시간대, 강수확률</p>
+    <p style="color:#4a5568;font-size:13px;margin-top:8px">예시: <em>"[체감온도 35도 이상, 폭염경보] ... [내일(06/11) 예보] 날씨: 구름많음(강수확률 40%) 체감 38.5도(경고) 14시경 예상"</em></p>
+    <p style="color:#b45309;font-size:12px;margin-top:4px">&#9888; LMS 요금: 건당 약 30원 (기존 SMS 4.4원 대비 증가)</p>
+</div>
+
+<h3>5-4. 발송 결과</h3>
+<div class="step">
+    <span class="step-num">!</span>
+    <h4>발송 결과 확인</h4>
+    <p>- 총 발송 / 성공 / 실패 건수</p>
+    <p>- <strong>실패 원인</strong>: 에러코드 + 상세 사유</p>
+    <p>- <strong>작업자별 상세</strong>: 현장명, 이름, 전화번호, 성공/실패, 사유</p>
+</div>
+
+<h2 id="mock">6. 모의 테스트</h2>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>우측 상단 "모의 테스트" 클릭</h4>
+    <p>10개 가상 현장, 20명 가상 작업자, 5개 단계별 가상 날씨 생성</p>
+    <p>모든 데이터에 <strong>(가상)</strong> 표시</p>
+</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>SMS 발송 테스트 (실제 수신 가능)</h4>
+    <p><strong>방법 1 - SMS 테스트 패널:</strong> 수신번호 입력 &rarr; 단계별(관심/주의/경고/위험/전체) 버튼 클릭 &rarr; 실제 LMS 발송</p>
+    <p><strong>방법 2 - SMS 발송 리스트:</strong> 현장 선택 &rarr; "SMS 발송" 클릭 &rarr; 수신번호 입력 &rarr; 실제 LMS 발송</p>
+    <p>두 방법 모두 <strong>작업자가 받는 것과 동일한 내용</strong>(폭염 단계 문구 + 오늘 날씨 + 내일 예보)이 장문(LMS)으로 발송됩니다.</p>
+</div>
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>모의 테스트 시 현장 목록</h4>
+    <p>모의 테스트 모드에서 SMS 발송 리스트는 <strong>단계별 테스트 수신번호 1건씩</strong>만 표시됩니다.</p>
+    <p>예: 정상(1) / 관심(1) / 주의(1) / 경고(1) / 위험(1) &mdash; 모두 테스트 수신번호로 발송</p>
+    <p>실제 가상 작업자 전화번호가 아닌 <strong>SMS 테스트 패널에 입력한 수신번호</strong>로만 발송됩니다.</p>
+</div>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>"모의 테스트" 다시 클릭 &rarr; OFF</h4>
+    <p>실제 데이터로 복귀</p>
+</div>
+
+<h2 id="stats">7. 발송 통계</h2>
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>상단 "발송 통계" 클릭</h4>
+    <p>모든 SMS 발송 이력이 자동 기록됩니다. 모의 테스트 / 수동 발송 / 자동 발송 구분.</p>
+</div>
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>통계 요약</h4>
+    <p>모의 테스트 / 수동 / 자동 발송 건수와 비용(LMS 건당 30원) 확인</p>
+    <p>성공 건만 과금, 실패 건은 비용 미발생</p>
+</div>
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>날짜별 상세 조회</h4>
+    <p>날짜별 발송 현황 테이블에서 날짜 클릭 &rarr; 해당 일자의 상세 이력 표시</p>
+    <p>수신번호, 이름, 발송 시간, 유형(모의/수동/자동), 성공/실패, 비용 확인 가능</p>
+</div>
+<div class="step info">
+    <span class="step-num">4</span>
+    <h4>SMS 내용 확인</h4>
+    <p>상단 "SMS 내용확인" 버튼 클릭 &rarr; 오늘 실제 발송된 SMS 내용 + 단계별 기본 문구 확인</p>
+</div>
+<div class="step info">
+    <span class="step-num">5</span>
+    <h4>확인용 수신자 관리</h4>
+    <p>발송 통계 모달 하단 "확인용 수신자 관리" 버튼 클릭</p>
+    <p>시스템관리자, 안전담당자, 개발자 등을 등록하면 SMS 발송 시 동일한 문자가 함께 전송됩니다.</p>
+    <p>문자가 실제로 잘 도착하는지 확인하는 용도로 활용하세요.</p>
+</div>
+
+<h2 id="stages">8. 폭염 단계 기준</h2>
+<p>고용노동부 옥외작업자 온열질환 예방 가이드 기준</p>
+<table>
+    <tr><th>단계</th><th>체감온도</th><th>색상</th><th>조치사항</th></tr>
+    <tr><td><strong>관심</strong></td><td>31&#176;C 이상</td><td><span class="badge" style="background:#FFC107;color:#333">노랑</span></td><td>수시 음수, 그늘 휴식</td></tr>
+    <tr><td><strong>주의</strong></td><td>33&#176;C 이상</td><td><span class="badge" style="background:#FF9800">주황</span></td><td>2시간마다 20분 휴식 (법적 의무), 취약자 작업전환</td></tr>
+    <tr><td><strong>경고</strong></td><td>35&#176;C 이상</td><td><span class="badge" style="background:#FF5722">빨강</span></td><td>매시간 15분 휴식, 14~17시 옥외작업 금지</td></tr>
+    <tr><td><strong>위험</strong></td><td>38&#176;C 이상</td><td><span class="badge" style="background:#D32F2F">진빨강</span></td><td>옥외작업 전면 중지 (긴급/재해복구만 가능)</td></tr>
+</table>
+
+<h2 id="trouble">9. 문제 해결 (FAQ)</h2>
+<table>
+    <tr><th>증상</th><th>해결</th></tr>
+    <tr><td>날씨 조회 실패</td><td>새로고침 재시도. 반복되면 서버 운영자에게 문의</td></tr>
+    <tr><td>SMS 전체 실패</td><td>SMS API 설정 문제. 서버 운영자에게 문의</td></tr>
+    <tr><td>SMS 일부 실패</td><td>결과 상세에서 실패 사유 확인 (미등록 번호, 한도 초과 등)</td></tr>
+    <tr><td>체감온도가 네이버와 다름</td><td>정상 (예보 vs 관측 차이). "검증" 버튼으로 확인</td></tr>
+    <tr><td>페이지가 안 열림 (html 삭제)</td><td>서버 운영자에게 REPAIR.bat 실행 요청</td></tr>
+    <tr><td>엑셀 업로드 안 됨</td><td>.xls/.xlsx/.csv 형식 확인. 파일이 열려있으면 닫고 재시도</td></tr>
+    <tr><td>작업자 이름/연락처 누락</td><td>엑셀 미리보기에서 "상태" 컬럼 확인. 누락 사유별 안내 표시됨</td></tr>
+    <tr><td>조회실패 현장이 많음</td><td>좌표 미설정(0,0) 또는 범위 이상. 주소 확인 후 재등록</td></tr>
+    <tr><td>내일 예보가 안 나옴</td><td>09:00 이전이거나 서버 재시작 직후. SMS 발송 시 자동 수집됨</td></tr>
+</table>
+
+<h2 id="server-move">10. 서버 PC 변경하기</h2>
+<p>현재 서버가 돌아가는 PC(A)에서 <strong>다른 PC(B)로 시스템을 옮기는 방법</strong>입니다.</p>
+<p>비유하면: 서류가방(프로그램)을 새 사무실(새 PC)로 옮기고, 열쇠(API 키)를 새로 꽂는 과정입니다.</p>
+
+<div class="step info">
+    <span class="step-num">!</span>
+    <h4>전체 흐름 (3단계)</h4>
+    <p><b>① 다운로드</b> (프로그램 받기) &rarr; <b>② 설치</b> (자동 설치 실행) &rarr; <b>③ 설정</b> (열쇠 꽂기) &rarr; <b>실행!</b></p>
+    <p>소요시간: 약 10~15분 (인터넷 속도에 따라 다름)</p>
+</div>
+
+<!-- ── 사전 준비 ── -->
+<h3>10-0. 사전 준비</h3>
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>새 PC에 Python 설치 (필수)</h4>
+    <p>이 시스템은 <strong>Python</strong>이라는 프로그램 위에서 동작합니다. 새 PC에 Python이 없으면 시스템이 실행되지 않습니다.</p>
+    <p><b>설치 확인 방법:</b></p>
+    <p>1. 키보드에서 <b>Windows키 + R</b>을 동시에 누릅니다</p>
+    <p>2. "실행" 창이 뜨면 <code>cmd</code> 입력 후 확인 클릭</p>
+    <p>3. 까만 화면(명령 프롬프트)이 열리면 <code>python --version</code> 입력 후 Enter</p>
+    <p>4. <b>"Python 3.xx.x"</b>라고 나오면 &rarr; 이미 설치됨! 다음 단계로 넘어가세요</p>
+    <p>5. <b>"'python'은(는) 인식할 수 없는 명령입니다"</b>라고 나오면 &rarr; 아래 설치 필요</p>
+</div>
+<div class="step">
+    <span class="step-num">▸</span>
+    <h4>Python 설치 방법 (설치 안 된 경우만)</h4>
+    <p>1. 인터넷 브라우저에서 <b>python.org</b> 접속</p>
+    <p>2. 상단의 노란색 <b>"Download Python 3.xx.x"</b> 버튼 클릭</p>
+    <p>3. 다운로드된 파일 실행</p>
+    <p>4. <span style="color:#dc2626;font-weight:700">⚠ 첫 화면 하단의 "Add Python to PATH" 반드시 체크!</span></p>
+    <p style="padding-left:20px;color:#64748b">(이 체크를 안 하면 시스템이 Python을 찾지 못합니다)</p>
+    <p>5. <b>"Install Now"</b> 클릭 &rarr; 설치 완료까지 대기</p>
+    <p>6. 설치 완료 후, 위의 확인 방법(cmd &rarr; python --version)으로 다시 확인</p>
+</div>
+
+<!-- ── STEP 1: 다운로드 ── -->
+<h3>10-1. 프로그램 다운로드</h3>
+<p>GitHub(프로그램 저장소)에서 최신 프로그램을 내려받습니다.</p>
+
+<div class="step">
+    <span class="step-num">1</span>
+    <h4>GitHub 페이지 열기</h4>
+    <p>인터넷 브라우저(크롬, 엣지 등)에서 아래 주소를 입력합니다:</p>
+    <p style="background:#1a1a2e;color:#58a6ff;padding:10px 16px;border-radius:8px;font-family:Consolas,monospace;font-size:13px;letter-spacing:0.5px">
+        https://github.com/kepcokn5701/safety_manager
+    </p>
+    <p style="color:#64748b;font-size:12px">※ 이 주소는 프로그램의 "저장소(Repository)"입니다. 프로그램 코드가 보관되는 곳입니다.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">2</span>
+    <h4>다운로드 버튼 찾기</h4>
+    <p>페이지 오른쪽 위에 초록색 <b style="background:#2ea043;color:white;padding:2px 10px;border-radius:6px;font-size:13px">&lt;&gt; Code ▾</b> 버튼이 있습니다.</p>
+    <p>이 버튼을 클릭하면 아래로 메뉴가 펼쳐집니다.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">3</span>
+    <h4>"Download ZIP" 클릭</h4>
+    <p>펼쳐진 메뉴의 맨 아래 <b>"Download ZIP"</b>을 클릭합니다.</p>
+    <p style="background:#f8fafc;padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;margin-top:6px">
+        ┌───────────────────────────┐<br>
+        │ &nbsp;Clone &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;│<br>
+        │ &nbsp;HTTPS &nbsp;SSH &nbsp;GitHub CLI &nbsp; │<br>
+        │ &nbsp;........................... │<br>
+        │ &nbsp;Open with GitHub Desktop &nbsp;│<br>
+        │ &nbsp;<b style="background:#dbeafe;padding:1px 6px;border-radius:3px">📥 Download ZIP</b> &nbsp; &nbsp; &nbsp; &larr; 이것! │<br>
+        └───────────────────────────┘
+    </p>
+    <p><b>safety_manager-main.zip</b> 파일이 다운로드됩니다.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">4</span>
+    <h4>압축 풀기</h4>
+    <p>1. 다운로드된 <b>safety_manager-main.zip</b> 파일을 찾습니다</p>
+    <p style="padding-left:20px;color:#64748b">(보통 "다운로드" 폴더에 있습니다)</p>
+    <p>2. 파일을 <b>마우스 오른쪽 클릭</b> &rarr; <b>"압축 풀기"</b> 또는 <b>"여기에 압축 풀기"</b></p>
+    <p>3. <b>safety_manager-main</b> 폴더가 생깁니다</p>
+    <p>4. 이 폴더를 원하는 위치로 이동합니다 (예: 바탕화면, C:\safety_manager 등)</p>
+</div>
+
+<div class="step info">
+    <span class="step-num">✓</span>
+    <h4>이렇게 보이면 정상입니다</h4>
+    <p>폴더를 열었을 때 아래 파일들이 보이면 정상입니다:</p>
+    <p style="background:#f8fafc;padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;font-family:Consolas,monospace">
+        📁 backend/ &nbsp; &nbsp;← 서버 프로그램<br>
+        📁 frontend/ &nbsp; ← 화면 (웹페이지)<br>
+        📁 config/ &nbsp; &nbsp; ← 설정 파일<br>
+        📄 INSTALL.bat &nbsp;← 자동 설치 파일 ⭐<br>
+        📄 START.bat &nbsp; ← 서버 시작 ⭐<br>
+        📄 STOP.bat &nbsp; &nbsp;← 서버 종료<br>
+        📄 REPAIR.bat &nbsp;← 복구 도구<br>
+        📄 .env.example ← 설정 템플릿 ⭐
+    </p>
+</div>
+
+<!-- ── STEP 2: 설치 ── -->
+<h3>10-2. 자동 설치</h3>
+<p>비유: 새 사무실에 가구를 자동으로 배치하는 과정입니다.</p>
+
+<div class="step">
+    <span class="step-num">5</span>
+    <h4>INSTALL.bat 더블클릭</h4>
+    <p>폴더 안의 <b>INSTALL.bat</b> 파일을 <b>더블클릭</b>합니다.</p>
+    <p>까만 창이 열리면서 자동으로 설치가 진행됩니다.</p>
+    <p style="color:#64748b;font-size:12px">(내부적으로: Python 가상환경 생성 → 필요한 프로그램 자동 다운로드 → 설정 파일 생성)</p>
+</div>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>설치 중 주의사항</h4>
+    <p>• 까만 창이 열리고 글씨가 쭉 올라갑니다. <b>창을 닫지 마세요!</b></p>
+    <p>• "방화벽 허용" 팝업이 뜨면 <b>"허용"</b>을 클릭하세요</p>
+    <p>• 보안 경고가 뜨면 <b>"추가 정보" → "실행"</b>을 클릭하세요</p>
+    <p>• 인터넷 연결이 필요합니다 (필요한 파일을 자동으로 다운로드합니다)</p>
+    <p>• 설치 완료까지 약 2~5분 소요됩니다</p>
+</div>
+
+<div class="step info">
+    <span class="step-num">✓</span>
+    <h4>이렇게 보이면 설치 성공</h4>
+    <p>설치가 끝나면 폴더에 <b>venv</b> 폴더와 <b>.env</b> 파일이 새로 생깁니다.</p>
+    <p style="background:#f8fafc;padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;font-size:12px;font-family:Consolas,monospace">
+        📁 venv/ &nbsp; &nbsp; &nbsp; ← 새로 생김 (Python 실행 환경)<br>
+        📄 .env &nbsp; &nbsp; &nbsp; &nbsp;← 새로 생김 (설정 파일) ⭐
+    </p>
+</div>
+
+<!-- ── STEP 3: API 키 설정 ── -->
+<h3>10-3. API 키 설정 (가장 중요!)</h3>
+<p>비유: 새 사무실 출입카드를 발급받는 과정입니다. 외부 서비스(기상청, 카카오, SMS)에 접속하려면 각각의 <b>"열쇠(API 키)"</b>가 필요합니다.</p>
+
+<div class="step warn">
+    <span class="step-num">⚠</span>
+    <h4>API 키는 어디서 받나요?</h4>
+    <p>API 키는 <b>기존 서버 운영자 또는 AI혁신팀(개발 담당자)</b>에게 요청하세요.</p>
+    <p>아래 5개 값을 전달받아야 합니다:</p>
+    <table>
+        <tr><th style="width:30%">필요한 키</th><th>설명</th><th>발급처</th></tr>
+        <tr><td><code>KMA_API_KEY</code></td><td>기상청 날씨 조회용 열쇠</td><td>기상청 공공데이터포털</td></tr>
+        <tr><td><code>KAKAO_REST_API_KEY</code></td><td>주소를 좌표로 바꾸는 열쇠</td><td>카카오 개발자센터</td></tr>
+        <tr><td><code>SMS_APP_KEY</code></td><td>문자 발송 서비스 열쇠 (1)</td><td>NHN Cloud</td></tr>
+        <tr><td><code>SMS_SECRET_KEY</code></td><td>문자 발송 서비스 열쇠 (2)</td><td>NHN Cloud</td></tr>
+        <tr><td><code>SMS_SENDER_PHONE</code></td><td>문자 발신번호</td><td>NHN Cloud에 등록된 번호</td></tr>
+    </table>
+    <p style="color:#dc2626;font-weight:600;margin-top:8px">⚠ API 키는 비밀번호와 같습니다. 카톡, 이메일로 보내지 마세요!</p>
+    <p>직접 만나서 전달받거나, 사내 보안 메신저를 이용하세요.</p>
+</div>
+
+<div class="step">
+    <span class="step-num">6</span>
+    <h4>.env 파일 열기</h4>
+    <p>1. 폴더에서 <b>.env</b> 파일을 찾습니다</p>
+    <p style="padding-left:20px;color:#64748b">(파일 이름이 "env"로만 보이면, 확장자가 숨겨진 것입니다. 동일한 파일입니다)</p>
+    <p>2. <b>마우스 오른쪽 클릭</b> &rarr; <b>"연결 프로그램"</b> &rarr; <b>"메모장"</b> 선택</p>
+    <p style="padding-left:20px;color:#64748b">(또는: 마우스 오른쪽 클릭 → "다른 앱으로 열기" → "메모장")</p>
+</div>
+
+<div class="step">
+    <span class="step-num">7</span>
+    <h4>API 키 입력</h4>
+    <p>메모장에서 아래와 같은 내용이 보입니다. <b>=</b> 뒤에 전달받은 키를 붙여넣으세요:</p>
+    <p style="background:#1a1a2e;color:#d4d4d4;padding:12px 16px;border-radius:8px;font-family:Consolas,monospace;font-size:12px;line-height:2">
+        <span style="color:#64748b"># 기상청 API (필수 - 날씨 조회)</span><br>
+        KMA_API_KEY=<span style="color:#fbbf24">여기에_기상청_키_붙여넣기</span><br><br>
+        <span style="color:#64748b"># 카카오맵 API (필수 - 주소→좌표 변환)</span><br>
+        KAKAO_REST_API_KEY=<span style="color:#fbbf24">여기에_카카오_키_붙여넣기</span><br><br>
+        <span style="color:#64748b"># SMS 발송 (선택 - 없으면 SMS 기능 비활성)</span><br>
+        SMS_APP_KEY=<span style="color:#fbbf24">여기에_SMS앱키_붙여넣기</span><br>
+        SMS_SECRET_KEY=<span style="color:#fbbf24">여기에_SMS비밀키_붙여넣기</span><br>
+        SMS_SENDER_PHONE=<span style="color:#fbbf24">055-XXX-XXXX</span>
+    </p>
+    <p style="color:#dc2626;font-size:12px;margin-top:6px">⚠ 주의: = 앞뒤에 공백(빈칸)을 넣지 마세요! 따옴표도 넣지 마세요!</p>
+    <p style="color:#10b981;font-size:12px">✓ 올바른 예: <code>KMA_API_KEY=abcdef12345</code></p>
+    <p style="color:#dc2626;font-size:12px">✗ 잘못된 예: <code>KMA_API_KEY = "abcdef12345"</code></p>
+</div>
+
+<div class="step">
+    <span class="step-num">8</span>
+    <h4>저장하기</h4>
+    <p>메모장에서 <b>Ctrl + S</b> (컨트롤키와 S를 동시에 눌러 저장)</p>
+    <p>메모장을 닫습니다.</p>
+</div>
+
+<div class="step warn">
+    <span class="step-num">🔒</span>
+    <h4>.env 파일 보안 주의</h4>
+    <p><b>.env 파일은 절대 외부에 유출하면 안 됩니다.</b></p>
+    <p>이 파일에는 API 키(열쇠)가 들어있어서, 유출되면 타인이 우리 명의로 SMS를 보낼 수 있습니다.</p>
+    <p>• .env 파일을 이메일이나 카톡으로 전송하지 마세요</p>
+    <p>• USB에 복사해서 다른 곳에 두지 마세요</p>
+    <p>• 서버 PC 안에만 보관하세요</p>
+</div>
+
+<!-- ── STEP 4: 실행 ── -->
+<h3>10-4. 서버 시작</h3>
+
+<div class="step">
+    <span class="step-num">9</span>
+    <h4>START.bat 더블클릭</h4>
+    <p>폴더의 <b>START.bat</b> 파일을 더블클릭합니다.</p>
+    <p>• 까만 창이 열리고 서버가 시작됩니다</p>
+    <p>• 잠시 후 <b>인터넷 브라우저가 자동으로 열립니다</b></p>
+</div>
+
+<div class="step info">
+    <span class="step-num">✓</span>
+    <h4>이렇게 보이면 성공!</h4>
+    <p>브라우저에 <b>사업소 선택 화면</b>이 나타나면 서버가 정상 동작하는 것입니다.</p>
+    <p>사업소를 선택하고 접속해보세요.</p>
+    <p style="margin-top:8px"><b>확인 체크리스트:</b></p>
+    <p>☐ 사업소 선택 후 메인 화면이 열리는가?</p>
+    <p>☐ "새로고침" 클릭 시 날씨가 조회되는가?</p>
+    <p>☐ "SMS 테스트" 버튼이 동작하는가?</p>
+    <p>☐ "사전신고 엑셀파일 등록" 버튼이 보이는가?</p>
+</div>
+
+<!-- ── STEP 5: 다른 PC에서 접속 ── -->
+<h3>10-5. 다른 PC에서 접속하기 (선택)</h3>
+<p>서버 PC와 같은 네트워크(사내망)에 있는 다른 PC에서도 접속할 수 있습니다.</p>
+
+<div class="step">
+    <span class="step-num">10</span>
+    <h4>서버 PC의 IP 주소 확인</h4>
+    <p>1. 서버 PC에서 <b>Windows키 + R</b> → <code>cmd</code> → 확인</p>
+    <p>2. <code>ipconfig</code> 입력 후 Enter</p>
+    <p>3. <b>"IPv4 주소"</b> 항목을 찾습니다 (예: <code>10.x.x.x</code> 또는 <code>192.168.x.x</code>)</p>
+</div>
+
+<div class="step">
+    <span class="step-num">11</span>
+    <h4>다른 PC에서 접속</h4>
+    <p>다른 PC의 브라우저에서 아래 주소를 입력합니다 (안전재난부 서버 PC):</p>
+    <p style="background:#1a1a2e;color:#58a6ff;padding:10px 16px;border-radius:8px;font-family:Consolas,monospace;font-size:14px">
+        http://<span style="color:#fbbf24">10.193.5.171</span>:8000
+    </p>
+    <p>서버 PC가 바뀌면 해당 PC의 IP주소로 교체하세요. (명령프롬프트에서 <code>ipconfig</code> → IPv4 주소 확인)</p>
+</div>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>접속이 안 될 때 — 방화벽 설정</h4>
+    <p>서버 PC의 방화벽이 8000번 포트를 막고 있을 수 있습니다.</p>
+    <p><b>해결 방법 (서버 PC에서):</b></p>
+    <p>1. Windows 검색에서 <b>"방화벽"</b> 검색 → <b>"Windows Defender 방화벽"</b> 클릭</p>
+    <p>2. 왼쪽 메뉴에서 <b>"고급 설정"</b> 클릭</p>
+    <p>3. <b>"인바운드 규칙"</b> → 오른쪽 <b>"새 규칙"</b> 클릭</p>
+    <p>4. <b>"포트"</b> 선택 → 다음 → <b>"TCP"</b> 선택, <b>"8000"</b> 입력 → 다음</p>
+    <p>5. <b>"연결 허용"</b> → 다음 → 이름: <b>"안전관리시스템"</b> → 마침</p>
+    <p style="color:#64748b;font-size:12px;margin-top:4px">또는, 관리자 권한 명령 프롬프트(cmd)에서 아래 명령어 실행:<br>
+    <code>netsh advfirewall firewall add rule name="SafetyManager" dir=in action=allow protocol=TCP localport=8000</code></p>
+</div>
+
+<!-- ── 일일 운영 요약 ── -->
+<h3>10-6. 일일 운영 요약</h3>
+<div class="step info">
+    <span class="step-num">📋</span>
+    <h4>매일 해야 할 일</h4>
+    <table>
+        <tr><th style="width:20%">시점</th><th style="width:25%">할 일</th><th>방법</th></tr>
+        <tr><td><b>출근 시</b></td><td>서버 켜기</td><td>START.bat 더블클릭</td></tr>
+        <tr><td><b>업무 중</b></td><td>없음 (자동)</td><td>서버가 15분마다 자동으로 날씨 갱신 + 10시/14시 SMS 자동 발송</td></tr>
+        <tr><td><b>퇴근 시</b></td><td>서버 끄기 (선택)</td><td>STOP.bat 더블클릭 또는 까만 창 닫기</td></tr>
+    </table>
+    <p style="margin-top:8px;color:#1565c0">💡 서버를 켜두면 모든 것이 자동입니다. 수동 SMS 발송이 필요할 때만 웹 화면을 사용하세요.</p>
+</div>
+
+<!-- ── 문제 해결 ── -->
+<h3>10-7. 문제가 생겼을 때</h3>
+<table>
+    <tr><th style="width:35%">증상</th><th>원인 및 해결</th></tr>
+    <tr>
+        <td>INSTALL.bat에서 <b>"python 찾을 수 없음"</b></td>
+        <td>Python이 설치 안 되었거나, 설치 시 "Add to PATH"를 체크하지 않음.<br>Python을 다시 설치하세요 (10-0 참조)</td>
+    </tr>
+    <tr>
+        <td>START.bat 실행해도 <b>브라우저가 안 열림</b></td>
+        <td>까만 창에 에러 메시지가 있는지 확인. 대부분 .env 설정 오류.<br>브라우저에서 직접 <code>http://localhost:8000</code> 입력해보세요</td>
+    </tr>
+    <tr>
+        <td><b>날씨 조회 실패</b></td>
+        <td>.env의 <code>KMA_API_KEY</code> 또는 <code>KAKAO_REST_API_KEY</code>가 잘못됨.<br>키 값을 다시 확인하세요 (공백, 따옴표 없이)</td>
+    </tr>
+    <tr>
+        <td><b>SMS 발송 실패</b></td>
+        <td>.env의 <code>SMS_APP_KEY</code>, <code>SMS_SECRET_KEY</code>, <code>SMS_SENDER_PHONE</code> 확인.<br>발신번호가 NHN Cloud에 등록되어 있어야 합니다</td>
+    </tr>
+    <tr>
+        <td><b>웹 페이지가 깨짐</b> (백지, 에러)</td>
+        <td>사내 보안SW가 .html 파일을 삭제했을 수 있음.<br><b>REPAIR.bat</b> 더블클릭으로 복구</td>
+    </tr>
+    <tr>
+        <td><b>다른 PC에서 접속 안 됨</b></td>
+        <td>방화벽 설정 확인 (10-5 참조). 같은 네트워크인지 확인</td>
+    </tr>
+    <tr>
+        <td>그 외 해결 안 되는 문제</td>
+        <td>AI혁신팀(개발 담당)에 문의하세요</td>
+    </tr>
+</table>
+
+</div><!-- /tab-user -->
+
+<!-- ════════════════════════════════════ -->
+<!--   개발자/운영자용                     -->
+<!-- ════════════════════════════════════ -->
+<div id="tab-dev" class="tab-content">
+
+<div class="toc dev-toc">
+    <a href="#server">9. 서버 실행 및 운영</a>
+    <a href="#env">10. 환경 설정 (.env)</a>
+    <a href="#install">11. 다른 PC에 설치하기</a>
+    <a href="#tech">12. 기술 구조</a>
+</div>
+
+<h2 id="server" class="dev-title">9. 서버 실행 및 운영</h2>
+<h3>9-1. 서버 시작</h3>
+<div class="step dev">
+    <span class="step-num">1</span>
+    <h4>START.bat 더블클릭</h4>
+    <p>기존 프로세스 정리 &rarr; 가상환경 확인 &rarr; 서버 시작 (포트 8000)</p>
+    <p>별도 창에서 서버 로그 실시간 표시. 브라우저 자동 열림.</p>
+</div>
+<div class="step dev">
+    <span class="step-num">2</span>
+    <h4>수동 실행 (고급)</h4>
+    <p><code>venv\Scripts\python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000</code></p>
+</div>
+
+<h3>9-2. 서버 종료</h3>
+<div class="step dev">
+    <span class="step-num">!</span>
+    <h4>STOP.bat 더블클릭 또는 서버 창에서 Ctrl+C</h4>
+</div>
+
+<h3>9-3. 일일 운영</h3>
+<table>
+    <tr><th>시점</th><th>작업</th></tr>
+    <tr><td>출근</td><td>START.bat 실행 (보안 삭제된 .html 자동 복원)</td></tr>
+    <tr><td>09:00</td><td>[자동] 내일 예보 수집 (기상청 단기예보)</td></tr>
+    <tr><td>10:00</td><td>[자동] 폭염 단계 SMS + 내일 예보 발송</td></tr>
+    <tr><td>14:20</td><td>[자동] 폭염 단계 SMS + 내일 예보 발송 (14시 발표 날씨 반영)</td></tr>
+    <tr><td>매 15분</td><td>[자동] 전체 현장 날씨 갱신</td></tr>
+    <tr><td>퇴근</td><td>STOP.bat 또는 창 닫기. DB에 데이터 영구 보존</td></tr>
+</table>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>사내 보안 주의 (.html 삭제 대응)</h4>
+    <p>보안 소프트웨어가 <strong>.html 파일을 삭제</strong>할 수 있습니다. 복구 방법 3가지:</p>
+    <p>1. <strong>REPAIR.bat 더블클릭</strong> &mdash; .dat 백업에서 즉시 복원 (가장 간편)</p>
+    <p>2. <strong>START.bat 실행</strong> &mdash; 서버 시작 시 자동 복원</p>
+    <p>3. <strong><code>git pull origin main</code></strong> &mdash; .dat까지 삭제된 경우 GitHub에서 복구</p>
+    <p style="color:#dc2626;font-weight:600">.dat 파일은 절대 삭제하지 마세요.</p>
+</div>
+
+<h2 id="env" class="dev-title">10. 환경 설정 (.env)</h2>
+<p><code>.env</code> 파일을 메모장으로 편집. 서버 재시작 후 적용.</p>
+
+<h3>필수 API 키</h3>
+<table>
+    <tr><th>키</th><th>설명</th><th>예시</th></tr>
+    <tr><td>KMA_API_KEY</td><td>기상청 API 인증키</td><td><code>abcd****efgh</code></td></tr>
+    <tr><td>KAKAO_REST_API_KEY</td><td>카카오맵 (주소&rarr;좌표)</td><td><code>abcd****1234</code></td></tr>
+</table>
+
+<h3>SMS 설정 (NHN Cloud)</h3>
+<table>
+    <tr><th>키</th><th>설명</th><th>예시</th></tr>
+    <tr><td>SMS_APP_KEY</td><td>NHN Cloud 앱키</td><td><code>abcd****5678</code></td></tr>
+    <tr><td>SMS_SECRET_KEY</td><td>NHN Cloud 비밀키</td><td><code>wxyz****9012</code></td></tr>
+    <tr><td>SMS_SENDER_PHONE</td><td>등록된 발신번호</td><td><code>055-***-****</code></td></tr>
+</table>
+
+<h3>기타</h3>
+<table>
+    <tr><th>키</th><th>설명</th><th>기본값</th></tr>
+    <tr><td>DATABASE_URL</td><td>DB 경로</td><td>sqlite+aiosqlite:///./safety_mgr.db</td></tr>
+    <tr><td>WEATHER_CHECK_INTERVAL_MINUTES</td><td>자동 모니터링 간격</td><td>15</td></tr>
+    <tr><td>APP_PORT</td><td>서버 포트</td><td>8000</td></tr>
+</table>
+
+<h2 id="install" class="dev-title">11. 다른 PC에 설치하기</h2>
+<h3>사전 준비</h3>
+<table>
+    <tr><th>필요 프로그램</th><th>비고</th></tr>
+    <tr><td>Python 3.11+</td><td>"Add to PATH" 체크 필수</td></tr>
+    <tr><td>Git (선택)</td><td>USB 복사로도 가능</td></tr>
+</table>
+
+<h3>설치 순서</h3>
+<div class="step dev">
+    <span class="step-num">1</span>
+    <h4>소스코드 다운로드</h4>
+    <p>GitHub에서 최신 코드를 받습니다 (cmd에서 실행):</p>
+    <p><code>git clone https://github.com/kepcokn5701/safety_manager.git</code></p>
+    <p>또는 USB로 safety_manager 폴더 전체를 복사합니다.</p>
+</div>
+<div class="step dev">
+    <span class="step-num">2</span>
+    <h4>INSTALL.bat 실행 &rarr; .env 편집 &rarr; START.bat</h4>
+</div>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>사내 보안으로 .html 파일이 삭제된 경우</h4>
+    <p>GitHub에서 최신 코드를 다시 받아야 합니다:</p>
+    <p><code>git pull origin main</code></p>
+    <p>또는 프로젝트 폴더를 통째로 다시 복사해주세요.</p>
+    <p>START.bat 실행 시 .dat 백업에서 자동 복원을 시도하지만, .dat 파일까지 삭제된 경우 git pull이 필요합니다.</p>
+</div>
+
+<div class="step warn">
+    <span class="step-num">!</span>
+    <h4>방화벽 (다른 PC 접속 시)</h4>
+    <p><code>netsh advfirewall firewall add rule name="SafetyManager" dir=in action=allow protocol=TCP localport=8000</code></p>
+</div>
+
+<h2 id="tech" class="dev-title">12. 기술 구조</h2>
+<h3>시스템 구성</h3>
+<table>
+    <tr><th>구성요소</th><th>기술</th></tr>
+    <tr><td>백엔드</td><td>Python FastAPI + Uvicorn</td></tr>
+    <tr><td>프론트엔드</td><td>Vanilla JS + CSS (프레임워크 없음)</td></tr>
+    <tr><td>DB</td><td>SQLite (로컬 파일)</td></tr>
+    <tr><td>날씨</td><td>기상청 단기예보 API (apihub.kma.go.kr)</td></tr>
+    <tr><td>주소 변환</td><td>카카오 Maps API</td></tr>
+    <tr><td>SMS</td><td>NHN Cloud SMS API v3.0</td></tr>
+    <tr><td>스케줄러</td><td>APScheduler (15분 날씨 갱신 + 09:00 내일예보 + 10:00/14:20 SMS)</td></tr>
+</table>
+
+<h3>날씨 데이터 처리</h3>
+<table>
+    <tr><th>단계</th><th>내용</th></tr>
+    <tr><td>좌표 변환</td><td>위경도 &rarr; 기상청 5km 격자 (Lambert Conformal Conic)</td></tr>
+    <tr><td>API 호출</td><td>격자별 1회만 호출 (같은 격자 현장은 캐시 공유)</td></tr>
+    <tr><td>체감온도</td><td>기상청 여름철 체감온도 산출식 (2022.6 개정, 습구온도 기반)</td></tr>
+    <tr><td>WBGT</td><td>습구(Stull 2011) + 흑구(일사보정) + 건구</td></tr>
+    <tr><td>단계 판정</td><td>31&#176; 관심 / 33&#176; 주의 / 35&#176; 경고 / 38&#176; 위험</td></tr>
+</table>
+
+<h3>주요 파일</h3>
+<table>
+    <tr><th>파일</th><th>역할</th></tr>
+    <tr><td>backend/app.py</td><td>메인 앱 + API 엔드포인트</td></tr>
+    <tr><td>backend/routers/weather.py</td><td>날씨 조회/검증 API</td></tr>
+    <tr><td>backend/services/alert_service.py</td><td>SMS 발송 서비스</td></tr>
+    <tr><td>backend/services/kma_provider.py</td><td>기상청 API 연동</td></tr>
+    <tr><td>backend/services/weather_service.py</td><td>체감온도/WBGT 계산</td></tr>
+    <tr><td>config/thresholds.json</td><td>폭염 단계 기준값</td></tr>
+    <tr><td>frontend/*.dat</td><td>.html 백업 (보안 삭제 대비)</td></tr>
+</table>
+
+</div><!-- /tab-dev -->
+
+<div style="margin-top:40px;padding:20px;text-align:center;color:#94a3b8;font-size:12px;border-top:1px solid #e2e8f0">
+    KEPCO 경남본부 안전재난부 | 폭염 안전관리 시스템
+</div>
+
+</div><!-- /container -->
+
+<script>
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    if (tab === 'user') {
+        document.querySelector('.user-tab').classList.add('active');
+        document.getElementById('tab-user').classList.add('active');
+    } else {
+        document.querySelector('.dev-tab').classList.add('active');
+        document.getElementById('tab-dev').classList.add('active');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+</body>
+</html>

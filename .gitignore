@@ -1,0 +1,36 @@
+# 비밀값 — 실제 API 키가 들어감. 절대 커밋 금지
+.env
+
+# DB (운영 데이터)
+*.db
+*.db-journal
+*.sqlite3
+
+# 임베디드 Python 런타임 (빌드 시 주입, 43MB)
+python/
+runtime/
+
+# 빌드 산출물
+dist/
+build/
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 로그
+logs/
+*.log
+
+# 편집기/OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# 임시 백업
+*.bak
+*.bak_claude
