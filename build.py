@@ -29,7 +29,8 @@ SRC_DIRS = ["backend", "frontend", "config"]
 # 배포에 포함할 단일 파일 (없으면 조용히 건너뜀)
 SRC_FILES = [
     "START.bat", "STOP.bat", "REPAIR.bat", "WATCHDOG.bat",
-    "설치_상시구동.bat", "해제_상시구동.bat",
+    "_setup_watchdog.bat",   # START.bat이 관리자 권한으로 호출 (내부용)
+    "해제_상시구동.bat",
     "시작하기.txt", ".env.example",
 ]
 
@@ -64,6 +65,16 @@ def build(version: str) -> Path:
     log("1/5", "소스 복사...")
     for name in SRC_DIRS:
         shutil.copytree(ROOT / name, OUT / name, ignore=IGNORE)
+
+    # .dat 백업을 .html 원본에서 다시 만든다.
+    # 손으로 관리하면 .html만 고치고 .dat를 깜빡했을 때, 보안SW가 .html을 지운 뒤
+    # 옛날 내용으로 복원되는 사고가 난다. 빌드 때마다 강제로 맞춘다.
+    log("1/5", "화면 백업(.dat) 동기화...")
+    synced = 0
+    for html in sorted((OUT / "frontend").glob("*.html")):
+        shutil.copy2(html, html.with_suffix(".dat"))
+        synced += 1
+    log("1/5", f"  {synced}개 .dat 재생성")
 
     log("2/5", "실행 스크립트 및 문서 복사...")
     for name in SRC_FILES:
@@ -116,8 +127,8 @@ def main() -> None:
     print("   [운영자 전달 시 안내사항]")
     print("    - 기존 폴더에 '덮어쓰기'로 압축을 푸세요.")
     print("      safety_mgr.db 를 포함하지 않으므로 기존 데이터는 보존됩니다.")
-    print("    - 해제 후 START.bat 실행.")
-    print("    - 최초 1회 설치_상시구동.bat 도 실행하세요 (서버 자동 감시/재시작).")
+    print("    - 해제 후 START.bat 더블클릭. 이것 하나면 끝입니다.")
+    print("      (24시간 자동 감시는 최초 1회 UAC [예] 클릭으로 자동 등록)")
     print("  " + "=" * 44)
     print()
 
