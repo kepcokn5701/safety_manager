@@ -57,7 +57,7 @@ echo    잠시 후 "허용하시겠습니까?" 창이 뜨면
 echo    [예] 를 눌러 주세요.  -- 최초 1회뿐입니다.
 echo   --------------------------------------------
 echo.
-timeout /t 4 /nobreak >nul
+ping -n 5 127.0.0.1 >nul 2>&1
 
 powershell -NoProfile -Command ^
     "try { Start-Process -FilePath '%~dp0_setup_watchdog.bat' -Verb RunAs -Wait -ErrorAction Stop } catch { }" >nul 2>&1
@@ -91,9 +91,11 @@ REM 이 스크립트가 이미 cd /d "%~dp0" 했으므로 start 는 그 경로�
 REM (cmd /k "..." 안에 경로를 또 넣으면 따옴표가 중첩돼 깨진다)
 start "SafetyManager" cmd /k python\python.exe -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --log-level info
 
+REM 대기는 ping으로 한다. timeout 은 표준입력이 리다이렉트된 환경에서
+REM "Input redirection is not supported" 로 즉시 실패해 루프가 헛돈다.
 set /a WAIT=0
 :waitloop
-timeout /t 2 /nobreak >nul
+ping -n 3 127.0.0.1 >nul 2>&1
 set /a WAIT+=2
 netstat -aon | findstr :8000 | findstr LISTENING >nul 2>&1
 if not errorlevel 1 goto :ready
@@ -133,4 +135,4 @@ echo    끄기         : STOP.bat
 echo    문제 발생 시 : 이 창을 캡처해 AI혁신팀에 문의
 echo  ============================================
 echo.
-timeout /t 10 /nobreak >nul
+ping -n 11 127.0.0.1 >nul 2>&1

@@ -45,6 +45,32 @@ def log(step: str, msg: str) -> None:
     print(f"  [{step}] {msg}", flush=True)
 
 
+def to_crlf(raw: bytes) -> bytes:
+    """cmd.exe는 배치 파일에 CRLF를 요구한다.
+
+    LF만 있으면 파싱 위치가 어긋나 명령어가 중간부터 잘려 실행된다
+    (errorlevel -> 'orlevel' is not recognized).
+    """
+    return raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n").replace(b"\n", b"\r\n")
+
+
+def normalize_bat(path: Path) -> None:
+    """배치 파일을 CP949 + CRLF로 맞춘다.
+
+    UTF-8(chcp 65001) 배치는 한글이 3바이트라, 괄호 블록 안에 한글이 많으면
+    cmd가 바이트/문자 오프셋을 잃고 줄 앞부분을 통째로 날린다. 실제로
+    `echo AI혁신팀에 보내주세요.` 가 'AI혁신팀에' is not recognized 로 터졌다.
+    한글 Windows 기본 코드페이지인 949로 저장하면 이 문제가 사라진다.
+    """
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("cp949")  # 이미 변환된 파일
+    text = text.replace("chcp 65001", "chcp 949")
+    path.write_bytes(to_crlf(text.encode("cp949")))
+
+
 def build(version: str) -> Path:
     runtime = ROOT / "runtime" / "python"
     if not (runtime / "python.exe").exists():
@@ -58,7 +84,14 @@ def build(version: str) -> Path:
 
     # 이전 산출물 정리
     if OUT.exists():
-        shutil.rmtree(OUT)
+        try:
+            shutil.rmtree(OUT)
+        except PermissionError as e:
+            raise SystemExit(
+                f"[오류] 이전 빌드 폴더를 지울 수 없습니다: {e.filename}\n"
+                "       dist 폴더에서 실행 중인 서버나 열려 있는 창을 닫고 다시 시도하세요.\n"
+                "       (dist\\safety_manager_portable\\STOP.bat 실행 또는 검은 창 닫기)"
+            ) from e
     zip_path.unlink(missing_ok=True)
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -81,6 +114,14 @@ def build(version: str) -> Path:
         src = ROOT / name
         if src.exists():
             shutil.copy2(src, OUT / name)
+
+    log("2/5", "배치 파일 인코딩/줄바꿈 정규화...")
+    for path in sorted(OUT.glob("*.bat")):
+        normalize_bat(path)
+    for path in sorted(OUT.glob("*.txt")):
+        raw = path.read_bytes()
+        path.write_bytes(to_crlf(raw))
+    log("2/5", f"  .bat {len(list(OUT.glob('*.bat')))}개 CP949+CRLF 변환")
 
     log("3/5", "Python 런타임 복사 (약 120MB, 시간이 걸립니다)...")
     shutil.copytree(runtime, OUT / "python", ignore=IGNORE)

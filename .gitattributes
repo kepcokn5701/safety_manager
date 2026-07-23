@@ -1,0 +1,19 @@
+# cmd.exe는 배치 파일에 CRLF를 요구한다. LF만 있으면 파싱이 어긋나
+# 명령어가 중간부터 잘려 실행되는 기괴한 오류가 난다.
+# 체크아웃 환경과 무관하게 항상 CRLF로 고정한다.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 운영자가 메모장으로 여는 문서도 CRLF
+*.txt text eol=crlf
+
+# 소스는 LF
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+
+# .dat 는 .html 백업이므로 바이트 그대로 (build.py가 복사본으로 생성)
+*.dat -text
