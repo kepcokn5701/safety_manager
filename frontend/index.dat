@@ -213,6 +213,23 @@
             <button onclick="showSmsStatsModal()" style="background:none;border:1px solid #ce93d8;color:#7b1fa2;padding:2px 8px;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap">발송 통계</button>
         </div>
 
+        <!--
+            작업예정일 미인식 경고.
+            날짜가 없는 현장은 자동발송 대상에서 조용히 빠지므로, 주말·연휴 무인
+            운영 중에는 아무도 모른 채 경보가 누락된다. 상시 노출이 목적이다.
+            renderAlertSendList()가 건수에 따라 표시/숨김을 제어한다.
+        -->
+        <div id="nodate-warning" style="display:none;padding:10px 16px;background:#fef2f2;border-bottom:2px solid #dc2626;align-items:center;gap:10px;font-size:12px;color:#991b1b;flex-wrap:wrap">
+            <span style="font-size:16px">&#9888;&#65039;</span>
+            <div style="flex:1;min-width:220px;line-height:1.6">
+                <b>작업예정일 미인식 <span id="nodate-count">0</span>개 현장</b> &mdash; 자동 발송에서 <b>제외</b>됩니다.
+                <div style="font-size:11px;color:#b91c1c;margin-top:2px">
+                    사전신고 엑셀의 &lsquo;작업예정일시&rsquo;를 확인 후 다시 업로드하세요. 이 현장의 작업자는 폭염 경보 문자를 받지 못합니다.
+                </div>
+            </div>
+            <button onclick="filterAlertList('nodate')" style="flex-shrink:0;padding:5px 12px;background:#dc2626;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">해당 현장 보기</button>
+        </div>
+
         <!-- 6단계 필터 (왼→오: 정상→위험) -->
         <div style="padding:6px 16px 8px;border-bottom:1px solid var(--border);display:flex;gap:4px;flex-wrap:wrap;align-items:center">
             <button class="stage-filter active" data-filter-group="alert" data-stage="all" data-label="전체" onclick="filterAlertList('all')">전체</button>
@@ -222,6 +239,7 @@
             <button class="stage-filter" data-filter-group="alert" data-stage="warning" data-label="경고" data-temp="35" onclick="filterAlertList('warning')" style="--fc:#FF5722">경고 35°</button>
             <button class="stage-filter" data-filter-group="alert" data-stage="danger" data-label="위험" data-temp="38" onclick="filterAlertList('danger')" style="--fc:#D32F2F">위험 38°</button>
             <button class="stage-filter" data-filter-group="alert" data-stage="error" data-label="조회실패" onclick="filterAlertList('error')" style="--fc:#9e9e9e">조회실패</button>
+            <button class="stage-filter" data-filter-group="alert" data-stage="nodate" data-label="날짜미인식" onclick="filterAlertList('nodate')" style="--fc:#dc2626">날짜미인식</button>
             <span id="alert-filter-count" style="font-size:11px;color:var(--text-dim);margin-left:auto"></span>
         </div>
 

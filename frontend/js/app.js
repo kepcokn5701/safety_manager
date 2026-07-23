@@ -3277,8 +3277,16 @@ function getAlertFilteredSites() {
     let sites = state.allSitesWeather || [];
     if (alertFilter === 'all') return sites;
     if (alertFilter === 'error') return sites.filter(s => s.error);
+    // 날짜미인식은 날씨 단계와 무관한 축이다 (작업예정일 누락 = 발송 제외 사유)
+    if (alertFilter === 'nodate') return sites.filter(s => isNoDate(s));
     if (alertFilter === 'safe') return sites.filter(s => !s.stage && !s.error);
     return sites.filter(s => !s.error && s.stage?.key === stageKeyMap[alertFilter]);
+}
+
+// 작업예정일이 없어 자동 발송에서 제외되는 현장인지.
+// 서버가 work_status를 안 준 과거 응답도 있어 work_date_start까지 함께 본다.
+function isNoDate(s) {
+    return s.work_status ? s.work_status === 'nodate' : !s.work_date_start;
 }
 
 // 작업예정일 기준 현장 상태 (SMS 발송 대상 판정용)
@@ -3310,8 +3318,10 @@ function renderAlertSendList() {
 
     // 알림 필터 버튼 카운트 (사업소 필터는 서버에서 처리됨)
     let sites = allSites;
-    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0, error: 0 };
+    const counts = { danger: 0, warning: 0, caution: 0, interest: 0, safe: 0, error: 0, nodate: 0 };
     sites.forEach(s => {
+        // nodate는 날씨 단계와 별개 축이라 else-if 체인에 넣지 않고 따로 센다
+        if (isNoDate(s)) counts.nodate++;
         if (s.error) counts.error++;
         else if (!s.stage) counts.safe++;
         else if (s.stage.key === 'stage_4_danger') counts.danger++;
@@ -3319,6 +3329,15 @@ function renderAlertSendList() {
         else if (s.stage.key === 'stage_2_caution') counts.caution++;
         else counts.interest++;
     });
+
+    // 작업예정일 미인식 경고 배너 (건수 0이면 숨김)
+    const nodateWarn = document.getElementById('nodate-warning');
+    if (nodateWarn) {
+        const n = mockMode ? 0 : counts.nodate;
+        nodateWarn.style.display = n > 0 ? 'flex' : 'none';
+        const nEl = document.getElementById('nodate-count');
+        if (nEl) nEl.textContent = n;
+    }
     document.querySelectorAll('[data-filter-group="alert"]').forEach(btn => {
         const stg = btn.dataset.stage;
         if (stg !== 'all') {

@@ -75,6 +75,24 @@ safety_manager/
 └── requirements.txt           # Python 의존성
 ```
 
+## 사용자 매뉴얼 — 기능을 바꾸면 여기도 같이 고친다
+
+| 파일 | 누가 보나 | 언제 고치나 |
+|---|---|---|
+| `frontend/manual.html` | 안전관리자 (앱 안에서 열람) ★주력 | 기능·버튼·스케줄이 바뀌면 **항상** |
+| `frontend/user-guide.html` | 작업자·현장 | 사용 절차, 폭염 행동요령이 바뀌면 |
+| `frontend/install-guide.html` | 최초 설치자 | 설치·실행 절차가 바뀌면 |
+| `시작하기.txt` | 배포판 첫 안내 | START.bat 절차가 바뀌면 |
+
+`manual.html`은 **안전관리자용 / 개발자용 탭이 나뉘어 있다.** 사용자 탭에 개발용어를 넣지 말 것.
+
+**체크 포인트** (기능 수정 시 매번):
+- 자동 발송 시각 (현재 **09:00 예보수집 → 10:00 / 14:20 SMS**)
+- 스케줄 표가 있는 곳이 `manual.html` 안에 **여러 군데**다. `grep -n "14:20" frontend/manual.html`로 전부 찾아 고칠 것
+- 없앤 기능이 매뉴얼에 남아 있지 않은지 (예: 17시 자동 초기화는 **폐지**됨 → 관리자가 `초기화` 버튼으로 직접 삭제)
+
+`.html`을 고쳤으면 짝인 `.dat`도 바뀌어야 한다. **손으로 만들지 말고 `build.bat`으로 재생성한다.**
+
 ## 개발 / 배포 구조
 
 이 저장소는 **개발용 소스**다. 운영자에게는 여기서 빌드한 포터블 zip을 전달한다.
@@ -141,7 +159,7 @@ CRLF로 변환하고 `chcp 65001` → `chcp 949` 로 치환한다.** 따라서:
 ### SMS
 - `POST /api/sms/send` - SMS 일괄 발송
 - `POST /api/sms/test` - 테스트 발송
-- `GET /api/sms/auto-schedule` - 자동 발송 스케줄 (10시/13시)
+- `GET /api/sms/auto-schedule` - 자동 발송 스케줄 (10:00 / 14:20)
 
 ### 엑셀 업로드
 - `POST /api/upload/parse-excel` - 엑셀 파싱 미리보기
