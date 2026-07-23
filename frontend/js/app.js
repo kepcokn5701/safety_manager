@@ -293,7 +293,8 @@ async function showSmsContentModal() {
 
             <div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:11px;color:#333;line-height:1.7">
                 <div style="font-weight:700;margin-bottom:4px;color:#1565c0">자동 스케줄</div>
-                <b>09:00</b> 내일 예보 수집 &rarr; <b>10:00 / 14:20</b> SMS 자동 발송 &rarr; <b>17:00</b> 사전신고 데이터 초기화<br>
+                <b>09:00</b> 내일 예보 수집 &rarr; <b>10:00 / 14:20</b> SMS 자동 발송<br>
+                <span style="color:#64748b">주말&middot;공휴일에도 동일하게 동작하며, 작업예정일이 오늘인 현장에만 발송됩니다. 사전신고 데이터는 자동 삭제되지 않습니다.</span><br>
                 <span style="color:#64748b">자동발송 대상: <b>${scheduleData.auto_target === 'manager' ? '현장책임자만' : '작업자 전원'}</b> (상단에서 변경 가능)</span>
             </div>
         </div>

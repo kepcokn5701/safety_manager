@@ -113,7 +113,7 @@
                     </button>
                     <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
                         <table style="width:100%;border-collapse:collapse;font-size:11px">
-                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600;width:35%">현장·작업자</td><td style="padding:4px 0">매일 17시 자동 삭제</td></tr>
+                            <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600;width:35%">현장·작업자</td><td style="padding:4px 0">관리자가 &lsquo;초기화&rsquo; 실행 시 삭제 (작업 종료 후 지체 없이)</td></tr>
                             <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0;font-weight:600">발송 이력</td><td style="padding:4px 0">전화번호 마스킹 저장 (010-****-5678)</td></tr>
                             <tr><td style="padding:4px 0;font-weight:600">파기 방법</td><td style="padding:4px 0">DB에서 완전 삭제 (복구 불가)</td></tr>
                         </table>
@@ -128,7 +128,7 @@
                     <div class="prv-body" style="display:none;padding:8px 12px 12px;font-size:11px;color:#4a5568;line-height:1.7">
                         <p style="margin:0 0 3px">• 전화번호 마스킹 처리 (API 응답·로그)</p>
                         <p style="margin:0 0 3px">• 사내 인터넷망(DMZ) 내부에서만 운영</p>
-                        <p style="margin:0 0 3px">• 매일 17시 작업자 데이터 자동 파기</p>
+                        <p style="margin:0 0 3px">• 작업 종료 후 관리자가 &lsquo;초기화&rsquo;로 작업자 데이터 파기</p>
                         <p style="margin:0">• XSS 등 웹 보안 취약점 조치 적용</p>
                     </div>
                 </div>
@@ -196,7 +196,7 @@
         <div id="auto-sms-info" style="padding:8px 16px;background:linear-gradient(135deg,#f0f9ff,#e8f2ff);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:12px;color:#1565c0;flex-wrap:wrap">
             <span style="font-size:15px">&#9200;</span>
             <div style="flex:1;min-width:200px">
-                <b>자동 발송</b>: 매일 10시/14시 SMS, 17시 데이터 초기화
+                <b>자동 발송</b>: 매일 10시 / 14시 20분 SMS (주말·공휴일 포함)
                 <span id="auto-sms-status" style="margin-left:4px"></span>
             </div>
             <div style="display:flex;align-items:center;gap:4px;font-size:11px;color:#333;background:white;padding:2px 8px;border-radius:4px;border:1px solid #e0e0e0">
