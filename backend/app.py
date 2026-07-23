@@ -4,16 +4,17 @@ Safety Manager - FastAPI 메인 애플리케이션
 """
 
 import os
+import shutil
 import logging
 from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from sqlalchemy import select, func, case, and_
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -641,7 +642,29 @@ app.include_router(upload.router)
 
 
 def _file(name: str):
-    return FileResponse(str(FRONTEND_DIR / name))
+    """HTML 페이지 서빙. 사내 보안 SW가 .html을 삭제해도 .dat 백업으로 응답한다.
+
+    기동 시 복원(lifespan)만 있으면 서버가 떠 있는 동안 삭제된 경우를 못 막아
+    재시작 전까지 계속 500이 난다. 그래서 요청 시점에도 확인·복원한다.
+    응답은 디스크가 아닌 메모리에서 내보내, 읽는 순간 파일이 지워져도 안전하다.
+    """
+    path = FRONTEND_DIR / name
+    backup = path.with_suffix(".dat")
+
+    if not path.exists():
+        if not backup.exists():
+            logger.error(f"HTML 없음, .dat 백업도 없음: {path}")
+            raise HTTPException(status_code=404, detail=f"{name} 파일을 찾을 수 없습니다")
+        try:
+            shutil.copy2(backup, path)
+            logger.warning(f"HTML 삭제 감지 → .dat에서 복원: {backup.name} -> {name}")
+        except OSError as e:
+            # 복원 실패(권한/보안SW 잠금)해도 백업 내용으로 응답은 내보낸다
+            logger.warning(f"HTML 복원 실패, 백업으로 직접 응답: {name} ({e})")
+            return HTMLResponse(backup.read_bytes())
+
+    src = path if path.exists() else backup
+    return HTMLResponse(src.read_bytes())
 
 
 @app.get("/")
