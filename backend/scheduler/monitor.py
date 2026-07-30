@@ -168,6 +168,7 @@ class HeatWaveMonitor:
             channels = [notif_result.channel]
 
             # SMS 발송 (API 키 설정된 경우)
+            sms_ok = False
             if sms_sender and worker.phone:
                 sms_result = await sms_sender.send(
                     recipient_phone=worker.phone,
@@ -180,7 +181,12 @@ class HeatWaveMonitor:
                 )
                 if sms_result.success:
                     channels.append("sms")
+                    sms_ok = True
 
+            # 알림 성공 판정은 "어느 채널로든 전달됐는가"로 한다.
+            # 과거엔 push_ok(웹푸시)만 봤는데, 지금은 SMS 위주라 웹푸시 구독자가
+            # 없으면 실제 문자가 나갔어도 전부 '실패'로 기록됐다(알림 이력이 죄다 빨감).
+            delivered = push_ok or sms_ok
             await alert_repo.create(
                 worker_id=worker.id,
                 work_site_id=site.id,
@@ -189,8 +195,8 @@ class HeatWaveMonitor:
                 wbgt_estimated=wbgt,
                 message=f"폭염 {stage_info['name']} 단계 - 체감온도 {apparent_temp}°C",
                 channel=",".join(channels),
-                status=AlertStatus.SENT if push_ok else AlertStatus.FAILED,
-                error_message=notif_result.error_message,
+                status=AlertStatus.SENT if delivered else AlertStatus.FAILED,
+                error_message=None if delivered else notif_result.error_message,
                 weather_base_time=kma_base,
             )
             result["alerts_sent"] += 1

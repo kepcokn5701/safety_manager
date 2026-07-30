@@ -2080,22 +2080,28 @@ function renderAlertHistory() {
 // ── 통계 ──
 async function loadStats() {
     try {
-        const stats = await api('/api/alerts/stats?days=7');
+        // 실제 문자(SMS) 발송 기록(SmsLog)을 집계한다.
+        // 과거엔 /api/alerts/stats(옛 웹푸시 알림 기록)를 봤는데, 웹푸시는
+        // 구독자가 없어 항상 실패로 남아 '전부 실패'로 보였고, 상단 '발송 통계'
+        // (역시 SmsLog 기반)와 숫자가 전혀 맞지 않았다. 같은 소스로 통일한다.
+        const stats = await api('/api/sms/stats');
+        const t = stats.total || { sent: 0, failed: 0 };
+        const totalSent = (t.sent || 0) + (t.failed || 0);
         const el = document.getElementById('stats-content');
         if (el) {
             el.innerHTML = `
                 <div class="stat-grid">
                     <div class="stat-box">
                         <div class="label">총 발송</div>
-                        <div class="value">${stats.total}</div>
+                        <div class="value">${totalSent}</div>
                     </div>
                     <div class="stat-box">
                         <div class="label">성공</div>
-                        <div class="value" style="color:var(--safe)">${stats.sent}</div>
+                        <div class="value" style="color:var(--safe)">${t.sent || 0}</div>
                     </div>
                     <div class="stat-box">
                         <div class="label">실패</div>
-                        <div class="value" style="color:var(--danger)">${stats.failed}</div>
+                        <div class="value" style="color:var(--danger)">${t.failed || 0}</div>
                     </div>
                     <div class="stat-box">
                         <div class="label">현장</div>

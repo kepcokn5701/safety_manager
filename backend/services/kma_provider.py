@@ -108,6 +108,17 @@ def _get_nearest_fcst_time() -> str:
     return target.strftime("%H00")
 
 
+def _get_ncst_base() -> tuple[str, str]:
+    """초단기실황(getUltraSrtNcst)용 base_date, base_time.
+
+    초단기실황은 매시 정시 관측값을 약 40분 뒤 제공한다. 여유 있게 40분 전으로
+    잡아 '가장 최근 제공된 정시 관측'을 고른다. (예: 10:00 조회 → 09:00 관측)
+    자정 직후에도 전날로 자연스럽게 넘어간다.
+    """
+    available = datetime.now(KST) - timedelta(minutes=40)
+    return available.strftime("%Y%m%d"), available.strftime("%H00")
+
+
 class KmaProvider(WeatherProvider):
     """
     기상청 API허브 단기예보 API 기반 날씨 데이터 제공자
@@ -116,6 +127,8 @@ class KmaProvider(WeatherProvider):
     """
 
     BASE_URL = "https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst"
+    # 초단기실황: 매시 정시 관측을 1시간 주기로 제공 (기온 T1H, 습도 REH, 풍속 WSD)
+    NCST_URL = "https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst"
 
     def __init__(self):
         if not settings.kma_api_key:
@@ -126,16 +139,130 @@ class KmaProvider(WeatherProvider):
             )
 
         proxy_config = settings.get_proxy_dict()
-        self._client = httpx.AsyncClient(
+        self._proxy = proxy_config.get("https://") or proxy_config.get("http://")
+        self._client = self._new_client()
+
+    def _new_client(self) -> "httpx.AsyncClient":
+        """새 HTTP 클라이언트 생성.
+
+        핵심: keep-alive 연결을 풀에 남기지 않는다(max_keepalive_connections=0).
+        서버를 24시간 이상 켜두면, 방화벽/프록시가 유휴 연결을 조용히 끊는데
+        httpx는 그 죽은 연결을 살아있다고 믿고 재사용해 요청이 실패한다.
+        (그래서 cmd 재시작=새 클라이언트로만 복구됐다.) 매 요청 새 연결을 열면
+        이 문제가 사라진다. 15분 주기 소수 격자 조회라 성능 영향은 무시할 수준.
+        """
+        return httpx.AsyncClient(
             timeout=15.0,
-            proxy=proxy_config.get("https://") or proxy_config.get("http://"),
+            proxy=self._proxy,
             verify=False,
+            limits=httpx.Limits(max_keepalive_connections=0),
         )
+
+    async def _get(self, url: str, params: dict) -> "httpx.Response":
+        """GET 요청. 연결 계열 오류면 클라이언트를 새로 만들어 1회 재시도한다.
+
+        keep-alive를 꺼도 DNS/프록시 일시 오류가 날 수 있어, 안전망으로
+        재시도를 둔다. 두 번째도 실패하면 예외를 그대로 올려 상위에서 처리한다.
+        """
+        try:
+            return await self._client.get(url, params=params)
+        except (httpx.TransportError, httpx.TimeoutException) as e:
+            logger.warning(f"기상청 연결 오류, 클라이언트 재생성 후 재시도: {type(e).__name__}: {e}")
+            try:
+                await self._client.aclose()
+            except Exception:
+                pass
+            self._client = self._new_client()
+            return await self._client.get(url, params=params)
+
+    async def _fetch_nowcast(self, nx: int, ny: int) -> dict | None:
+        """초단기실황(getUltraSrtNcst)으로 현재 실측 기온/습도/풍속 조회.
+
+        기존 단기예보(getVilageFcst)는 3시간 주기 발표라 10시 발송이 8시 발표
+        예보에 의존했다. 초단기실황은 1시간 주기 실측이라 훨씬 최신이다.
+        실패하거나 값이 비면 None을 돌려 상위에서 단기예보로 폴백한다.
+
+        Returns: {"temperature","humidity","wind_speed","base"} 또는 None
+        """
+        base_date, base_time = _get_ncst_base()
+        params = {
+            "authKey": settings.kma_api_key,
+            "numOfRows": "60",
+            "pageNo": "1",
+            "dataType": "JSON",
+            "base_date": base_date,
+            "base_time": base_time,
+            "nx": nx,
+            "ny": ny,
+        }
+        try:
+            response = await self._get(self.NCST_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            header = data.get("response", {}).get("header", {})
+            if header.get("resultCode") != "00":
+                logger.warning(
+                    f"초단기실황 API 오류: {header.get('resultMsg')} "
+                    f"→ 단기예보로 대체 (base={base_date} {base_time})"
+                )
+                return None
+
+            items = (
+                data.get("response", {})
+                .get("body", {})
+                .get("items", {})
+                .get("item", [])
+            )
+            # 초단기실황은 fcstValue가 아니라 obsrValue(관측값)를 쓴다
+            vals = {}
+            for item in items:
+                category = item.get("category")
+                value = item.get("obsrValue")
+                if category in ("T1H", "REH", "WSD") and value not in (None, ""):
+                    try:
+                        vals[category] = float(value)
+                    except (ValueError, TypeError):
+                        pass
+
+            if "T1H" not in vals:
+                logger.info("초단기실황에 기온(T1H) 없음 → 단기예보로 대체")
+                return None
+
+            base_str = f"{base_date[:4]}-{base_date[4:6]}-{base_date[6:8]} {base_time[:2]}:{base_time[2:4]}"
+            return {
+                "temperature": vals["T1H"],
+                "humidity": vals.get("REH", 0.0),
+                "wind_speed": vals.get("WSD", 0.0),
+                "base": base_str,
+            }
+        except Exception as e:
+            logger.warning(f"초단기실황 조회 실패 → 단기예보로 대체: {type(e).__name__}: {e}")
+            return None
 
     async def get_current_weather(
         self, latitude: float, longitude: float
     ) -> WeatherResult:
         nx, ny = latlon_to_grid(latitude, longitude)
+
+        # 1순위: 초단기실황(1시간 주기 실측). 실패 시 아래 단기예보로 폴백.
+        nowcast = await self._fetch_nowcast(nx, ny)
+        if nowcast:
+            logger.info(
+                f"기상청 초단기실황: nx={nx}, ny={ny}, "
+                f"기온={nowcast['temperature']}°C, 습도={nowcast['humidity']}%, "
+                f"풍속={nowcast['wind_speed']}m/s (관측 {nowcast['base']})"
+            )
+            return WeatherResult(
+                temperature=nowcast["temperature"],
+                humidity=nowcast["humidity"],
+                wind_speed=nowcast["wind_speed"],
+                apparent_temperature=nowcast["temperature"],
+                provider="kma",
+                kma_base_time=nowcast["base"],
+            )
+
+        # 2순위: 단기예보(getVilageFcst, 3시간 주기)
         base_date, base_time = _get_base_datetime()
 
         params = {
@@ -149,7 +276,7 @@ class KmaProvider(WeatherProvider):
             "ny": ny,
         }
 
-        response = await self._client.get(self.BASE_URL, params=params)
+        response = await self._get(self.BASE_URL, params=params)
         response.raise_for_status()
         data = response.json()
 
@@ -264,7 +391,7 @@ class KmaProvider(WeatherProvider):
         }
 
         try:
-            response = await self._client.get(self.BASE_URL, params=params)
+            response = await self._get(self.BASE_URL, params=params)
             response.raise_for_status()
             data = response.json()
 
