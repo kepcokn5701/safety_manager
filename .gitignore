@@ -34,3 +34,14 @@ desktop.ini
 # 임시 백업
 *.bak
 *.bak_claude
+
+# 실제 개인정보 파일 — 절대 커밋 금지 (작업자 실명·전화번호 포함)
+# 사전신고 실데이터는 test_data/ 밖(루트 등)에 두면 자동으로 무시된다.
+# 테스트용 가짜 데이터는 test_data/ 안에만 두고, 그 폴더는 아래에서 예외 허용.
+/사전신고정보*.xls
+/사전신고정보*.xlsx
+*.xls
+*.xlsx
+!test_data/
+!test_data/*.xls
+!test_data/*.xlsx

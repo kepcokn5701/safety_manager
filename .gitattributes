@@ -17,3 +17,7 @@
 
 # .dat 는 .html 백업이므로 바이트 그대로 (build.py가 복사본으로 생성)
 *.dat -text
+
+# 엑셀 파일은 바이너리로 취급 (줄바꿈 변환 방지, 특히 test_data 가짜데이터)
+*.xls binary
+*.xlsx binary
