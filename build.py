@@ -71,6 +71,44 @@ def normalize_bat(path: Path) -> None:
     path.write_bytes(to_crlf(text.encode("cp949")))
 
 
+# 폴더 방식 ._pth. 표준 라이브러리를 python314/ 폴더에서 찾게 한다.
+_FOLDER_PTH = "python314\n.\nLib\nLib/site-packages\n\n# Uncomment to run site.main() automatically\nimport site\n"
+
+
+def _ensure_runtime_is_folder(py_dir: Path) -> None:
+    """배포판 런타임의 표준 라이브러리를 python314/ 폴더 방식으로 보장한다.
+
+    사내 보안SW가 .zip 을 삭제하므로(.html 과 동일 정책), 배포판 압축을 풀면
+    python314.zip 이 지워져 서버가 아예 안 켜질 수 있다. 폴더는 삭제 대상이
+    아니라 살아남으므로 폴더 방식으로 넣는다.
+
+    - runtime 이 이미 폴더 방식(python314/)이면: 그대로 두고 ._pth만 확인.
+    - 혹시 .zip 방식이면: 풀어서 폴더로 바꾸고 python314.zip 삭제.
+    """
+    zip_file = py_dir / "python314.zip"
+    stdlib_dir = py_dir / "python314"
+
+    if zip_file.exists() and not stdlib_dir.is_dir():
+        stdlib_dir.mkdir()
+        with zipfile.ZipFile(zip_file) as zf:
+            zf.extractall(stdlib_dir)
+        zip_file.unlink()
+    elif not stdlib_dir.is_dir():
+        raise SystemExit(
+            f"[오류] 표준 라이브러리를 찾을 수 없습니다: {stdlib_dir} / {zip_file}\n"
+            "       runtime/python 이 손상됐을 수 있습니다."
+        )
+
+    # .zip 은 남기지 않는다 (보안SW 삭제 대상)
+    if zip_file.exists():
+        zip_file.unlink()
+    # ._pth 는 반드시 LF 로 쓴다. CRLF면 python이 'python314\r' 로 읽어
+    # 표준 라이브러리 폴더를 못 찾고 기동 실패한다. (write_text는 Windows에서
+    # \n을 \r\n으로 바꾸므로 write_bytes로 LF를 강제한다.)
+    (py_dir / "python314._pth").write_bytes(_FOLDER_PTH.encode("utf-8"))
+    log("3/5", "  표준 라이브러리 폴더 방식 확정 (.zip 삭제 대응)")
+
+
 def build(version: str) -> Path:
     runtime = ROOT / "runtime" / "python"
     if not (runtime / "python.exe").exists():
@@ -124,7 +162,14 @@ def build(version: str) -> Path:
     log("2/5", f"  .bat {len(list(OUT.glob('*.bat')))}개 CP949+CRLF 변환")
 
     log("3/5", "Python 런타임 복사 (약 120MB, 시간이 걸립니다)...")
-    shutil.copytree(runtime, OUT / "python", ignore=IGNORE)
+    # 런타임은 *.pyc 를 지우면 안 된다! 임베디드 표준 라이브러리(python314/)가
+    # 통째로 .pyc 로 돼 있어서, 개발흔적용 IGNORE(*.pyc)를 쓰면 stdlib가 사라져
+    # 'encodings 모듈 없음'으로 기동 실패한다. __pycache__ 캐시 폴더만 제외한다.
+    shutil.copytree(runtime, OUT / "python", ignore=shutil.ignore_patterns("__pycache__"))
+    # 표준 라이브러리를 python314.zip 이 아니라 python314/ 폴더로 넣는다.
+    # 사내 보안SW가 .zip 을 삭제하기 때문(.html 과 동일). 폴더는 삭제 대상이
+    # 아니라 살아남는다. runtime 이 이미 폴더 방식이면 그대로 복사되어 OK.
+    _ensure_runtime_is_folder(OUT / "python")
 
     log("4/5", "환경설정(.env) 처리...")
     env = ROOT / ".env"
